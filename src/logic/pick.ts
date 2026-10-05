@@ -1,27 +1,20 @@
-import type { PersonSize } from './place';
+import type { Box } from './ground';
 
-/** Where a person's feet are. */
+/** Where something stands: the middle of its bottom edge. */
 export interface Spot {
   x: number;
   y: number;
 }
 
 /**
- * Which person is under the point, or `null` if none is. People later in the list
+ * Which box is under the point, or `null` if none is. Boxes later in the list
  * are drawn on top, so they win when two overlap.
  */
-export function personAt(
-  feet: readonly Spot[],
-  px: number,
-  py: number,
-  size: PersonSize,
-): number | null {
-  for (let index = feet.length - 1; index >= 0; index--) {
-    const spot = feet[index];
-    if (!spot) continue;
-    const insideX = Math.abs(px - spot.x) <= size.halfWidth;
-    const insideY = py <= spot.y && py >= spot.y - size.height;
-    if (insideX && insideY) return index;
+export function boxAt(boxes: readonly Box[], px: number, py: number): number | null {
+  for (let index = boxes.length - 1; index >= 0; index--) {
+    const box = boxes[index];
+    if (!box) continue;
+    if (px >= box.left && px <= box.right && py >= box.top && py <= box.bottom) return index;
   }
   return null;
 }
