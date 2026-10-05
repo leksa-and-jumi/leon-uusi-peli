@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { placeFeet } from './place';
+import { clampFeet, placeFeet } from './place';
 
 const area = { left: 0, right: 800, top: 100, floorY: 500 };
 const size = { height: 120, halfWidth: 20 };
@@ -20,5 +20,16 @@ describe('placeFeet', () => {
 
   it('keeps the head below the top of the area', () => {
     expect(placeFeet(400, 105, area, size).y).toBe(220);
+  });
+});
+
+describe('clampFeet', () => {
+  it('leaves feet alone when the person fits', () => {
+    expect(clampFeet(400, 400, area, size)).toEqual({ x: 400, y: 400 });
+  });
+
+  it('pulls the person back inside the area', () => {
+    expect(clampFeet(-50, 900, area, size)).toEqual({ x: 20, y: 500 });
+    expect(clampFeet(900, 0, area, size)).toEqual({ x: 780, y: 220 });
   });
 });
