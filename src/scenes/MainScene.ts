@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   COLORS,
+  FLOOR,
   GAME_HEIGHT,
   GAME_WIDTH,
   HINT_TEXT,
@@ -28,6 +29,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.add
+      .rectangle(0, GAME_HEIGHT - FLOOR.height, GAME_WIDTH, FLOOR.height, FLOOR.color)
+      .setOrigin(0);
+
     this.player = this.add.rectangle(
       GAME_WIDTH / 2,
       GAME_HEIGHT / 2,

@@ -3,10 +3,16 @@ export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 600;
 
 export const COLORS = {
-  background: 0x1d1f2b,
+  background: 0x808080,
   player: 0x4fc3f7,
   star: 0xffd54f,
   text: '#ffffff',
+} as const;
+
+/** The black floor along the bottom of the screen. */
+export const FLOOR = {
+  height: 110,
+  color: 0x000000,
 } as const;
 
 /** Every text in the game is shown in English and Finnish. */
