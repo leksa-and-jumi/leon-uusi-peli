@@ -10,9 +10,21 @@
 
 ## How to play / Miten pelataan
 
-🇬🇧 Pick a person from the menu at the top 👆, then click in the gray area. The person drops in and lands on the black floor 🧍.
+🇬🇧 Pick a person from the menu at the top 👆, then click in the gray area. The person drops in and lands on the black floor 🧍. Drag people around with the mouse 🖐️. The red 🗑️ button takes everybody away.
 
-🇫🇮 Valitse ihminen ylävalikosta 👆 ja klikkaa harmaata aluetta. Ihminen putoaa paikalle ja laskeutuu mustalle lattialle 🧍.
+🇫🇮 Valitse ihminen ylävalikosta 👆 ja klikkaa harmaata aluetta. Ihminen putoaa paikalle ja laskeutuu mustalle lattialle 🧍. Raahaa ihmisiä hiirellä 🖐️. Punainen 🗑️-nappi vie kaikki pois.
+
+🇬🇧 Double-click a person to open their action bubbles. A pressed bubble glows, and pressing it again stops it.
+
+🇫🇮 Tuplaklikkaa ihmistä, niin sen toimintopallot aukeavat. Painettu pallo hohtaa, ja toinen painallus lopettaa sen.
+
+| Bubble / Pallo | 🇬🇧                                          | 🇫🇮                                       |
+| -------------- | ------------------------------------------- | ---------------------------------------- |
+| 🚀             | throw this person away                      | heitä tämä tyyppi pois                   |
+| 🔄             | turn the other way                          | käänny toisin päin                       |
+| 🚶             | walk                                        | kävele                                   |
+| 💃             | dance                                       | tanssi                                   |
+| 😡             | angry mode: runs to others and punches them | vihainen modi: juoksee hakkaamaan toisia |
 
 _🇬🇧 The game is just starting. Leo decides what comes next!_
 _🇫🇮 Peli on vasta alussa. Leo päättää, mitä siihen tulee!_
