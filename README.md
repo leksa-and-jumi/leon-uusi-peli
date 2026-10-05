@@ -10,9 +10,9 @@
 
 ## How to play / Miten pelataan
 
-🇬🇧 Move with the **arrow keys** and collect stars ⭐.
+🇬🇧 Pick a person from the menu at the top 👆, then click in the gray area. The person drops in and lands on the black floor 🧍.
 
-🇫🇮 Liiku **nuolinäppäimillä** ja kerää tähtiä ⭐.
+🇫🇮 Valitse ihminen ylävalikosta 👆 ja klikkaa harmaata aluetta. Ihminen putoaa paikalle ja laskeutuu mustalle lattialle 🧍.
 
 _🇬🇧 The game is just starting. Leo decides what comes next!_
 _🇫🇮 Peli on vasta alussa. Leo päättää, mitä siihen tulee!_
