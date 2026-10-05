@@ -1,52 +1,23 @@
 import Phaser from 'phaser';
-import {
-  COLORS,
-  FLOOR,
-  GAME_HEIGHT,
-  GAME_WIDTH,
-  HINT_TEXT,
-  PLAYER_SIZE,
-  PLAYER_SPEED,
-  POINTS_PER_STAR,
-  STAR_SIZE,
-} from '../config';
-import { clamp, randomPosition } from '../logic/bounds';
-import { addPoints, formatScore } from '../logic/score';
+import { COLORS, FLOOR, GAME_HEIGHT, GAME_WIDTH, HINT_TEXT, MENU, PERSON } from '../config';
+import { placeFeet } from '../logic/place';
+import { PeopleMenu } from '../objects/PeopleMenu';
+import { Person } from '../objects/Person';
 
-/**
- * Starter scene: move the square with the arrow keys and collect stars.
- * This is a placeholder until Leo designs the real game.
- */
+const FLOOR_Y = GAME_HEIGHT - FLOOR.height;
+
+/** The area: pick a person from the menu, then click to put them in. */
 export class MainScene extends Phaser.Scene {
-  private player!: Phaser.GameObjects.Rectangle;
-  private star!: Phaser.GameObjects.Rectangle;
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private scoreText!: Phaser.GameObjects.Text;
-  private score = 0;
+  private menu!: PeopleMenu;
+  private people: Person[] = [];
 
   constructor() {
     super('MainScene');
   }
 
   create(): void {
-    this.add
-      .rectangle(0, GAME_HEIGHT - FLOOR.height, GAME_WIDTH, FLOOR.height, FLOOR.color)
-      .setOrigin(0);
-
-    this.player = this.add.rectangle(
-      GAME_WIDTH / 2,
-      GAME_HEIGHT / 2,
-      PLAYER_SIZE,
-      PLAYER_SIZE,
-      COLORS.player,
-    );
-    this.star = this.add.rectangle(0, 0, STAR_SIZE, STAR_SIZE, COLORS.star);
-    this.moveStar();
-
-    this.scoreText = this.add.text(16, 16, formatScore(this.score), {
-      fontSize: '24px',
-      color: COLORS.text,
-    });
+    this.people = [];
+    this.add.rectangle(0, FLOOR_Y, GAME_WIDTH, FLOOR.height, FLOOR.color).setOrigin(0);
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 36, HINT_TEXT, {
         fontSize: '18px',
@@ -55,40 +26,29 @@ export class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const keyboard = this.input.keyboard;
-    if (!keyboard) {
-      throw new Error('Keyboard input is not available');
-    }
-    this.cursors = keyboard.createCursorKeys();
+    this.menu = new PeopleMenu(this);
+
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.menu.covers(pointer.y)) {
+        this.menu.click(pointer.x, pointer.y);
+      } else {
+        this.addPerson(pointer.x, pointer.y);
+      }
+    });
   }
 
   update(_time: number, delta: number): void {
-    const step = (PLAYER_SPEED * delta) / 1000;
-    const half = PLAYER_SIZE / 2;
-
-    let dx = 0;
-    let dy = 0;
-    if (this.cursors.left.isDown) dx -= step;
-    if (this.cursors.right.isDown) dx += step;
-    if (this.cursors.up.isDown) dy -= step;
-    if (this.cursors.down.isDown) dy += step;
-
-    this.player.x = clamp(this.player.x + dx, half, GAME_WIDTH - half);
-    this.player.y = clamp(this.player.y + dy, half, GAME_HEIGHT - half);
-
-    const touching = Phaser.Geom.Intersects.RectangleToRectangle(
-      this.player.getBounds(),
-      this.star.getBounds(),
-    );
-    if (touching) {
-      this.score = addPoints(this.score, POINTS_PER_STAR);
-      this.scoreText.setText(formatScore(this.score));
-      this.moveStar();
+    for (const person of this.people) {
+      person.update(delta, FLOOR_Y);
     }
   }
 
-  private moveStar(): void {
-    const { x, y } = randomPosition(GAME_WIDTH, GAME_HEIGHT, STAR_SIZE);
-    this.star.setPosition(x, y);
+  private addPerson(px: number, py: number): void {
+    const area = { left: 0, right: GAME_WIDTH, top: MENU.height, floorY: FLOOR_Y };
+    const feet = placeFeet(px, py, area, PERSON);
+    this.people.push(new Person(this, this.menu.selected, feet.x, feet.y));
+    if (this.people.length > PERSON.max) {
+      this.people.shift()?.destroy();
+    }
   }
 }

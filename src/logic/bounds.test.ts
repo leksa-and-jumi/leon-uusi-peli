@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clamp, randomPosition } from './bounds';
+import { clamp } from './bounds';
 
 describe('clamp', () => {
   it('keeps values inside the range', () => {
@@ -10,12 +10,5 @@ describe('clamp', () => {
 
   it('rejects an inverted range', () => {
     expect(() => clamp(1, 10, 0)).toThrow(RangeError);
-  });
-});
-
-describe('randomPosition', () => {
-  it('keeps the object fully inside the area', () => {
-    expect(randomPosition(100, 50, 10, () => 0)).toEqual({ x: 5, y: 5 });
-    expect(randomPosition(100, 50, 10, () => 1)).toEqual({ x: 95, y: 45 });
   });
 });
