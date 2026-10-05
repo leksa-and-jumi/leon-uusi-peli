@@ -1,9 +1,9 @@
 import type Phaser from 'phaser';
 import { GAME_WIDTH, MENU, PEOPLE, type PersonLook } from '../config';
 import { slotAt, slotRect } from '../logic/menu';
-import { drawPerson } from './personShape';
+import { PersonFigure } from './personShape';
 
-/** The menu along the top: one slot for each different-looking person. */
+/** The menu along the top: one slot for each different-looking person, and a clear button. */
 export class PeopleMenu {
   private readonly highlight: Phaser.GameObjects.Graphics;
   private selectedIndex = 0;
@@ -20,11 +20,21 @@ export class PeopleMenu {
       panel.fillStyle(MENU.slotColor);
       panel.fillRoundedRect(slot.x, slot.y, slot.width, slot.height, MENU.slotRadius);
 
-      const person = scene.add.graphics().setDepth(MENU.depth);
-      drawPerson(person, look);
-      person.setScale(MENU.personScale);
-      person.setPosition(slot.x + slot.width / 2, slot.y + slot.height - MENU.feetInset);
+      new PersonFigure(scene, look).container
+        .setScale(MENU.personScale)
+        .setPosition(slot.x + slot.width / 2, slot.y + slot.height - MENU.feetInset)
+        .setDepth(MENU.depth);
     });
+
+    const clear = slotRect(MENU.clear, 0);
+    panel.fillStyle(MENU.clearColor);
+    panel.fillRoundedRect(clear.x, clear.y, clear.width, clear.height, MENU.slotRadius);
+    scene.add
+      .text(clear.x + clear.width / 2, clear.y + clear.height / 2, MENU.clearEmoji, {
+        fontSize: MENU.clearFontSize,
+      })
+      .setOrigin(0.5)
+      .setDepth(MENU.depth);
 
     this.highlight = scene.add.graphics().setDepth(MENU.depth);
     this.drawHighlight();
@@ -44,12 +54,18 @@ export class PeopleMenu {
     return py < MENU.height;
   }
 
-  /** A click on the menu: pick the person in the slot under it, if any. */
-  click(px: number, py: number): void {
+  /**
+   * A click on the menu: pick the person in the slot under it, if any.
+   * Says `'clear'` when the clear button was pressed.
+   */
+  click(px: number, py: number): 'clear' | null {
+    if (slotAt(MENU.clear, 1, px, py) !== null) return 'clear';
     const index = slotAt(MENU.slots, PEOPLE.length, px, py);
-    if (index === null) return;
-    this.selectedIndex = index;
-    this.drawHighlight();
+    if (index !== null) {
+      this.selectedIndex = index;
+      this.drawHighlight();
+    }
+    return null;
   }
 
   private drawHighlight(): void {
