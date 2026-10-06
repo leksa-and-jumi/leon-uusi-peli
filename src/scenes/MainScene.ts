@@ -14,15 +14,17 @@ import {
   ITEMS,
   MENU,
   PERSON,
+  SWING,
   THINGS_MAX,
   type ActionId,
   type GunDef,
 } from '../config';
 import { blastDirection, inBlast } from '../logic/blast';
-import type { Box } from '../logic/ground';
-import { boxAt, isDoubleClick, type Click } from '../logic/pick';
+import { overlaps, type Box } from '../logic/ground';
+import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
 import { sweepHit } from '../logic/shot';
+import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
 import type { Facing } from '../logic/walk';
 import { ActionBubbles } from '../objects/ActionBubbles';
 import { Block } from '../objects/Block';
@@ -62,6 +64,10 @@ export class MainScene extends Phaser.Scene {
   private bullets: Bullet[] = [];
   private dragged: Body | null = null;
   private lastClick: Click | null = null;
+  /** Where the dragged thing was a frame ago, to see how fast it is swung. */
+  private lastDragSpot: Spot | null = null;
+  /** When each doll was last hit by a swung weapon. */
+  private lastSwingHit = new WeakMap<Person, number>();
   /** The boxes of everything solid, worked out once per frame. */
   private solids: { body: Body; box: Box }[] = [];
   private world!: World;
@@ -78,6 +84,7 @@ export class MainScene extends Phaser.Scene {
     this.solids = [];
     this.dragged = null;
     this.lastClick = null;
+    this.lastDragSpot = null;
     this.world = {
       area: AREA,
       bottom: GAME_HEIGHT,
@@ -130,6 +137,7 @@ export class MainScene extends Phaser.Scene {
       body.update(delta, this.world);
     }
     this.updateBullets(delta);
+    this.swing(delta);
     this.forget(this.everything().filter((body) => body.gone));
     this.bubbles.update(delta, AREA);
   }
@@ -185,7 +193,35 @@ export class MainScene extends Phaser.Scene {
 
     body.grab(px, py);
     this.dragged = body;
+    this.lastDragSpot = null;
     this.bringToFront(body);
+  }
+
+  /**
+   * A sword or a bat that you drag fast into a doll hits it, just like when a doll
+   * swings it. Carrying it slowly doesn't hurt anybody.
+   */
+  private swing(delta: number): void {
+    const weapon = this.dragged;
+    const melee = weapon instanceof Item ? weapon.def.melee : undefined;
+    if (!weapon || !melee) {
+      this.lastDragSpot = null;
+      return;
+    }
+    const now = weapon.feet;
+    const before = this.lastDragSpot ?? now;
+    this.lastDragSpot = now;
+    const speed = swingSpeed(before, now, delta);
+
+    for (const person of this.people) {
+      if (!person.canBePicked || !overlaps(weapon.pickBox, person.box)) continue;
+      const sinceLastHit = this.time.now - (this.lastSwingHit.get(person) ?? -Infinity);
+      if (!swingLands(speed, SWING.minSpeed, sinceLastHit, SWING.cooldownMs)) continue;
+      this.lastSwingHit.set(person, this.time.now);
+      const direction = swingDirection(now.x - before.x, now.x, person.feet.x);
+      const deadly = person.hit(direction, this.solidBoxes(person), melee.damage, melee.pushSpeed);
+      this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly);
+    }
   }
 
   private letGo(): void {
@@ -193,10 +229,10 @@ export class MainScene extends Phaser.Scene {
     if (!body) return;
     this.dragged = null;
 
-    // An item let go on top of a doll goes into the doll's hand
+    // An item let go on top of a standing doll goes into the doll's hand
     if (body instanceof Item) {
       const { x, y } = body.feet;
-      const takers = this.people.filter((person) => !person.dead && person.canBePicked);
+      const takers = this.people.filter((person) => person.canBeHit);
       const index = boxAt(
         takers.map((person) => person.box),
         x,

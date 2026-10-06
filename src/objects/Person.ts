@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import {
   ANGRY,
   DEPTH,
+  FLOP,
   KNOCK,
   PERSON,
   PERSON_ACTIONS,
@@ -16,10 +17,10 @@ import { clamp } from '../logic/bounds';
 import { chaseStep, nearestIndex } from '../logic/chase';
 import { blockedX, type Box } from '../logic/ground';
 import { isDead, takeHit } from '../logic/health';
-import { knockDone, knockTilt } from '../logic/knock';
+import { knockDone, knockTilt, settleWobble } from '../logic/knock';
 import type { Spot } from '../logic/pick';
 import type { PlaceArea } from '../logic/place';
-import { limpPose, poseFor, type Pose, type PoseKind } from '../logic/pose';
+import { blendPose, limpPose, poseFor, shakePose, type Pose, type PoseKind } from '../logic/pose';
 import { canSee } from '../logic/shot';
 import { walkStep, type Facing } from '../logic/walk';
 import { Body } from './Body';
@@ -46,6 +47,8 @@ export class Person extends Body {
   private slide = false;
   private knockDir: Facing = 1;
   private knockSpeed: number = KNOCK.pushSpeed;
+  /** Time since hitting the floor after being knocked over (for the wobble). */
+  private downMs = 0;
   private punchMs = 0;
   /** Time left before the next punch or shot. */
   private waitMs = 0;
@@ -53,8 +56,12 @@ export class Person extends Body {
   /** Keeps counting, so the moves keep going. */
   private clockMs = 0;
   private lives: number = PERSON.lives;
-  /** How the limbs flop once there are no lives left, or `null` while alive. */
-  private limp: Pose | null = null;
+  /** No lives left. */
+  private out = false;
+  /** The loose pose the doll flops into when it is knocked over. A new one every time. */
+  private flop: Pose = limpPose();
+  /** How far it tips over when it lies down: a bit different every time. */
+  private lieAngle = Math.PI / 2;
   private item: Item | null = null;
 
   constructor(scene: Phaser.Scene, look: PersonLook, x: number, feetY: number) {
@@ -66,7 +73,7 @@ export class Person extends Body {
 
   /** No lives left: lies limp and does nothing any more. */
   get dead(): boolean {
-    return this.limp !== null;
+    return this.out;
   }
 
   /** Standing on the ground, so it can be punched or shot. */
@@ -121,6 +128,7 @@ export class Person extends Body {
   override grab(px: number, py: number): void {
     super.grab(px, py);
     this.knockMs = null;
+    this.downMs = -KNOCK.fallMs;
     this.slide = false;
   }
 
@@ -140,14 +148,17 @@ export class Person extends Body {
     pushSpeed: number = KNOCK.pushSpeed,
   ): boolean {
     this.knockMs = 0;
+    this.downMs = -KNOCK.fallMs;
     this.slide = true;
     this.knockDir = direction;
     this.knockSpeed = pushSpeed;
     this.punchMs = 0;
+    this.flop = limpPose();
+    this.lieAngle = Math.PI / 2 + randomBetween(-FLOP.lieSpread, FLOP.lieSpread);
     if (this.dead) return false;
     this.lives = takeHit(this.lives, damage);
     if (!isDead(this.lives)) return false;
-    this.limp = limpPose();
+    this.out = true;
     this.activity = 'idle';
     this.figure.setAngry(false);
     this.figure.setDead(true);
@@ -187,8 +198,12 @@ export class Person extends Body {
     // A doll with no lives left tips over like the others, but never gets back up
     const stayDown = this.dead && elapsed >= KNOCK.fallMs;
     this.knockMs = stayDown ? KNOCK.fallMs : knockDone(elapsed, KNOCK) ? null : elapsed;
-    const tilt = stayDown ? 1 : knockTilt(elapsed, KNOCK);
-    this.draw('stand', this.knockDir * tilt * (Math.PI / 2), tilt * PERSON.lyingLift);
+    this.downMs = stayDown ? this.downMs + deltaMs : elapsed - KNOCK.fallMs;
+    // Tip over slowly at first and then faster, like something heavy falling
+    const tilt = (stayDown ? 1 : knockTilt(elapsed, KNOCK)) ** 2;
+    const wobble = settleWobble(this.downMs, FLOP.wobble);
+    const rotation = this.knockDir * (tilt * this.lieAngle + wobble * FLOP.bodyWobble);
+    this.draw('stand', rotation, tilt * PERSON.lyingLift, tilt, wobble);
   }
 
   /** Do the thing that's switched on, and say which pose it needs. */
@@ -305,8 +320,14 @@ export class Person extends Body {
     return this.x !== wanted;
   }
 
-  private draw(kind: PoseKind, rotation: number, extraLift = 0): void {
-    const pose = this.limp ?? poseFor(kind, this.clockMs);
+  /**
+   * Draw the doll in a pose. `limp` is how much of the loose flop pose is mixed in
+   * (a doll with no lives left is always fully limp), `wobble` shakes the limbs.
+   */
+  private draw(kind: PoseKind, rotation: number, extraLift = 0, limp = 0, wobble = 0): void {
+    const loose = this.dead ? 1 : limp;
+    const moving = poseFor(kind, this.clockMs);
+    const pose = loose > 0 ? shakePose(blendPose(moving, this.flop, loose), wobble) : moving;
     this.figure.setPose(pose);
     const { container } = this.figure;
     container.setPosition(this.x, this.y - pose.lift - extraLift);

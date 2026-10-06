@@ -22,6 +22,14 @@
 
 🇫🇮 **Aseet 🔫:** raahaa ase nuken päälle, niin nukke ottaa sen käteensä. 😡 Vihaisessa modissa nukke käyttää sitä. Sytytetty 💣 pommi räjähtää 4 sekunnin päästä: se satuttaa lähellä olevia nukkeja ja rikkoo laatikot ja lankut (mutta ei tiiliseiniä).
 
+🇬🇧 **Swing it yourself 🗡️:** grab a sword or a bat and drag it fast into a doll: the doll loses a life and falls over. Carrying it slowly doesn't hurt anybody.
+
+🇫🇮 **Huitaise itse 🗡️:** tartu miekkaan tai mailaan ja vedä se nopeasti nukkeen: nukke menettää elämän ja kaatuu. Hitaasti kantaminen ei satuta ketään.
+
+🇬🇧 **Floppy dolls 🪆:** a doll that is knocked over goes limp like a ragdoll: it bends at the waist, its head and limbs flop, and it lies in a new loose pose every time.
+
+🇫🇮 **Löysät nuket 🪆:** kaatuva nukke menee veltoksi kuin räsynukke: se taipuu vyötäröstä, pää ja raajat lötkähtävät, ja se makaa joka kerta uudessa löysässä asennossa.
+
 | Item / Tavara | 🇬🇧                                        | 🇫🇮                                            |
 | ------------- | ----------------------------------------- | --------------------------------------------- |
 | 🔫 pistol     | shoots from far away, takes 1 life        | ampuu kaukaa, vie 1 elämän                    |

@@ -44,30 +44,45 @@ export class PersonFigure {
   private readonly backArm: Limb;
   private readonly frontLeg: Limb;
   private readonly backLeg: Limb;
+  /** Chest, arms and head: bends at the waist. */
+  private readonly upperBody: Container;
+  /** Tips at the neck. */
+  private readonly headPart: Container;
   private readonly eyes: Graphics;
   private readonly deadEyes: Graphics;
   private readonly brows: Graphics;
 
   constructor(scene: Phaser.Scene, look: PersonLook) {
     const paint = new Painter(scene, look);
-    this.backLeg = paint.leg(-SHAPE.hip.x);
-    this.frontLeg = paint.leg(SHAPE.hip.x);
-    this.backArm = paint.arm(-SHAPE.shoulder.x);
-    this.frontArm = paint.arm(SHAPE.shoulder.x);
+    const { waist, neck, shoulder, hip } = SHAPE;
+    this.backLeg = paint.leg(-hip.x, hip.y);
+    this.frontLeg = paint.leg(hip.x, hip.y);
+    // Arms hang from the upper body, so their shoulders are measured from the waist
+    this.backArm = paint.arm(-shoulder.x, shoulder.y - waist.y);
+    this.frontArm = paint.arm(shoulder.x, shoulder.y - waist.y);
     this.eyes = paint.eyes();
     this.deadEyes = paint.deadEyes().setVisible(false);
     this.brows = paint.angryBrows().setVisible(false);
 
+    // The parts are drawn where they are on a standing doll, so each bending part
+    // is moved back by the spot it bends around
+    const face = [paint.head(), this.eyes, this.deadEyes, this.brows];
+    face.forEach((part) => part.setPosition(0, -neck.y));
+    this.headPart = scene.make.container({ x: 0, y: neck.y - waist.y }, false).add(face);
+    this.upperBody = scene.make
+      .container({ x: 0, y: waist.y }, false)
+      .add([
+        this.backArm.upper,
+        paint.chest().setPosition(0, -waist.y),
+        this.headPart,
+        this.frontArm.upper,
+      ]);
+
     this.container = scene.add.container(0, 0, [
-      this.backArm.upper,
       this.backLeg.upper,
       this.frontLeg.upper,
-      paint.torso(),
-      paint.head(),
-      this.eyes,
-      this.deadEyes,
-      this.brows,
-      this.frontArm.upper,
+      paint.hips(),
+      this.upperBody,
     ]);
   }
 
@@ -80,6 +95,8 @@ export class PersonFigure {
     this.frontLeg.lower.rotation = pose.frontKnee;
     this.backLeg.upper.rotation = pose.backLeg;
     this.backLeg.lower.rotation = pose.backKnee;
+    this.upperBody.rotation = pose.waist;
+    this.headPart.rotation = pose.head;
   }
 
   /** Angry eyebrows on or off. */
@@ -129,7 +146,7 @@ class Painter {
     this.jointShine = shade(look.joint, DOLL.shine);
   }
 
-  leg(hipX: number): Limb {
+  leg(hipX: number, hipY: number): Limb {
     const { thigh, shin, foot } = SHAPE;
     const lowerShape = this.blank();
     this.tube(lowerShape, shin.width, shin.length);
@@ -137,10 +154,10 @@ class Painter {
     const upperShape = this.blank();
     this.tube(upperShape, thigh.width, thigh.length);
     this.ball(upperShape, 0, 0, SHAPE.jointRadius + 1);
-    return this.limb(hipX, SHAPE.hip.y, upperShape, thigh.length, lowerShape);
+    return this.limb(hipX, hipY, upperShape, thigh.length, lowerShape);
   }
 
-  arm(shoulderX: number): Limb {
+  arm(shoulderX: number, shoulderY: number): Limb {
     const { upperArm, forearm, hand } = SHAPE;
     const lowerShape = this.blank();
     this.tube(lowerShape, forearm.width, forearm.length);
@@ -148,13 +165,20 @@ class Painter {
     const upperShape = this.blank();
     this.tube(upperShape, upperArm.width, upperArm.length);
     this.ball(upperShape, 0, 0, SHAPE.jointRadius + 0.5);
-    return this.limb(shoulderX, SHAPE.shoulder.y, upperShape, upperArm.length, lowerShape);
+    return this.limb(shoulderX, shoulderY, upperShape, upperArm.length, lowerShape);
   }
 
-  torso(): Graphics {
+  hips(): Graphics {
     const g = this.blank();
-    const { chest, hips, waist, neck } = SHAPE;
+    const { hips } = SHAPE;
     this.block(g, hips.x, hips.y, hips.width, hips.height, hips.round);
+    return g;
+  }
+
+  /** The chest, with the ball joints of the waist and the neck. */
+  chest(): Graphics {
+    const g = this.blank();
+    const { chest, waist, neck } = SHAPE;
     this.ball(g, 0, waist.y, waist.radius);
     this.block(g, chest.x, chest.y, chest.width, chest.height, chest.round);
     this.ball(g, 0, neck.y, neck.radius);

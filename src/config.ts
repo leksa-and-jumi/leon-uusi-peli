@@ -107,6 +107,24 @@ export const KNOCK = {
   pushSpeed: 260,
 } as const;
 
+/** How a doll that is knocked over flops, like a loose ragdoll. */
+export const FLOP = {
+  /** It doesn't lie perfectly flat: up to this much more or less, in radians. */
+  lieSpread: 0.22,
+  /** How the arms, legs and head wobble when it hits the floor. */
+  wobble: { size: 0.5, fadeMs: 260, beatMs: 240 },
+  /** How much of the wobble the whole body does. */
+  bodyWobble: 0.12,
+} as const;
+
+/** Swinging a sword or a bat yourself, by dragging it fast into a doll. */
+export const SWING = {
+  /** Slower than this (pixels per second) is just carrying it, not a hit. */
+  minSpeed: 600,
+  /** The same doll can't be hit again sooner than this. */
+  cooldownMs: 450,
+} as const;
+
 /** The 💥 that pops up where a punch lands, and the 💀 when it was the last one. */
 export const HIT_FX = {
   emoji: '💥',
