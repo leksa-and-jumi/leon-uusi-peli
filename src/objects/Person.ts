@@ -1,12 +1,13 @@
 import type Phaser from 'phaser';
-import { ANGRY, KNOCK, PERSON, THROW, WALK, type PersonLook } from '../config';
+import { ANGRY, KNOCK, PERSON, PUNCH_DAMAGE, THROW, WALK, type PersonLook } from '../config';
 import { chaseStep, nearestIndex } from '../logic/chase';
 import { fallStep, type Fall } from '../logic/fall';
 import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
+import { isDead, takeHit } from '../logic/health';
 import { knockDone, knockTilt } from '../logic/knock';
 import type { Spot } from '../logic/pick';
 import { clampFeet, type PlaceArea } from '../logic/place';
-import { poseFor, type PoseKind } from '../logic/pose';
+import { limpPose, poseFor, type Pose, type PoseKind } from '../logic/pose';
 import { walkStep, type Facing } from '../logic/walk';
 import { PersonFigure } from './personShape';
 
@@ -18,8 +19,8 @@ export interface World {
   area: PlaceArea;
   bottom: number;
   everyone: readonly Person[];
-  /** Show a hit at this spot. */
-  hitEffect: (x: number, y: number) => void;
+  /** Show a hit at this spot. `deadly` when it was the last one. */
+  hitEffect: (x: number, y: number, deadly: boolean) => void;
 }
 
 /**
@@ -37,6 +38,8 @@ export class Person {
   private grabOffset = { x: 0, y: 0 };
   /** Time since being knocked over, or `null` when not knocked. */
   private knockMs: number | null = null;
+  /** Slide away while tipping over (after a punch, but not after being dropped). */
+  private slide = false;
   private knockDir: Facing = 1;
   private flying: Flying | null = null;
   private spin = 0;
@@ -47,6 +50,9 @@ export class Person {
   private inReach = false;
   /** Keeps counting, so the moves keep going. */
   private clockMs = 0;
+  private lives: number = PERSON.lives;
+  /** How the limbs flop once there are no lives left, or `null` while alive. */
+  private limp: Pose | null = null;
 
   constructor(scene: Phaser.Scene, look: PersonLook, x: number, feetY: number) {
     this.figure = new PersonFigure(scene, look);
@@ -71,13 +77,21 @@ export class Person {
     return this.flying === null;
   }
 
+  /** No lives left: lies limp and does nothing any more. */
+  get dead(): boolean {
+    return this.limp !== null;
+  }
+
   /** Standing on the floor, so an angry one can punch them. */
   get canBeHit(): boolean {
-    return this.fall.landed && !this.held && this.knockMs === null && this.flying === null;
+    return (
+      !this.dead && this.fall.landed && !this.held && this.knockMs === null && this.flying === null
+    );
   }
 
   /** Switch walking, dancing or angry mode on, or off if it's already on. */
   toggle(activity: Exclude<Activity, 'idle'>): void {
+    if (this.dead) return;
     this.activity = this.activity === activity ? 'idle' : activity;
     this.figure.setAngry(this.activity === 'angry');
     this.punchMs = 0;
@@ -99,6 +113,7 @@ export class Person {
   grab(px: number, py: number): void {
     this.held = true;
     this.knockMs = null;
+    this.slide = false;
     this.grabOffset = { x: this.x - px, y: this.y - py };
   }
 
@@ -115,11 +130,22 @@ export class Person {
     this.fall = { y: this.y, speed: 0, landed: false };
   }
 
-  /** Punched: slide away from the punch and fall over. */
-  knock(direction: Facing): void {
+  /**
+   * Punched: lose lives, slide away from the punch and fall over. With no lives
+   * left the doll stays down. Says whether this hit was the last one.
+   */
+  hit(direction: Facing, damage: number = PUNCH_DAMAGE): boolean {
     this.knockMs = 0;
+    this.slide = true;
     this.knockDir = direction;
     this.punchMs = 0;
+    this.lives = takeHit(this.lives, damage);
+    if (!isDead(this.lives)) return false;
+    this.limp = limpPose();
+    this.activity = 'idle';
+    this.figure.setAngry(false);
+    this.figure.setDead(true);
+    return true;
   }
 
   update(deltaMs: number, world: World): void {
@@ -153,7 +179,7 @@ export class Person {
       return;
     }
 
-    if (this.knockMs !== null) {
+    if (this.knockMs !== null || this.dead) {
       this.updateKnocked(deltaMs, world.area);
       return;
     }
@@ -173,12 +199,14 @@ export class Person {
 
   private updateKnocked(deltaMs: number, area: PlaceArea): void {
     const elapsed = (this.knockMs ?? 0) + deltaMs;
-    if (elapsed < KNOCK.fallMs) {
+    if (this.slide && elapsed < KNOCK.fallMs) {
       const pushed = this.x + this.knockDir * KNOCK.pushSpeed * (deltaMs / 1000);
       this.x = clampFeet(pushed, this.y, area, PERSON).x;
     }
-    this.knockMs = knockDone(elapsed, KNOCK) ? null : elapsed;
-    const tilt = knockTilt(elapsed, KNOCK);
+    // A doll with no lives left tips over like the others, but never gets back up
+    const stayDown = this.dead && elapsed >= KNOCK.fallMs;
+    this.knockMs = stayDown ? KNOCK.fallMs : knockDone(elapsed, KNOCK) ? null : elapsed;
+    const tilt = stayDown ? 1 : knockTilt(elapsed, KNOCK);
     this.draw('stand', this.knockDir * tilt * (Math.PI / 2), tilt * PERSON.lyingLift);
   }
 
@@ -236,8 +264,8 @@ export class Person {
     }
     if (this.waitMs > 0) return 'stand';
 
-    target.knock(this.facing);
-    world.hitEffect(target.x, target.y - PERSON.height * 0.75);
+    const deadly = target.hit(this.facing);
+    world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly);
     this.punchMs = ANGRY.punchMs;
     this.waitMs = ANGRY.restMs;
     this.inReach = false;
@@ -245,7 +273,7 @@ export class Person {
   }
 
   private draw(kind: PoseKind, rotation: number, extraLift = 0): void {
-    const pose = poseFor(kind, this.clockMs);
+    const pose = this.limp ?? poseFor(kind, this.clockMs);
     this.figure.setPose(pose);
     const { container } = this.figure;
     container.setPosition(this.x, this.y - pose.lift - extraLift);

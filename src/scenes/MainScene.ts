@@ -75,8 +75,8 @@ export class MainScene extends Phaser.Scene {
       area: AREA,
       bottom: GAME_HEIGHT,
       everyone: this.people,
-      hitEffect: (x: number, y: number) => {
-        this.showHit(x, y);
+      hitEffect: (x: number, y: number, deadly: boolean) => {
+        this.showHit(x, y, deadly);
       },
     };
     for (const person of this.people) {
@@ -191,16 +191,16 @@ export class MainScene extends Phaser.Scene {
     this.people = this.people.filter((person) => !leaving.includes(person));
   }
 
-  private showHit(x: number, y: number): void {
+  private showHit(x: number, y: number, deadly: boolean): void {
     const hit = this.add
-      .text(x, y, HIT_FX.emoji, { fontSize: HIT_FX.fontSize })
+      .text(x, y, deadly ? HIT_FX.deadEmoji : HIT_FX.emoji, { fontSize: HIT_FX.fontSize })
       .setOrigin(0.5)
       .setDepth(HIT_FX.depth);
     this.tweens.add({
       targets: hit,
       alpha: 0,
       scale: HIT_FX.grow,
-      duration: HIT_FX.ms,
+      duration: deadly ? HIT_FX.deadMs : HIT_FX.ms,
       onComplete: () => {
         hit.destroy();
       },

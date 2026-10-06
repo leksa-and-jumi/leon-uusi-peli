@@ -23,67 +23,31 @@ export const HINT = {
   fromBottom: 36,
 } as const;
 
-/** How a person looks. Hair can be short, long, spiky, a cap, or none at all. */
+/** How a doll looks: the color it is made of, and the color of its ball joints. */
 export interface PersonLook {
-  skin: number;
-  hairStyle: 'short' | 'long' | 'spiky' | 'cap' | 'bald';
-  hair: number;
-  shirt: number;
-  pants: number;
-  shoes: number;
+  body: number;
+  joint: number;
 }
 
-/** The different-looking people you can pick from the menu. */
+/** The different-looking dolls you can pick from the menu. */
 export const PEOPLE: readonly PersonLook[] = [
-  {
-    skin: 0xf2c9a0,
-    hairStyle: 'short',
-    hair: 0x5d4037,
-    shirt: 0xe53935,
-    pants: 0x1e3a8a,
-    shoes: 0xffffff,
-  },
-  {
-    skin: 0x8d5a3b,
-    hairStyle: 'long',
-    hair: 0x1b1b1b,
-    shirt: 0xfdd835,
-    pants: 0x6a1b9a,
-    shoes: 0xffffff,
-  },
-  {
-    skin: 0xffdfc4,
-    hairStyle: 'spiky',
-    hair: 0xff8f00,
-    shirt: 0x43a047,
-    pants: 0x5d4037,
-    shoes: 0xeeeeee,
-  },
-  {
-    skin: 0xc68642,
-    hairStyle: 'cap',
-    hair: 0x1e88e5,
-    shirt: 0xffffff,
-    pants: 0xc62828,
-    shoes: 0xfdd835,
-  },
-  {
-    skin: 0xe0ac69,
-    hairStyle: 'bald',
-    hair: 0x000000,
-    shirt: 0xfb8c00,
-    pants: 0x00695c,
-    shoes: 0xffffff,
-  },
-  {
-    skin: 0x6b4226,
-    hairStyle: 'long',
-    hair: 0xf06292,
-    shirt: 0x00acc1,
-    pants: 0xf5f5f5,
-    shoes: 0xe53935,
-  },
+  { body: 0xd9b382, joint: 0x8a6a45 },
+  { body: 0x6fbf4a, joint: 0x2e7d32 },
+  { body: 0x4a90d9, joint: 0x1e4f8a },
+  { body: 0xd9534f, joint: 0x7f1d1d },
+  { body: 0xe8c84a, joint: 0x9a7b12 },
+  { body: 0xa9b1ba, joint: 0x4a5560 },
 ];
+
+/** How the dolls are shaded to look round, like 3D toys. */
+export const DOLL = {
+  /** The dark rim around every part (how much darker than the body color). */
+  rim: -0.45,
+  rimWidth: 1.6,
+  /** The bright stripe down the middle of every part. */
+  shine: 0.4,
+  shineAlpha: 0.55,
+} as const;
 
 /** A person standing in the area. `x`, `y` is always the spot between the feet. */
 export const PERSON = {
@@ -93,7 +57,9 @@ export const PERSON = {
   gravity: 1800,
   /** At most this many people at once; the oldest one leaves when a new one comes. */
   max: 100,
-  face: { eye: 0x1b1b1b, mouth: 0x7a2e2e, angryBrow: 0x1b1b1b },
+  face: { eye: 0x1b1b1b, angryBrow: 0x1b1b1b },
+  /** A doll is out after this many punches. */
+  lives: 3,
   /** A lying person is lifted this much, so they lie on the floor and not in it. */
   lyingLift: 16,
 } as const;
@@ -126,8 +92,19 @@ export const KNOCK = {
   pushSpeed: 260,
 } as const;
 
-/** The 💥 that pops up where a punch lands. */
-export const HIT_FX = { emoji: '💥', fontSize: '34px', ms: 380, grow: 1.6, depth: 80 } as const;
+/** The 💥 that pops up where a punch lands, and the 💀 when it was the last one. */
+export const HIT_FX = {
+  emoji: '💥',
+  deadEmoji: '💀',
+  fontSize: '34px',
+  ms: 380,
+  deadMs: 900,
+  grow: 1.6,
+  depth: 80,
+} as const;
+
+/** One punch takes this many lives. */
+export const PUNCH_DAMAGE = 1;
 
 /** Throwing a person away: up and off the nearest side of the screen, spinning. */
 export const THROW = {
