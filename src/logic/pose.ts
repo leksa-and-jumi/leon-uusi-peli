@@ -1,30 +1,57 @@
 /**
- * How a person holds their arms and legs. Angles are in radians: 0 hangs straight
- * down, a negative angle swings forward (the way the person faces). "Front" is the
- * arm and leg on the side the person faces.
+ * How a doll holds its arms and legs. Angles are in radians: 0 hangs straight
+ * down, a negative angle swings forward (the way the doll faces). "Front" is the
+ * arm and leg on the side the doll faces. Elbows and knees are how much the lower
+ * half bends from the upper half: elbows bend forward (negative), knees back (positive).
  */
 export interface Pose {
   frontArm: number;
   backArm: number;
   frontLeg: number;
   backLeg: number;
-  /** How many pixels the whole person hops up. */
+  frontElbow: number;
+  backElbow: number;
+  frontKnee: number;
+  backKnee: number;
+  /** How many pixels the whole doll hops up. */
   lift: number;
-  /** How much the whole person leans, in radians. */
+  /** How much the whole doll leans, in radians. */
   lean: number;
 }
 
 export type PoseKind = 'stand' | 'walk' | 'run' | 'dance' | 'held' | 'punch';
 
-export const STAND: Pose = { frontArm: 0, backArm: 0, frontLeg: 0, backLeg: 0, lift: 0, lean: 0 };
+export const STAND: Pose = {
+  frontArm: 0,
+  backArm: 0,
+  frontLeg: 0,
+  backLeg: 0,
+  frontElbow: -0.15,
+  backElbow: -0.15,
+  frontKnee: 0,
+  backKnee: 0,
+  lift: 0,
+  lean: 0,
+};
 
-/** How big the moves are. Tweak these to change how people move. */
+/** How big the moves are. Tweak these to change how dolls move. */
 export const MOVES = {
-  walk: { stepMs: 520, leg: 0.5, arm: 0.4 },
-  run: { stepMs: 300, leg: 0.75, arm: 0.9 },
-  dance: { beatMs: 460, armsUp: 2.5, wave: 0.45, leg: 0.3, hop: 16, lean: 0.14 },
-  held: { armsUp: 2.9, swingMs: 900, leg: 0.18 },
-  punch: { arm: -Math.PI / 2, backArm: 0.5, lean: 0.12 },
+  walk: { stepMs: 520, leg: 0.5, arm: 0.4, elbow: -0.5, knee: 0.7 },
+  run: { stepMs: 300, leg: 0.75, arm: 0.9, elbow: -1.3, knee: 1.2 },
+  dance: {
+    beatMs: 460,
+    armsUp: 2.5,
+    wave: 0.45,
+    elbow: -0.7,
+    leg: 0.3,
+    knee: 0.5,
+    hop: 16,
+    lean: 0.14,
+  },
+  held: { armsUp: 2.9, swingMs: 900, leg: 0.18, elbow: -0.2, knee: 0.35 },
+  punch: { arm: -Math.PI / 2, backArm: 0.5, backElbow: -1.5, lean: 0.12 },
+  /** A limp doll: how far each joint can flop, at most. */
+  limp: { arm: 2.2, leg: 0.7, elbow: 1.4, knee: 1.3 },
 } as const;
 
 /** The pose at a moment in time. `timeMs` keeps counting, so moves repeat smoothly. */
@@ -35,12 +62,19 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
     case 'walk':
     case 'run': {
       const move = MOVES[kind];
-      const swing = Math.sin((timeMs / move.stepMs) * Math.PI * 2);
+      const phase = (timeMs / move.stepMs) * Math.PI * 2;
+      const swing = Math.sin(phase);
+      const lifting = Math.cos(phase);
       return {
         frontArm: move.arm * swing,
         backArm: -move.arm * swing,
         frontLeg: -move.leg * swing,
         backLeg: move.leg * swing,
+        frontElbow: move.elbow,
+        backElbow: move.elbow,
+        // The leg that is on its way forward bends at the knee
+        frontKnee: move.knee * Math.max(0, lifting),
+        backKnee: move.knee * Math.max(0, -lifting),
         lift: 0,
         lean: 0,
       };
@@ -54,6 +88,10 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         backArm: move.armsUp + move.wave * sway,
         frontLeg: -move.leg * sway,
         backLeg: move.leg * sway,
+        frontElbow: move.elbow * (1 + sway) * 0.5,
+        backElbow: -move.elbow * (1 - sway) * 0.5,
+        frontKnee: move.knee * Math.max(0, sway),
+        backKnee: move.knee * Math.max(0, -sway),
         lift: move.hop * Math.abs(beat),
         lean: move.lean * sway,
       };
@@ -66,6 +104,10 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         backArm: move.armsUp,
         frontLeg: move.leg * swing,
         backLeg: -move.leg * swing,
+        frontElbow: move.elbow,
+        backElbow: -move.elbow,
+        frontKnee: move.knee,
+        backKnee: move.knee,
         lift: 0,
         lean: 0,
       };
@@ -76,8 +118,33 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         backArm: MOVES.punch.backArm,
         frontLeg: -0.25,
         backLeg: 0.25,
+        frontElbow: 0,
+        backElbow: MOVES.punch.backElbow,
+        frontKnee: 0.2,
+        backKnee: 0,
         lift: 0,
         lean: MOVES.punch.lean,
       };
   }
+}
+
+/**
+ * A limp pose for a doll that has no lives left: every joint flops somewhere at
+ * random. `random` gives numbers from 0 to 1, like `Math.random`.
+ */
+export function limpPose(random: () => number = Math.random): Pose {
+  const flop = (most: number): number => (random() * 2 - 1) * most;
+  const { arm, leg, elbow, knee } = MOVES.limp;
+  return {
+    frontArm: flop(arm),
+    backArm: flop(arm),
+    frontLeg: flop(leg),
+    backLeg: flop(leg),
+    frontElbow: -random() * elbow,
+    backElbow: -random() * elbow,
+    frontKnee: random() * knee,
+    backKnee: random() * knee,
+    lift: 0,
+    lean: 0,
+  };
 }
