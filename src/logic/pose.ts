@@ -40,6 +40,22 @@ export const STAND: Pose = {
   lean: 0,
 };
 
+/** A pose with everything at zero. Also used for "no joint is turning". */
+export const STILL: Pose = {
+  frontArm: 0,
+  backArm: 0,
+  frontLeg: 0,
+  backLeg: 0,
+  frontElbow: 0,
+  backElbow: 0,
+  frontKnee: 0,
+  backKnee: 0,
+  waist: 0,
+  head: 0,
+  lift: 0,
+  lean: 0,
+};
+
 /** How big the moves are. Tweak these to change how dolls move. */
 export const MOVES = {
   walk: { stepMs: 520, leg: 0.5, arm: 0.4, elbow: -0.5, knee: 0.7 },
