@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { DOLL, PERSON, type PersonLook } from '../config';
 import { shade } from '../logic/color';
-import type { Pose } from '../logic/pose';
+import { STAND, type Pose } from '../logic/pose';
 
 /**
  * Where the parts of a doll are. The spot between the feet is (0, 0), the doll
@@ -51,6 +51,7 @@ export class PersonFigure {
   private readonly eyes: Graphics;
   private readonly deadEyes: Graphics;
   private readonly brows: Graphics;
+  private current: Pose = STAND;
 
   constructor(scene: Phaser.Scene, look: PersonLook) {
     const paint = new Painter(scene, look);
@@ -86,7 +87,13 @@ export class PersonFigure {
     ]);
   }
 
+  /** The pose the doll is in right now. */
+  get pose(): Pose {
+    return this.current;
+  }
+
   setPose(pose: Pose): void {
+    this.current = pose;
     this.frontArm.upper.rotation = pose.frontArm;
     this.frontArm.lower.rotation = pose.frontElbow;
     this.backArm.upper.rotation = pose.backArm;

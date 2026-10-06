@@ -30,6 +30,10 @@
 
 🇫🇮 **Löysät nuket 🪆:** kaatuva nukke menee veltoksi kuin räsynukke: se taipuu vyötäröstä, pää ja raajat lötkähtävät, ja se makaa joka kerta uudessa löysässä asennossa.
 
+🇬🇧 **Ragdolls 🪆:** a doll with no lives left is a limp ragdoll. Lift it and it hangs from your hand with arms and legs dangling (grab it by a foot and it hangs upside down!). Let go of any doll while moving the mouse and you throw it: the dolls it hits fall over, but they don't lose lives.
+
+🇫🇮 **Räsynuket 🪆:** nukke, jolla ei ole elämiä, on veltto räsynukke. Nosta se, niin se roikkuu kädestäsi kädet ja jalat heiluen (tartu jalasta, niin se roikkuu pää alaspäin!). Päästä mistä tahansa nukesta irti, kun hiiri liikkuu, niin heität sen: nuket, joihin se osuu, kaatuvat, mutta eivät menetä elämiä.
+
 | Item / Tavara | 🇬🇧                                        | 🇫🇮                                            |
 | ------------- | ----------------------------------------- | --------------------------------------------- |
 | 🔫 pistol     | shoots from far away, takes 1 life        | ampuu kaukaa, vie 1 elämän                    |

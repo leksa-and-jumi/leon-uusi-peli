@@ -16,6 +16,7 @@ import {
   PERSON,
   SWING,
   THINGS_MAX,
+  TOSS,
   type ActionId,
   type GunDef,
 } from '../config';
@@ -66,6 +67,8 @@ export class MainScene extends Phaser.Scene {
   private lastClick: Click | null = null;
   /** Where the dragged thing was a frame ago, to see how fast it is swung. */
   private lastDragSpot: Spot | null = null;
+  /** How fast the dragged thing is being moved, smoothed (pixels per second). */
+  private dragSpeed = { x: 0, y: 0 };
   /** When each doll was last hit by a swung weapon. */
   private lastSwingHit = new WeakMap<Person, number>();
   /** The boxes of everything solid, worked out once per frame. */
@@ -138,6 +141,7 @@ export class MainScene extends Phaser.Scene {
     }
     this.updateBullets(delta);
     this.swing(delta);
+    this.trackDrag(delta);
     this.forget(this.everything().filter((body) => body.gone));
     this.bubbles.update(delta, AREA);
   }
@@ -194,7 +198,23 @@ export class MainScene extends Phaser.Scene {
     body.grab(px, py);
     this.dragged = body;
     this.lastDragSpot = null;
+    this.dragSpeed = { x: 0, y: 0 };
     this.bringToFront(body);
+  }
+
+  /** Keep track of how fast the dragged thing moves, so letting go can throw it. */
+  private trackDrag(delta: number): void {
+    const body = this.dragged;
+    if (!body || delta <= 0) {
+      this.lastDragSpot = null;
+      return;
+    }
+    const now = body.feet;
+    const before = this.lastDragSpot ?? now;
+    this.lastDragSpot = now;
+    const seconds = delta / 1000;
+    this.dragSpeed.x += ((now.x - before.x) / seconds - this.dragSpeed.x) * TOSS.smoothing;
+    this.dragSpeed.y += ((now.y - before.y) / seconds - this.dragSpeed.y) * TOSS.smoothing;
   }
 
   /**
@@ -204,13 +224,9 @@ export class MainScene extends Phaser.Scene {
   private swing(delta: number): void {
     const weapon = this.dragged;
     const melee = weapon instanceof Item ? weapon.def.melee : undefined;
-    if (!weapon || !melee) {
-      this.lastDragSpot = null;
-      return;
-    }
+    if (!weapon || !melee) return;
     const now = weapon.feet;
     const before = this.lastDragSpot ?? now;
-    this.lastDragSpot = now;
     const speed = swingSpeed(before, now, delta);
 
     for (const person of this.people) {
@@ -244,7 +260,11 @@ export class MainScene extends Phaser.Scene {
         return;
       }
     }
-    body.release(this.solidBoxes(body));
+    if (body instanceof Person) {
+      body.throwWith(this.dragSpeed.x, this.dragSpeed.y, this.solidBoxes(body));
+    } else {
+      body.release(this.solidBoxes(body));
+    }
   }
 
   private doAction(action: ActionId, body: Body): void {

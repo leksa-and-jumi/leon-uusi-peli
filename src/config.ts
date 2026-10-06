@@ -109,12 +109,63 @@ export const KNOCK = {
 
 /** How a doll that is knocked over flops, like a loose ragdoll. */
 export const FLOP = {
-  /** It doesn't lie perfectly flat: up to this much more or less, in radians. */
+  /** It doesn't lie perfectly flat: up to this much less, in radians. */
   lieSpread: 0.22,
   /** How the arms, legs and head wobble when it hits the floor. */
   wobble: { size: 0.5, fadeMs: 260, beatMs: 240 },
   /** How much of the wobble the whole body does. */
   bodyWobble: 0.12,
+} as const;
+
+/** A doll with no lives left is a limp ragdoll: every joint swings loosely. */
+export const LIMP = {
+  /** Arms, elbows and the head: light and loose. */
+  loose: { stiffness: 60, damping: 5 },
+  /** Legs, knees and the waist: heavier, so they calm down sooner. */
+  heavy: { stiffness: 85, damping: 8 },
+  /** The whole body swinging from the hand that holds it. */
+  hangBody: { stiffness: 38, damping: 5 },
+  /** The whole body flopping down flat on the ground. */
+  settle: { stiffness: 130, damping: 15 },
+  /** How far limbs trail behind when the doll is moved (radians per pixel per second). */
+  limbTrail: 0.0026,
+  limbTrailMax: 1.3,
+  /** The same for the whole body hanging from the hand. */
+  bodyTrail: 0.0013,
+  bodyTrailMax: 0.9,
+  hang: { armMax: 2.9, legMax: 1.1, spread: 0.15, bend: 0.35, head: 0.5, waist: 0.25 },
+  /** Grabbed lower than this part of its height, a limp doll hangs upside down. */
+  upsideDownBelow: 0.4,
+  /** How fast it starts to tip over when the last hit lands (radians per second). */
+  deathSpin: 5,
+  /** A hit on a doll that is already limp pushes it this much of the usual push. */
+  corpsePush: 0.6,
+  /** How fast a limp doll lying half outside the area scoots back in (pixels per second). */
+  scootSpeed: 320,
+} as const;
+
+/** Throwing a doll: let go of it while moving the mouse. */
+export const TOSS = {
+  /** Slower than this (pixels per second) is just letting go, not a throw. */
+  minSpeed: 220,
+  maxSpeed: 1500,
+  /** A thrown doll at least this fast knocks over the dolls it hits. */
+  knockSpeed: 260,
+  /** How fast a doll that is hit by a thrown one slides away. */
+  pushSpeed: 300,
+  /** How much speed the thrown doll keeps after hitting someone, or bouncing off a wall. */
+  keep: 0.6,
+  bounce: 0.3,
+  /** On the ground it slides to a stop in about this long. */
+  slideMs: 180,
+  stopSpeed: 15,
+  /** How fast a limp doll spins in the air (radians per pixel flown). */
+  spin: 0.008,
+  /** How much a living doll leans into its flight (radians per pixel per second). */
+  lean: 0.0005,
+  leanMax: 0.5,
+  /** How much the newest frame counts when measuring how fast the mouse moves. */
+  smoothing: 0.5,
 } as const;
 
 /** Swinging a sword or a bat yourself, by dragging it fast into a doll. */

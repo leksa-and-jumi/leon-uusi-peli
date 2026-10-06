@@ -28,7 +28,8 @@ export abstract class Body {
   protected spin = 0;
   private fallSpeed = 0;
   private flownOut = false;
-  private grabOffset = { x: 0, y: 0 };
+  /** From the point it is held by to its bottom middle. */
+  protected grabOffset = { x: 0, y: 0 };
 
   constructor(x: number, y: number) {
     this.x = x;
@@ -84,12 +85,12 @@ export abstract class Body {
   }
 
   /**
-   * Let go: drop to the ground from here. A solid thing let go inside another solid
-   * thing is first lifted to sit on top of it.
+   * Let go: drop to the ground from here, starting at `speedY` (negative is upward).
+   * A solid thing let go inside another solid thing is first lifted to sit on top of it.
    */
-  release(solids: readonly Box[]): void {
+  release(solids: readonly Box[], speedY = 0): void {
     this.held = false;
-    this.fallSpeed = 0;
+    this.fallSpeed = speedY;
     if (this.solid) this.y = liftOut(this.box, solids);
   }
 
