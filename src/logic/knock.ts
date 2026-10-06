@@ -20,3 +20,23 @@ export function knockTilt(elapsedMs: number, times: KnockTimes): number {
 export function knockDone(elapsedMs: number, times: KnockTimes): boolean {
   return elapsedMs >= times.fallMs + times.lieMs + times.riseMs;
 }
+
+/** How a limp doll wobbles after it hits the floor. */
+export interface Wobble {
+  /** The biggest swing, in radians, right at landing. */
+  size: number;
+  /** The wobble has mostly died down after this long. */
+  fadeMs: number;
+  /** One swing back and forth takes this long. */
+  beatMs: number;
+}
+
+/**
+ * The wobble `sinceLandingMs` after hitting the floor: swings back and forth and
+ * dies down. Zero before landing.
+ */
+export function settleWobble(sinceLandingMs: number, wobble: Wobble): number {
+  if (sinceLandingMs < 0) return 0;
+  const fade = Math.exp(-sinceLandingMs / wobble.fadeMs);
+  return wobble.size * fade * Math.cos((sinceLandingMs / wobble.beatMs) * Math.PI * 2);
+}

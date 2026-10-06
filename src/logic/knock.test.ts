@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { knockDone, knockTilt } from './knock';
+import { knockDone, knockTilt, settleWobble } from './knock';
 
 const times = { fallMs: 200, lieMs: 1000, riseMs: 400 };
 
@@ -19,5 +19,25 @@ describe('knockDone', () => {
   it('is done only after getting all the way up', () => {
     expect(knockDone(1599, times)).toBe(false);
     expect(knockDone(1600, times)).toBe(true);
+  });
+});
+
+describe('settleWobble', () => {
+  const wobble = { size: 0.4, fadeMs: 200, beatMs: 100 };
+
+  it('is nothing before landing', () => {
+    expect(settleWobble(-10, wobble)).toBe(0);
+  });
+
+  it('is biggest right at landing', () => {
+    expect(settleWobble(0, wobble)).toBeCloseTo(0.4);
+  });
+
+  it('swings the other way half a beat later', () => {
+    expect(settleWobble(50, wobble)).toBeLessThan(0);
+  });
+
+  it('dies down', () => {
+    expect(Math.abs(settleWobble(2000, wobble))).toBeLessThan(0.001);
   });
 });
