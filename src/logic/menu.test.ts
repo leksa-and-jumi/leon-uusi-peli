@@ -10,6 +10,19 @@ describe('slotRect', () => {
   });
 });
 
+describe('a vertical row', () => {
+  const column = { ...row, vertical: true };
+
+  it('stacks the slots on top of each other', () => {
+    expect(slotRect(column, 2)).toEqual({ x: 10, y: 145, width: 50, height: 60 });
+  });
+
+  it('finds the slot under the point', () => {
+    expect(slotAt(column, 3, 30, 100)).toBe(1);
+    expect(slotAt(column, 3, 75, 30)).toBeNull();
+  });
+});
+
 describe('slotAt', () => {
   it('finds the slot under the point', () => {
     expect(slotAt(row, 3, 10, 5)).toBe(0);

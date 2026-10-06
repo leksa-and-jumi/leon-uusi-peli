@@ -13,6 +13,19 @@ export interface PersonSize {
   halfWidth: number;
 }
 
+/** Keep a person's feet where the whole person fits in the area, never below the floor. */
+export function clampFeet(
+  x: number,
+  y: number,
+  area: PlaceArea,
+  size: PersonSize,
+): { x: number; y: number } {
+  return {
+    x: clamp(x, area.left + size.halfWidth, area.right - size.halfWidth),
+    y: clamp(y, area.top + size.height, area.floorY),
+  };
+}
+
 /**
  * Where a person's feet go when you click at a point: the person appears around the
  * click, but always fully inside the area and never below the floor.
@@ -23,8 +36,5 @@ export function placeFeet(
   area: PlaceArea,
   size: PersonSize,
 ): { x: number; y: number } {
-  return {
-    x: clamp(px, area.left + size.halfWidth, area.right - size.halfWidth),
-    y: clamp(py + size.height / 2, area.top + size.height, area.floorY),
-  };
+  return clampFeet(px, py + size.height / 2, area, size);
 }

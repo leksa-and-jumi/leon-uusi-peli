@@ -10,9 +10,41 @@
 
 ## How to play / Miten pelataan
 
-🇬🇧 Pick a person from the menu at the top 👆, then click in the gray area. The person drops in and lands on the black floor 🧍.
+🇬🇧 The menu at the top has three pages: 🧍 dolls, 🔫 weapons and items, 🧱 building pieces. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away.
 
-🇫🇮 Valitse ihminen ylävalikosta 👆 ja klikkaa harmaata aluetta. Ihminen putoaa paikalle ja laskeutuu mustalle lattialle 🧍.
+🇫🇮 Ylävalikossa on kolme sivua: 🧍 nuket, 🔫 aseet ja tavarat, 🧱 rakennuspalat. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois.
+
+🇬🇧 **Building 🧱:** crates, brick walls and planks stack on top of each other, and dolls can stand on them. Walls stop walking dolls and bullets.
+
+🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät ja lankut pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Seinät pysäyttävät kävelevät nuket ja luodit.
+
+🇬🇧 **Weapons 🔫:** drag a weapon onto a doll and it takes it in its hand. In 😡 angry mode the doll uses it. A lit 💣 bomb goes off after 4 seconds: it hurts dolls nearby and breaks crates and planks (but not brick walls).
+
+🇫🇮 **Aseet 🔫:** raahaa ase nuken päälle, niin nukke ottaa sen käteensä. 😡 Vihaisessa modissa nukke käyttää sitä. Sytytetty 💣 pommi räjähtää 4 sekunnin päästä: se satuttaa lähellä olevia nukkeja ja rikkoo laatikot ja lankut (mutta ei tiiliseiniä).
+
+| Item / Tavara | 🇬🇧                                         | 🇫🇮                                            |
+| ------------- | ------------------------------------------ | --------------------------------------------- |
+| 🔫 pistol     | shoots from far away, takes 2 lives        | ampuu kaukaa, vie 2 elämää                    |
+| 🗡️ sword      | reaches further than a fist, takes 2 lives | yltää nyrkkiä pidemmälle, vie 2 elämää        |
+| 🏏 bat        | takes 1 life and sends the doll flying     | vie 1 elämän ja lennättää nuken kauas         |
+| 💣 bomb       | double-click it and press 🔥 to light it   | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
+
+🇬🇧 Double-click a doll to open its action bubbles. A pressed bubble glows, and pressing it again stops it.
+
+🇫🇮 Tuplaklikkaa nukkea, niin sen toimintopallot aukeavat. Painettu pallo hohtaa, ja toinen painallus lopettaa sen.
+
+| Bubble / Pallo | 🇬🇧                                          | 🇫🇮                                       |
+| -------------- | ------------------------------------------- | ---------------------------------------- |
+| 🚀             | throw this person away                      | heitä tämä tyyppi pois                   |
+| 🔄             | turn the other way                          | käänny toisin päin                       |
+| 🚶             | walk                                        | kävele                                   |
+| 💃             | dance                                       | tanssi                                   |
+| 😡             | angry mode: runs to others and punches them | vihainen modi: juoksee hakkaamaan toisia |
+| ✋             | drop the item in the hand                   | pudota kädessä oleva tavara              |
+
+🇬🇧 Every doll has 3 lives ❤️. A punch takes one, and after the third punch the doll is out 💀: it lies limp on the floor, but you can still drag it or throw it away.
+
+🇫🇮 Jokaisella nukella on 3 elämää ❤️. Lyönti vie yhden, ja kolmannen lyönnin jälkeen nukke on poissa pelistä 💀: se makaa velttona lattialla, mutta sitä voi yhä raahata tai sen voi heittää pois.
 
 _🇬🇧 The game is just starting. Leo decides what comes next!_
 _🇫🇮 Peli on vasta alussa. Leo päättää, mitä siihen tulee!_

@@ -1,10 +1,12 @@
-/** A row of slots in the people menu: where each one is, and which one was clicked. */
+/** A row of slots in the menu: where each one is, and which one was clicked. */
 export interface SlotRow {
   x: number;
   y: number;
   width: number;
   height: number;
   gap: number;
+  /** Stack the slots on top of each other instead of side by side. */
+  vertical?: boolean;
 }
 
 export interface Rect {
@@ -14,11 +16,11 @@ export interface Rect {
   height: number;
 }
 
-/** The rectangle of the slot at `index` (0 = the first one on the left). */
+/** The rectangle of the slot at `index` (0 = the first one, on the left or at the top). */
 export function slotRect(row: SlotRow, index: number): Rect {
   return {
-    x: row.x + index * (row.width + row.gap),
-    y: row.y,
+    x: row.vertical ? row.x : row.x + index * (row.width + row.gap),
+    y: row.vertical ? row.y + index * (row.height + row.gap) : row.y,
     width: row.width,
     height: row.height,
   };
