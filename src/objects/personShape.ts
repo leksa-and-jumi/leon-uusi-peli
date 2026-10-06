@@ -94,6 +94,19 @@ export class PersonFigure {
     if (dead) this.brows.setVisible(false);
   }
 
+  /** Put something into the front hand. It moves with the arm from now on. */
+  holdInHand(thing: Container, rotation: number, along: number): void {
+    this.frontArm.lower.add(thing);
+    thing.setPosition(0, SHAPE.forearm.length + 2 + along);
+    thing.rotation = rotation;
+  }
+
+  /** Take it out of the hand again and put it back into the area. */
+  letGoOf(thing: Container): void {
+    this.frontArm.lower.remove(thing);
+    thing.addToDisplayList();
+  }
+
   destroy(): void {
     this.container.destroy();
   }

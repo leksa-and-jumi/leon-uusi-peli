@@ -1,51 +1,53 @@
 import type Phaser from 'phaser';
-import { ANGRY, KNOCK, PERSON, PUNCH_DAMAGE, THROW, WALK, type PersonLook } from '../config';
+import {
+  ANGRY,
+  DEPTH,
+  KNOCK,
+  PERSON,
+  PERSON_ACTIONS,
+  PHYSICS,
+  PUNCH_DAMAGE,
+  WALK,
+  type ActionId,
+  type GunDef,
+  type PersonLook,
+} from '../config';
+import { clamp } from '../logic/bounds';
 import { chaseStep, nearestIndex } from '../logic/chase';
-import { fallStep, type Fall } from '../logic/fall';
-import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
+import { blockedX, type Box } from '../logic/ground';
 import { isDead, takeHit } from '../logic/health';
 import { knockDone, knockTilt } from '../logic/knock';
 import type { Spot } from '../logic/pick';
-import { clampFeet, type PlaceArea } from '../logic/place';
+import type { PlaceArea } from '../logic/place';
 import { limpPose, poseFor, type Pose, type PoseKind } from '../logic/pose';
+import { canSee } from '../logic/shot';
 import { walkStep, type Facing } from '../logic/walk';
+import { Body } from './Body';
+import type { Item } from './Item';
 import { PersonFigure } from './personShape';
+import type { World } from './World';
 
-/** What a person keeps doing until it is switched off. */
+/** What a doll keeps doing until it is switched off. */
 export type Activity = 'idle' | 'walk' | 'dance' | 'angry';
 
-/** What a person needs to know about the world around them each frame. */
-export interface World {
-  area: PlaceArea;
-  bottom: number;
-  everyone: readonly Person[];
-  /** Show a hit at this spot. `deadly` when it was the last one. */
-  hitEffect: (x: number, y: number, deadly: boolean) => void;
-}
-
 /**
- * A person in the area. They drop from where you put them, can be dragged, and can
- * walk, dance or get angry.
+ * A doll in the area. It drops from where you put it, can be dragged, can walk,
+ * dance or get angry, can hold an item, and is out when its lives run out.
  */
-export class Person {
+export class Person extends Body {
+  readonly size = PERSON;
+  readonly actions = PERSON_ACTIONS;
   activity: Activity = 'idle';
   private readonly figure: PersonFigure;
-  private x: number;
-  private y: number;
   private facing: Facing = 1;
-  private fall: Fall;
-  private held = false;
-  private grabOffset = { x: 0, y: 0 };
   /** Time since being knocked over, or `null` when not knocked. */
   private knockMs: number | null = null;
-  /** Slide away while tipping over (after a punch, but not after being dropped). */
+  /** Slide away while tipping over (after a hit, but not after being dropped). */
   private slide = false;
   private knockDir: Facing = 1;
-  private flying: Flying | null = null;
-  private spin = 0;
-  private flownOut = false;
+  private knockSpeed: number = KNOCK.pushSpeed;
   private punchMs = 0;
-  /** Time left before the next punch. */
+  /** Time left before the next punch or shot. */
   private waitMs = 0;
   private inReach = false;
   /** Keeps counting, so the moves keep going. */
@@ -53,28 +55,13 @@ export class Person {
   private lives: number = PERSON.lives;
   /** How the limbs flop once there are no lives left, or `null` while alive. */
   private limp: Pose | null = null;
+  private item: Item | null = null;
 
   constructor(scene: Phaser.Scene, look: PersonLook, x: number, feetY: number) {
+    super(x, feetY);
     this.figure = new PersonFigure(scene, look);
-    this.x = x;
-    this.y = feetY;
-    this.fall = { y: feetY, speed: 0, landed: false };
+    this.figure.container.setDepth(DEPTH.person);
     this.draw('held', 0);
-  }
-
-  /** Where the feet are. */
-  get feet(): Spot {
-    return { x: this.x, y: this.y };
-  }
-
-  /** Thrown away and out of the screen: time to forget this person. */
-  get gone(): boolean {
-    return this.flying !== null && this.flownOut;
-  }
-
-  /** Can be grabbed and double-clicked (not while flying away). */
-  get canBePicked(): boolean {
-    return this.flying === null;
   }
 
   /** No lives left: lies limp and does nothing any more. */
@@ -82,11 +69,23 @@ export class Person {
     return this.limp !== null;
   }
 
-  /** Standing on the floor, so an angry one can punch them. */
+  /** Standing on the ground, so it can be punched or shot. */
   get canBeHit(): boolean {
-    return (
-      !this.dead && this.fall.landed && !this.held && this.knockMs === null && this.flying === null
-    );
+    return !this.dead && this.state === 'resting' && this.knockMs === null;
+  }
+
+  /** Roughly where the front hand is: a held item counts as being here. */
+  get handSpot(): Spot {
+    return { x: this.x + this.facing * PERSON.hand.x, y: this.y - PERSON.hand.y };
+  }
+
+  /** The item in the hand, or `null` when empty-handed. */
+  get holding(): Item | null {
+    return this.item;
+  }
+
+  isOn(action: ActionId): boolean {
+    return this.activity === action;
   }
 
   /** Switch walking, dancing or angry mode on, or off if it's already on. */
@@ -101,93 +100,75 @@ export class Person {
     this.facing = this.facing === 1 ? -1 : 1;
   }
 
-  /** Fly up and off the nearest side of the screen, spinning. */
-  throwAway(area: PlaceArea): void {
-    const direction = throwDirection(this.x, area.left, area.right);
-    this.flying = { x: this.x, y: this.y, vx: direction * THROW.speedX, vy: -THROW.speedY };
-    this.held = false;
-    this.knockMs = null;
+  /** Take an item into the hand. Whatever was there before is dropped. */
+  hold(item: Item, solids: readonly Box[]): void {
+    this.dropItem(solids);
+    this.item = item;
+    item.takenBy(this);
+    this.figure.holdInHand(item.display, item.def.hand.rotation, item.def.hand.along);
   }
 
-  /** Picked up at this point. The person hangs from where they were grabbed. */
-  grab(px: number, py: number): void {
-    this.held = true;
+  /** Let go of the item in the hand, if there is one. */
+  dropItem(solids: readonly Box[]): void {
+    const item = this.item;
+    if (!item) return;
+    this.item = null;
+    this.figure.letGoOf(item.display);
+    const hand = this.handSpot;
+    item.droppedAt(hand.x, hand.y, solids);
+  }
+
+  override grab(px: number, py: number): void {
+    super.grab(px, py);
     this.knockMs = null;
     this.slide = false;
-    this.grabOffset = { x: this.x - px, y: this.y - py };
   }
 
-  /** Dragged: follow the pointer, but stay inside the area. */
-  dragTo(px: number, py: number, area: PlaceArea): void {
-    const feet = clampFeet(px + this.grabOffset.x, py + this.grabOffset.y, area, PERSON);
-    this.x = feet.x;
-    this.y = feet.y;
-  }
-
-  /** Let go: drop to the floor from here. */
-  release(): void {
-    this.held = false;
-    this.fall = { y: this.y, speed: 0, landed: false };
+  override throwAway(area: PlaceArea): void {
+    super.throwAway(area);
+    this.knockMs = null;
   }
 
   /**
-   * Punched: lose lives, slide away from the punch and fall over. With no lives
-   * left the doll stays down. Says whether this hit was the last one.
+   * Hit: lose lives, slide away from the hit and fall over. With no lives left the
+   * doll stays down. Says whether this hit was the last one.
    */
-  hit(direction: Facing, damage: number = PUNCH_DAMAGE): boolean {
+  hit(
+    direction: Facing,
+    solids: readonly Box[],
+    damage: number = PUNCH_DAMAGE,
+    pushSpeed: number = KNOCK.pushSpeed,
+  ): boolean {
     this.knockMs = 0;
     this.slide = true;
     this.knockDir = direction;
+    this.knockSpeed = pushSpeed;
     this.punchMs = 0;
+    if (this.dead) return false;
     this.lives = takeHit(this.lives, damage);
     if (!isDead(this.lives)) return false;
     this.limp = limpPose();
     this.activity = 'idle';
     this.figure.setAngry(false);
     this.figure.setDead(true);
+    this.dropItem(solids);
     return true;
   }
 
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
-
-    if (this.flying) {
-      this.flying = flyStep(this.flying, THROW.gravity, deltaMs);
-      this.x = this.flying.x;
-      this.y = this.flying.y;
-      this.spin += Math.sign(this.flying.vx) * THROW.spin * (deltaMs / 1000);
-      this.flownOut = isGone(
-        this.flying,
-        world.area.left,
-        world.area.right,
-        world.bottom,
-        THROW.margin,
-      );
+    const state = this.physics(deltaMs, world);
+    if (state === 'flying') {
       this.draw('held', this.spin);
-      return;
-    }
-
-    if (this.held) {
+    } else if (state !== 'resting') {
       this.draw('held', 0);
-      return;
+    } else if (this.knockMs !== null || this.dead) {
+      this.updateKnocked(deltaMs, world);
+    } else {
+      this.draw(this.act(deltaMs, world), 0);
     }
-
-    if (!this.fall.landed) {
-      this.fall = fallStep(this.fall, PERSON.gravity, world.area.floorY, deltaMs);
-      this.y = this.fall.y;
-      this.draw('held', 0);
-      return;
-    }
-
-    if (this.knockMs !== null || this.dead) {
-      this.updateKnocked(deltaMs, world.area);
-      return;
-    }
-
-    this.draw(this.act(deltaMs, world), 0);
   }
 
-  /** Draw this person on top of the others. */
   bringToTop(): void {
     const { container } = this.figure;
     container.scene.children.bringToTop(container);
@@ -197,11 +178,11 @@ export class Person {
     this.figure.destroy();
   }
 
-  private updateKnocked(deltaMs: number, area: PlaceArea): void {
+  private updateKnocked(deltaMs: number, world: World): void {
     const elapsed = (this.knockMs ?? 0) + deltaMs;
     if (this.slide && elapsed < KNOCK.fallMs) {
-      const pushed = this.x + this.knockDir * KNOCK.pushSpeed * (deltaMs / 1000);
-      this.x = clampFeet(pushed, this.y, area, PERSON).x;
+      const pushed = this.x + this.knockDir * this.knockSpeed * (deltaMs / 1000);
+      this.walkTo(pushed, world);
     }
     // A doll with no lives left tips over like the others, but never gets back up
     const stayDown = this.dead && elapsed >= KNOCK.fallMs;
@@ -221,8 +202,9 @@ export class Person {
         world.area.left + edge,
         world.area.right - edge,
       );
-      this.x = walker.x;
-      this.facing = walker.facing;
+      const blocked = this.walkTo(walker.x, world);
+      // Turn around at a wall, just like at the edge of the area
+      this.facing = blocked ? (this.facing === 1 ? -1 : 1) : walker.facing;
       return 'walk';
     }
     if (this.activity === 'dance') return 'dance';
@@ -230,7 +212,10 @@ export class Person {
     return 'stand';
   }
 
-  /** Angry mode: run to the closest person who is standing, and punch them over. */
+  /**
+   * Angry mode: go for the closest doll that is standing. Punch it, hit it with the
+   * sword or bat in the hand, or shoot it with the pistol from far away.
+   */
   private rage(deltaMs: number, world: World): PoseKind {
     this.waitMs = Math.max(0, this.waitMs - deltaMs);
     if (this.punchMs > 0) {
@@ -238,23 +223,26 @@ export class Person {
       return 'punch';
     }
 
-    const targets = world.everyone.filter((other) => other !== this && other.canBeHit);
-    const nearest = nearestIndex(
-      this.x,
-      targets.map((other) => other.x),
-    );
-    const target = nearest === null ? undefined : targets[nearest];
+    const target = this.pickTarget(world);
     if (!target) {
       this.inReach = false;
       return 'stand';
     }
 
-    const chase = chaseStep(this.x, this.facing, target.x, ANGRY.reach, ANGRY.speed, deltaMs);
-    this.x = chase.x;
+    const solids = world.solidBoxes(this);
+    const weapon = this.item?.def;
+    const gun = weapon?.gun;
+    const canShoot = gun !== undefined && this.clearShot(target, gun, solids);
+    const reach = canShoot ? gun.range : (weapon?.melee?.reach ?? ANGRY.reach);
+    const chase = chaseStep(this.x, this.facing, target.x, reach, ANGRY.speed, deltaMs);
+    const blocked = this.walkTo(chase.x, world);
     this.facing = chase.facing;
-    if (!chase.inReach) {
+
+    const close = Math.abs(target.x - this.x) <= reach + 1;
+    const sameLevel = Math.abs(target.y - this.y) <= ANGRY.levelSlack;
+    if (!close || !(canShoot || sameLevel)) {
       this.inReach = false;
-      return 'run';
+      return close || blocked ? 'stand' : 'run';
     }
 
     if (!this.inReach) {
@@ -262,14 +250,59 @@ export class Person {
       this.inReach = true;
       this.waitMs = Math.max(this.waitMs, randomBetween(ANGRY.windupMs.min, ANGRY.windupMs.max));
     }
-    if (this.waitMs > 0) return 'stand';
+    if (this.waitMs > 0) return canShoot ? 'punch' : 'stand';
 
-    const deadly = target.hit(this.facing);
-    world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly);
     this.punchMs = ANGRY.punchMs;
+    if (canShoot) {
+      const { muzzle } = gun;
+      world.shoot(this, this.x + this.facing * muzzle.x, this.y - muzzle.y, this.facing, gun);
+      this.waitMs = gun.everyMs;
+      return 'punch';
+    }
+
+    const deadly = target.hit(
+      this.facing,
+      world.solidBoxes(target),
+      weapon?.melee?.damage,
+      weapon?.melee?.pushSpeed,
+    );
+    world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly);
     this.waitMs = ANGRY.restMs;
     this.inReach = false;
     return 'punch';
+  }
+
+  /** The closest standing doll, first of all one on the same level. */
+  private pickTarget(world: World): Person | undefined {
+    const standing = world.people.filter((other) => other !== this && other.canBeHit);
+    const level = standing.filter((other) => Math.abs(other.y - this.y) <= ANGRY.levelSlack);
+    const targets = level.length > 0 ? level : standing;
+    const nearest = nearestIndex(
+      this.x,
+      targets.map((other) => other.x),
+    );
+    return nearest === null ? undefined : targets[nearest];
+  }
+
+  /** Would a bullet from the gun fly straight into the target, with nothing in the way? */
+  private clearShot(target: Person, gun: GunDef, solids: readonly Box[]): boolean {
+    const bulletY = this.y - gun.muzzle.y;
+    const box = target.box;
+    if (bulletY < box.top || bulletY > box.bottom) return false;
+    if (Math.abs(target.x - this.x) > gun.range) return false;
+    return canSee(this.x, target.x, bulletY, solids);
+  }
+
+  /**
+   * Move toward `x`, but not out of the area and not through anything solid.
+   * Says whether something solid was in the way.
+   */
+  private walkTo(x: number, world: World): boolean {
+    const { halfWidth, height } = PERSON;
+    const wanted = clamp(x, world.area.left + halfWidth, world.area.right - halfWidth);
+    const solids = world.solidBoxes(this);
+    this.x = blockedX(this.x, wanted, halfWidth, this.y, height, solids, PHYSICS.stepUp);
+    return this.x !== wanted;
   }
 
   private draw(kind: PoseKind, rotation: number, extraLift = 0): void {

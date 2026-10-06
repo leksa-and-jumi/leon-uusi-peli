@@ -16,12 +16,25 @@ export const FLOOR = {
 /** Every text in the game is shown in English and Finnish. */
 export const HINT = {
   text:
-    '👆 Pick + click = 🧍   🖐️ Drag   👆👆 Double-click = actions   🗑️ = all away\n' +
-    '👆 Valitse + klikkaa = 🧍   🖐️ Raahaa   👆👆 Tuplaklikkaa = toiminnot   🗑️ = kaikki pois',
-  fontSize: '13px',
+    '👆 Pick + click   🖐️ Drag (🔫 onto a doll!)   👆👆 Double-click = actions   🗑️ = all away\n' +
+    '👆 Valitse + klikkaa   🖐️ Raahaa (🔫 nuken päälle!)   👆👆 Tuplaklikkaa = toiminnot   🗑️ = kaikki pois',
+  fontSize: '12px',
   /** How far above the bottom of the screen the middle of the text is. */
   fromBottom: 36,
 } as const;
+
+/** How things fall and stand on each other. */
+export const PHYSICS = {
+  /** How hard everything is pulled down (pixels per second²). */
+  gravity: 1800,
+  /** Feet this little inside a box still count as standing on top of it. */
+  groundSlack: 2,
+  /** Bumps this low don't stop a walking doll. */
+  stepUp: 4,
+} as const;
+
+/** What is drawn in front of what: bigger numbers are in front. */
+export const DEPTH = { block: 10, person: 20, item: 30, bullet: 40 } as const;
 
 /** How a doll looks: the color it is made of, and the color of its ball joints. */
 export interface PersonLook {
@@ -53,8 +66,6 @@ export const DOLL = {
 export const PERSON = {
   height: 120,
   halfWidth: 24,
-  /** How hard people are pulled down when you drop them (pixels per second²). */
-  gravity: 1800,
   /** At most this many people at once; the oldest one leaves when a new one comes. */
   max: 100,
   face: { eye: 0x1b1b1b, angryBrow: 0x1b1b1b },
@@ -62,6 +73,8 @@ export const PERSON = {
   lives: 3,
   /** A lying person is lifted this much, so they lie on the floor and not in it. */
   lyingLift: 16,
+  /** Roughly where the front hand is: this far in front of the middle and above the feet. */
+  hand: { x: 22, y: 48 },
 } as const;
 
 /** Two quick clicks this close together are a double-click. */
@@ -81,6 +94,8 @@ export const ANGRY = {
   punchMs: 220,
   /** Rest between punches. */
   restMs: 500,
+  /** Feet at most this much higher or lower still count as standing on the same level. */
+  levelSlack: 30,
 } as const;
 
 /** Getting punched: slide back, tip over, lie on the floor, get back up. */
@@ -117,16 +132,33 @@ export const THROW = {
   margin: 160,
 } as const;
 
-/** What the bubbles above a person do. Walk, dance and angry stay on until pressed again. */
-export const ACTIONS = [
-  { id: 'throw', emoji: '🚀' },
-  { id: 'turn', emoji: '🔄' },
-  { id: 'walk', emoji: '🚶' },
-  { id: 'dance', emoji: '💃' },
-  { id: 'angry', emoji: '😡' },
-] as const;
+/** Everything a bubble can do, and the picture on it. */
+export const ACTION_EMOJI = {
+  throw: '🚀',
+  turn: '🔄',
+  walk: '🚶',
+  dance: '💃',
+  angry: '😡',
+  drop: '✋',
+  fuse: '🔥',
+} as const;
 
-export type ActionId = (typeof ACTIONS)[number]['id'];
+export type ActionId = keyof typeof ACTION_EMOJI;
+
+/** The bubbles of a doll. Walk, dance and angry stay on until pressed again. */
+export const PERSON_ACTIONS: readonly ActionId[] = [
+  'throw',
+  'turn',
+  'walk',
+  'dance',
+  'angry',
+  'drop',
+];
+/** The bubbles of a building piece or an item, and of a bomb. */
+export const THING_ACTIONS: readonly ActionId[] = ['throw'];
+export const BOMB_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
+/** The most bubbles anything has. */
+export const MAX_BUBBLES = 6;
 
 /** The round action bubbles that come up above a double-clicked person. */
 export const BUBBLES = {
@@ -148,19 +180,175 @@ export const MENU = {
   height: 100,
   color: 0x2b2b2b,
   edge: 0x000000,
-  slots: { x: 16, y: 10, width: 72, height: 80, gap: 12 },
+  /** The small buttons on the left that switch between dolls, items and building pieces. */
+  tabs: { x: 8, y: 9, width: 46, height: 25, gap: 3, vertical: true },
+  tabColor: 0x555555,
+  tabSelectedColor: 0xffd54f,
+  tabRadius: 7,
+  tabFontSize: '16px',
+  slots: { x: 66, y: 10, width: 72, height: 80, gap: 12 },
   slotColor: 0x9e9e9e,
   slotRadius: 10,
   selected: { color: 0xffd54f, width: 5 },
-  /** People in the menu are drawn this much smaller. */
+  /** Dolls in the menu are drawn this much smaller. */
   personScale: 0.56,
   /** How far above the slot's bottom edge the feet stand. */
   feetInset: 7,
-  /** The button that takes everybody away. */
+  /** The button that takes everything away. */
   clear: { x: GAME_WIDTH - 88, y: 10, width: 72, height: 80, gap: 0 },
   clearColor: 0xc62828,
   clearEmoji: '🗑️',
   clearFontSize: '34px',
-  /** Drawn above the people in the area. */
+  /** Drawn above everything in the area. */
   depth: 100,
+} as const;
+
+/** The pages of the menu. */
+export const TABS = [
+  { id: 'people', emoji: '🧍' },
+  { id: 'items', emoji: '🔫' },
+  { id: 'build', emoji: '🧱' },
+] as const;
+
+export type TabId = (typeof TABS)[number]['id'];
+
+/** A building piece: others can stand on it and can't walk through it. */
+export interface BlockDef {
+  halfWidth: number;
+  height: number;
+  /** Does a bomb blow it to bits? */
+  breakable: boolean;
+  /** How much smaller it is drawn in the menu. */
+  menuScale: number;
+  colors: { fill: number; dark: number; light: number };
+}
+
+export type BlockKind = 'crate' | 'wall' | 'plank';
+
+export const BLOCKS: Record<BlockKind, BlockDef> = {
+  crate: {
+    halfWidth: 28,
+    height: 56,
+    breakable: true,
+    menuScale: 1,
+    colors: { fill: 0xa9713c, dark: 0x6e4420, light: 0xcf9a62 },
+  },
+  wall: {
+    halfWidth: 17,
+    height: 128,
+    breakable: false,
+    menuScale: 0.55,
+    colors: { fill: 0x9c4a3c, dark: 0x5a2a22, light: 0xc0705f },
+  },
+  plank: {
+    halfWidth: 70,
+    height: 18,
+    breakable: true,
+    menuScale: 0.45,
+    colors: { fill: 0xc9a46a, dark: 0x8a6a3a, light: 0xe3c592 },
+  },
+};
+
+/** A gun: shoots bullets at dolls that are in front of it. */
+export interface GunDef {
+  range: number;
+  damage: number;
+  /** Time between shots. */
+  everyMs: number;
+  bulletSpeed: number;
+  /** Where the bullet comes out: this far in front of the doll and above its feet. */
+  muzzle: { x: number; y: number };
+}
+
+/** Something to hit with: reaches further and hurts more than a fist. */
+export interface MeleeDef {
+  reach: number;
+  damage: number;
+  /** How fast the one who is hit slides away. */
+  pushSpeed: number;
+}
+
+export interface BombDef {
+  fuseMs: number;
+  radius: number;
+  damage: number;
+  pushSpeed: number;
+}
+
+/** An item a doll can hold. `x`, `y` is the middle of its bottom edge when it lies around. */
+export interface ItemDef {
+  halfWidth: number;
+  height: number;
+  menuScale: number;
+  /** Where its picture goes when it lies around, from the middle of the bottom edge. */
+  lie: { x: number; y: number };
+  /** How it sits in a doll's hand. */
+  hand: { rotation: number; along: number };
+  gun?: GunDef;
+  melee?: MeleeDef;
+  bomb?: BombDef;
+}
+
+export type ItemKind = 'pistol' | 'sword' | 'bat' | 'bomb';
+
+export const ITEMS: Record<ItemKind, ItemDef> = {
+  pistol: {
+    halfWidth: 12,
+    height: 17,
+    menuScale: 2.2,
+    lie: { x: -9, y: -12 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: { range: 430, damage: 2, everyMs: 900, bulletSpeed: 760, muzzle: { x: 78, y: 86 } },
+  },
+  sword: {
+    halfWidth: 31,
+    height: 14,
+    menuScale: 1.05,
+    lie: { x: -21, y: -7 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 84, damage: 2, pushSpeed: 300 },
+  },
+  bat: {
+    halfWidth: 32,
+    height: 10,
+    menuScale: 1.05,
+    lie: { x: -18, y: -5 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 78, damage: 1, pushSpeed: 620 },
+  },
+  bomb: {
+    halfWidth: 12,
+    height: 24,
+    menuScale: 1.7,
+    lie: { x: 0, y: -12 },
+    hand: { rotation: 0, along: 10 },
+    bomb: { fuseMs: 4000, radius: 170, damage: 3, pushSpeed: 700 },
+  },
+};
+
+/** The colors of the items. */
+export const ITEM_COLORS = {
+  pistol: { body: 0x37474f, dark: 0x1c262b, shine: 0x90a4ae },
+  sword: { blade: 0xdfe6ea, edge: 0x8d99a1, guard: 0xffc107, handle: 0x6d4c41 },
+  bat: { wood: 0xc9a46a, dark: 0x8a6a3a, grip: 0x3e2723 },
+  bomb: { body: 0x212121, shine: 0x757575, cap: 0x9e9e9e, fuse: 0xbcaaa4, spark: 0xffb300 },
+} as const;
+
+/** At most this many items and building pieces at once; the oldest leaves first. */
+export const THINGS_MAX = 150;
+
+/** Things you can click are a bit bigger than they look, so small items are easy to grab. */
+export const PICK_PADDING = 8;
+
+/** A bullet from a gun. */
+export const BULLET = { width: 12, height: 3, color: 0xffe082 } as const;
+
+/** The big bang of a bomb. */
+export const BLAST = {
+  emoji: '💥',
+  fontSize: '110px',
+  ms: 520,
+  grow: 1.5,
+  /** The spark on a lit fuse blinks this fast. */
+  blinkMs: 140,
 } as const;

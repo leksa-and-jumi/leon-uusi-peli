@@ -1,45 +1,46 @@
 import type Phaser from 'phaser';
-import { ACTIONS, BUBBLES, PERSON, type ActionId } from '../config';
+import { ACTION_EMOJI, BUBBLES, MAX_BUBBLES, type ActionId } from '../config';
 import { bubbleAt, bubbleCenters, type Point } from '../logic/bubbles';
 import type { PlaceArea } from '../logic/place';
-import type { Person } from './Person';
+import type { Body } from './Body';
 
 /**
- * The round bubbles above a double-clicked person, one for each thing they can do.
- * A pressed bubble glows until it is pressed again.
+ * The round bubbles above something that was double-clicked, one for each thing it
+ * can do. A pressed bubble glows until it is pressed again.
  */
 export class ActionBubbles {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly labels: Phaser.GameObjects.Text[];
-  private person: Person | null = null;
+  private body: Body | null = null;
   private centers: Point[] = [];
   /** Time left for the quick flash of a bubble that doesn't stay on. */
-  private readonly flashMs: number[] = ACTIONS.map(() => 0);
+  private readonly flashMs = new Map<ActionId, number>();
 
   constructor(scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setDepth(BUBBLES.depth);
-    this.labels = ACTIONS.map((action) =>
+    this.labels = Array.from({ length: MAX_BUBBLES }, () =>
       scene.add
-        .text(0, 0, action.emoji, { fontSize: BUBBLES.fontSize })
+        .text(0, 0, '', { fontSize: BUBBLES.fontSize })
         .setOrigin(0.5)
         .setDepth(BUBBLES.depth)
         .setVisible(false),
     );
   }
 
-  /** The person the bubbles belong to, or `null` when they are closed. */
-  get target(): Person | null {
-    return this.person;
+  /** What the bubbles belong to, or `null` when they are closed. */
+  get target(): Body | null {
+    return this.body;
   }
 
-  open(person: Person): void {
-    this.person = person;
-    this.flashMs.fill(0);
+  open(body: Body): void {
+    this.close();
+    this.body = body;
   }
 
   close(): void {
-    this.person = null;
+    this.body = null;
     this.centers = [];
+    this.flashMs.clear();
     this.graphics.clear();
     this.labels.forEach((label) => label.setVisible(false));
   }
@@ -47,29 +48,28 @@ export class ActionBubbles {
   /** Which action's bubble is under the point, or `null` if none is. */
   actionAt(px: number, py: number): ActionId | null {
     const index = bubbleAt(this.centers, BUBBLES.row.radius, px, py);
-    return index === null ? null : (ACTIONS[index]?.id ?? null);
+    return index === null ? null : (this.body?.actions[index] ?? null);
   }
 
   /** Light a bubble up for a blink (for actions that are done at once). */
   flash(id: ActionId): void {
-    const index = ACTIONS.findIndex((action) => action.id === id);
-    if (index >= 0) this.flashMs[index] = BUBBLES.flashMs;
+    this.flashMs.set(id, BUBBLES.flashMs);
   }
 
-  /** Follow the person and redraw, so the glow always shows what is switched on. */
+  /** Follow the target and redraw, so the glow always shows what is switched on. */
   update(deltaMs: number, area: PlaceArea): void {
-    const person = this.person;
-    if (!person) return;
-    if (!person.canBePicked) {
+    const body = this.body;
+    if (!body) return;
+    if (!body.canBePicked || body.gone) {
       this.close();
       return;
     }
 
-    const feet = person.feet;
+    const feet = body.feet;
     this.centers = bubbleCenters(
-      ACTIONS.length,
+      body.actions.length,
       feet.x,
-      feet.y - PERSON.height,
+      feet.y - body.size.height,
       BUBBLES.row,
       area.left,
       area.right,
@@ -77,14 +77,14 @@ export class ActionBubbles {
     );
 
     this.graphics.clear();
-    ACTIONS.forEach((action, index) => {
+    body.actions.forEach((action, index) => {
       const center = this.centers[index];
       const label = this.labels[index];
       if (!center || !label) return;
-      const flash = Math.max(0, (this.flashMs[index] ?? 0) - deltaMs);
-      this.flashMs[index] = flash;
-      this.drawBubble(center, person.activity === action.id || flash > 0);
-      label.setPosition(center.x, center.y).setVisible(true);
+      const flash = Math.max(0, (this.flashMs.get(action) ?? 0) - deltaMs);
+      this.flashMs.set(action, flash);
+      this.drawBubble(center, body.isOn(action) || flash > 0);
+      label.setText(ACTION_EMOJI[action]).setPosition(center.x, center.y).setVisible(true);
     });
   }
 
