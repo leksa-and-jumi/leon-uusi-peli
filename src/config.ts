@@ -298,7 +298,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 2.2,
     lie: { x: -9, y: -12 },
     hand: { rotation: Math.PI / 2, along: 0 },
-    gun: { range: 430, damage: 2, everyMs: 900, bulletSpeed: 760, muzzle: { x: 78, y: 86 } },
+    gun: { range: 430, damage: 1, everyMs: 900, bulletSpeed: 760, muzzle: { x: 78, y: 86 } },
   },
   sword: {
     halfWidth: 31,
@@ -306,7 +306,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 1.05,
     lie: { x: -21, y: -7 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 84, damage: 2, pushSpeed: 300 },
+    melee: { reach: 84, damage: 1, pushSpeed: 300 },
   },
   bat: {
     halfWidth: 32,
