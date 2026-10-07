@@ -26,9 +26,9 @@
 
 🇫🇮 **Aseet 🔫:** pudota ase nuken päälle tai raahaa se siihen, niin nukke ottaa sen käteensä. 😡 Vihaisessa modissa nukke käyttää sitä. Tuplaklikkaa pyssyä ja paina 💥: se ampuu taukoamatta, myös kun raahaat sitä, joten voit itse ampua nukkeja (🔄 kääntää sen). Sytytetty 💣 pommi räjähtää 4 sekunnin päästä: se satuttaa lähellä olevia nukkeja ja räjäyttää kaiken muun räjähdyksen alueelta: rakennuspalat ja irtoaseet. Muut pommit ja tynnyrit räjähdyksen alueella räjähtävät myös!
 
-🇬🇧 **Swing it yourself 🗡️:** grab a sword or a bat and drag it fast into a doll: the doll loses a life and falls over. Carrying it slowly doesn't hurt anybody.
+🇬🇧 **Swing it yourself 🗡️:** grab a sword or a bat and drag it fast into a doll: the doll loses a life and falls over. Carrying it slowly doesn't hurt anybody. A sword, an axe or a spear that you swing or throw into a doll sinks in and stays stuck where it hit. The doll bleeds for as long as it is in there. Grab the weapon to pull it out.
 
-🇫🇮 **Huitaise itse 🗡️:** tartu miekkaan tai mailaan ja vedä se nopeasti nukkeen: nukke menettää elämän ja kaatuu. Hitaasti kantaminen ei satuta ketään.
+🇫🇮 **Huitaise itse 🗡️:** tartu miekkaan tai mailaan ja vedä se nopeasti nukkeen: nukke menettää elämän ja kaatuu. Hitaasti kantaminen ei satuta ketään. Miekka, kirves tai keihäs, jonka huitaiset tai heität nukkeen, uppoaa siihen ja jää kiinni osumakohtaan. Nukke vuotaa verta niin kauan kuin ase on siinä. Tartu aseeseen, niin vedät sen ulos.
 
 🇬🇧 **Wounds and pieces 🩸:** a doll that loses a life gets a mark and bleeds for a while. Every weapon leaves its own mark: a fist, a bat, a pan or a bottle leaves a bruise, a sword or an axe a slash, a spear a stab wound, a bullet a bullet hole and a blast a burn. A slash bleeds the most, a bruise hardly at all; the blood stays on the floor until you sweep it away with the broom. Anything that is blown up or smashed bursts into small pieces that lie around for a moment and then fade away. You can throw items like dolls, and a thrown weapon hurts the doll it hits.
 

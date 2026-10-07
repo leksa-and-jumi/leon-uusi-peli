@@ -11,6 +11,7 @@ import {
   PHYSICS,
   PICK_PADDING,
   PUNCH_DAMAGE,
+  STUCK,
   TOSS,
   WALK,
   type ActionId,
@@ -162,6 +163,8 @@ export class Person extends Body {
   /** Where it was last drawn: its feet, and how far it was turned. */
   private drawn = { x: 0, y: 0, rotation: 0 };
   private item: Item | null = null;
+  /** The weapons stuck in its body, and where each one sits (from its feet, before turning). */
+  private readonly stuck = new Map<Item, Spot>();
 
   constructor(scene: Phaser.Scene, look: PersonLook, x: number, feetY: number) {
     super(x, feetY);
@@ -195,6 +198,11 @@ export class Person extends Body {
   /** Roughly where the front hand is: a held item counts as being here. */
   get handSpot(): Spot {
     return { x: this.x + this.facing * PERSON.hand.x, y: this.y - PERSON.hand.y };
+  }
+
+  /** The weapons that are stuck in its body. */
+  get stuckItems(): Item[] {
+    return [...this.stuck.keys()];
   }
 
   /** The item in the hand, or `null` when empty-handed. */
@@ -294,6 +302,38 @@ export class Person extends Body {
     this.floored = true;
     this.knockDir = this.vx < 0 ? -1 : 1;
     this.tumble = { angle: this.tumble.angle, speed: this.tumble.speed + this.vx * TOSS.spin };
+  }
+
+  /**
+   * A weapon coming from the side sinks into the body at the height it hit, and
+   * stays there. `direction` is the way it was moving and `atY` how high up it was.
+   */
+  impale(item: Item, direction: Facing, atY: number, out: number): void {
+    const height = clamp(this.drawn.y - atY, STUCK.lowest, STUCK.highest);
+    // Seen from the doll itself, which may be facing either way
+    const pointing = direction * this.facing;
+    const spot = { x: -pointing * out, y: -height };
+    this.stuck.set(item, spot);
+    const tilt = randomBetween(-STUCK.tilt, STUCK.tilt);
+    this.figure.embed(item.display, spot.x, spot.y, pointing, tilt);
+    this.spray += STUCK.spray;
+  }
+
+  /** Where the grip of a weapon stuck in the body is right now, in the area. */
+  stuckSpot(item: Item): Spot {
+    const spot = this.stuck.get(item) ?? { x: 0, y: 0 };
+    const { x, y, rotation } = this.drawn;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const sideways = spot.x * this.facing;
+    return { x: x + sideways * cos - spot.y * sin, y: y + sideways * sin + spot.y * cos };
+  }
+
+  /** A weapon is pulled out of the body: back into the area, with a spray of blood. */
+  pullOut(item: Item): void {
+    if (!this.stuck.delete(item)) return;
+    this.figure.pullOut(item.display);
+    this.spray += STUCK.spray;
   }
 
   /** Let go inside something solid, a doll ends up standing on top of it. */
@@ -536,6 +576,8 @@ export class Person extends Body {
 
   /** Spray and drip blood from where the wounds are. */
   private bleed(deltaMs: number, world: World): void {
+    // A weapon left in the body keeps the wound open
+    if (this.stuck.size > 0) this.bleedMs = Math.max(this.bleedMs, BLOOD.dripEveryMs * 2);
     if (this.spray === 0 && this.bleedMs <= 0) return;
     const { x, y, rotation } = this.drawn;
     const up = PERSON.height * BLOOD.woundHeight;
