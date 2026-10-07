@@ -2,9 +2,11 @@ import Phaser from 'phaser';
 import {
   BLAST,
   BLOCKS,
+  BLOOD,
   BULLET,
   CEILING,
   COLORS,
+  DEBRIS,
   DEPTH,
   DOUBLE_CLICK_MS,
   FLOOR,
@@ -25,6 +27,8 @@ import {
 } from '../config';
 import { Sfx } from '../audio/Sfx';
 import { blastDirection, inBlast } from '../logic/blast';
+import { addDrop, wipe, type Stain } from '../logic/blood';
+import { crumbAlpha, crumbCount, crumbStep, scatter, type Crumb } from '../logic/debris';
 import { overlaps, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
@@ -59,6 +63,13 @@ interface Bullet {
   picture: Phaser.GameObjects.Rectangle;
 }
 
+/** A flying piece of something that broke, or a drop of blood (then `blood` is its color). */
+interface Piece {
+  crumb: Crumb;
+  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc;
+  blood: number | null;
+}
+
 /**
  * The area: pick something from the menu and click to put it in. Drag things around,
  * and double-click one to open its action bubbles.
@@ -71,6 +82,10 @@ export class MainScene extends Phaser.Scene {
   private blocks: Block[] = [];
   private items: Item[] = [];
   private bullets: Bullet[] = [];
+  private pieces: Piece[] = [];
+  /** Blood on the floor. It stays until it is wiped away with the broom. */
+  private stains: Stain[] = [];
+  private stainLayer!: Phaser.GameObjects.Graphics;
   private dragged: Body | null = null;
   private lastClick: Click | null = null;
   /** Where the dragged thing was a frame ago, to see how fast it is swung. */
@@ -92,6 +107,8 @@ export class MainScene extends Phaser.Scene {
     this.blocks = [];
     this.items = [];
     this.bullets = [];
+    this.pieces = [];
+    this.stains = [];
     this.solids = [];
     this.dragged = null;
     this.lastClick = null;
@@ -114,6 +131,13 @@ export class MainScene extends Phaser.Scene {
       explode: (source, blast) => {
         this.explode(source, blast);
       },
+      breakApart: (body, pushX, pushY) => {
+        this.crumble(body, pushX, pushY);
+        this.sfx.shatter();
+      },
+      bleed: (x, y, drops, color, spray) => {
+        this.bleed(x, y, drops, color, spray);
+      },
     };
 
     this.add.rectangle(0, AREA.floorY, GAME_WIDTH, FLOOR.height, FLOOR.color).setOrigin(0);
@@ -127,6 +151,7 @@ export class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    this.stainLayer = this.add.graphics().setDepth(BLOOD.depth);
     this.menu = new SpawnMenu(this);
     this.bubbles = new ActionBubbles(this);
 
@@ -155,6 +180,8 @@ export class MainScene extends Phaser.Scene {
       body.update(delta, this.world);
     }
     this.updateBullets(delta);
+    this.updatePieces(delta);
+    this.sweep();
     this.handOutItems();
     this.swing(delta);
     this.trackDrag();
@@ -181,6 +208,7 @@ export class MainScene extends Phaser.Scene {
       if (pressed === 'clear') {
         this.forget(this.everything());
         this.clearBullets();
+        this.clearMess();
       }
       return;
     }
@@ -283,7 +311,7 @@ export class MainScene extends Phaser.Scene {
         return;
       }
     }
-    if (body instanceof Person) {
+    if (body instanceof Person || body instanceof Item) {
       const speed = throwSpeed(recentSamples(this.dragTrail, this.time.now, TOSS.windowMs));
       body.throwWith(speed.x, speed.y, this.solidBoxes(body));
     } else {
@@ -333,6 +361,7 @@ export class MainScene extends Phaser.Scene {
   /** Put what is picked in the menu into the area, around the click. */
   private spawn(px: number, py: number): void {
     const choice = this.menu.selected;
+    if (choice.type === 'none') return;
     if (choice.type === 'person') {
       const feet = placeFeet(px, py, AREA, PERSON);
       this.people.push(new Person(this, choice.look, feet.x, feet.y));
@@ -488,14 +517,122 @@ export class MainScene extends Phaser.Scene {
     for (const next of [...blocks, ...items]) {
       next.setOff(BLAST.chainMs);
     }
-    this.forget([
+    // What the blast destroys bursts into pieces that fly away from it
+    const destroyed = [
       ...blocks.filter((block) => !block.explosive),
       ...items.filter((item) => !item.def.bomb),
-    ]);
+    ];
+    for (const body of destroyed) {
+      const away = blastDirection(x, body.feet.x) * DEBRIS.blastPush;
+      this.crumble(body, away, -DEBRIS.blastLift);
+    }
+    this.crumble(source, 0, -DEBRIS.blastLift);
+    this.forget(destroyed);
 
     this.sfx.blast();
     this.popUp(x, middleY, BLAST.emoji, BLAST.fontSize, BLAST.ms, BLAST.grow);
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
+  }
+
+  /** Break something into small pieces of its own colors. They fly off with this push. */
+  private crumble(body: Body, pushX: number, pushY: number): void {
+    const colors = body.crumbs;
+    if (colors.length === 0) return;
+    const box = body.box;
+    const count = crumbCount(box, DEBRIS.areaPerCrumb, DEBRIS.least, DEBRIS.most);
+    for (const crumb of scatter(box, count, { ...DEBRIS.burst, pushX, pushY })) {
+      const color = colors[Math.floor(Math.random() * colors.length)] ?? 0;
+      const picture = this.add
+        .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
+        .setDepth(DEBRIS.depth);
+      this.pieces.push({ crumb, picture, blood: null });
+    }
+    this.trimPieces();
+  }
+
+  /** Blood from a wound: a spray of many drops, or a single drip. */
+  private bleed(x: number, y: number, drops: number, color: number, spray: boolean): void {
+    const burst = spray
+      ? { ...BLOOD.spray, pushX: 0, pushY: BLOOD.sprayLift }
+      : { ...BLOOD.drip, pushX: 0, pushY: 0 };
+    const wound = { left: x - 4, right: x + 4, top: y - 4, bottom: y + 4 };
+    for (const crumb of scatter(wound, drops, burst)) {
+      const picture = this.add
+        .circle(crumb.x, crumb.y, crumb.size / 2, color)
+        .setDepth(DEBRIS.depth);
+      this.pieces.push({ crumb, picture, blood: color });
+    }
+    this.trimPieces();
+  }
+
+  /** With too many pieces flying around, the oldest ones go. */
+  private trimPieces(): void {
+    const extra = this.pieces.length - DEBRIS.max;
+    if (extra <= 0) return;
+    this.pieces.splice(0, extra).forEach((piece) => piece.picture.destroy());
+  }
+
+  /**
+   * Pieces fly, bounce, lie on the floor for a while and fade away. A drop of blood
+   * that reaches the floor becomes a stain instead, and stains stay.
+   */
+  private updatePieces(delta: number): void {
+    const physics = {
+      ...DEBRIS.physics,
+      floorY: AREA.floorY,
+      left: AREA.left,
+      right: AREA.right,
+    };
+    let stained = false;
+    this.pieces = this.pieces.filter((piece) => {
+      piece.crumb = crumbStep(piece.crumb, physics, delta);
+      const { x, y, turn, ageMs } = piece.crumb;
+      if (piece.blood !== null && y >= AREA.floorY) {
+        this.stains = addDrop(this.stains, x, piece.blood, BLOOD.stain);
+        stained = true;
+        piece.picture.destroy();
+        return false;
+      }
+      const alpha = crumbAlpha(ageMs, DEBRIS.lieMs, DEBRIS.fadeMs);
+      if (alpha <= 0) {
+        piece.picture.destroy();
+        return false;
+      }
+      piece.picture.setPosition(x, y).setAlpha(alpha);
+      piece.picture.rotation = turn;
+      return true;
+    });
+    if (stained) this.drawStains();
+  }
+
+  /** A broom dragged along the floor wipes away the stains under it. */
+  private sweep(): void {
+    const broom = this.dragged;
+    if (!(broom instanceof Item) || !broom.wipes || this.stains.length === 0) return;
+    const box = broom.box;
+    if (box.bottom < AREA.floorY - BLOOD.sweepHeight) return;
+    const left = wipe(this.stains, box.left, box.right);
+    if (left.length === this.stains.length) return;
+    this.stains = left;
+    this.drawStains();
+  }
+
+  private drawStains(): void {
+    const g = this.stainLayer;
+    const y = AREA.floorY + BLOOD.stainDrop;
+    g.clear();
+    for (const stain of this.stains) {
+      g.fillStyle(stain.color, BLOOD.stainAlpha);
+      g.fillEllipse(stain.x, y, stain.halfWidth * 2, BLOOD.stainHeight);
+    }
+  }
+
+  /** Take away every flying piece and every stain. */
+  private clearMess(): void {
+    this.pieces.forEach((piece) => piece.picture.destroy());
+    this.pieces = [];
+    this.stains = [];
+    this.drawStains();
   }
 
   private showHit(x: number, y: number, deadly: boolean, sound: HitSound): void {

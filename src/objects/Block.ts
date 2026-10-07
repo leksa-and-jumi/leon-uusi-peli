@@ -13,6 +13,7 @@ import {
 import { shade } from '../logic/color';
 import { Body } from './Body';
 import { drawJunk } from './junkShapes';
+import { drawTvProgram } from './tvScreen';
 import type { World } from './World';
 
 /**
@@ -24,7 +25,11 @@ export class Block extends Body {
   override readonly solid = true;
   readonly size: BlockDef;
   readonly actions: readonly ActionId[];
-  private readonly display: Phaser.GameObjects.Graphics;
+  readonly crumbs: readonly number[];
+  private readonly display: Phaser.GameObjects.Container;
+  /** The moving picture on the screen of a TV, or `null` for everything else. */
+  private readonly screen: Phaser.GameObjects.Graphics | null = null;
+  private clockMs = 0;
   /** Time left until a barrel that has been set off explodes, or `null`. */
   private fuseMs: number | null = null;
   private exploded = false;
@@ -33,8 +38,14 @@ export class Block extends Body {
     super(x, y);
     this.size = BLOCKS[kind];
     this.actions = this.size.blast ? BARREL_ACTIONS : THING_ACTIONS;
-    this.display = drawBlock(scene.add.graphics(), kind).setDepth(DEPTH.block);
-    this.display.setPosition(x, y);
+    const { fill, dark, light } = this.size.colors;
+    this.crumbs = [fill, dark, light];
+    const parts = [drawBlock(scene.make.graphics({}, false), kind)];
+    if (kind === 'tv') {
+      this.screen = scene.make.graphics({}, false);
+      parts.push(this.screen);
+    }
+    this.display = scene.add.container(x, y, parts).setDepth(DEPTH.block);
   }
 
   override get gone(): boolean {
@@ -65,9 +76,11 @@ export class Block extends Body {
   }
 
   update(deltaMs: number, world: World): void {
+    this.clockMs += deltaMs;
     const state = this.physics(deltaMs, world);
     this.display.setPosition(this.x, this.y);
     this.display.rotation = state === 'flying' ? this.spin : 0;
+    if (this.screen) drawTvProgram(this.screen, this.clockMs);
 
     if (this.fuseMs === null || !this.size.blast) return;
     this.fuseMs -= deltaMs;

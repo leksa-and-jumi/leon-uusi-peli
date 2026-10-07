@@ -10,17 +10,17 @@
 
 ## How to play / Miten pelataan
 
-🇬🇧 The menu at the top has four pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces and 🚽 junk. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it.
+🇬🇧 The menu at the top has four pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces and 🚽 junk. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it. Every page starts with an empty box: with that picked, a click on the gray area puts nothing in.
 
-🇫🇮 Ylävalikossa on neljä sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat ja 🚽 krääsä. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi.
+🇫🇮 Ylävalikossa on neljä sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat ja 🚽 krääsä. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi. Jokainen sivu alkaa tyhjällä ruudulla: kun se on valittuna, harmaan alueen klikkaus ei laita mitään paikalle.
 
 🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets; dolls step up onto low ones. The red barrel explodes when a bullet or a blast hits it, or when you double-click it and press 🔥!
 
 🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥!
 
-🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. A doll can hold the bottle and the frying pan and hit with them.
+🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. The TV always has a program on 📺. A doll can hold the bottle, the frying pan and the broom and hit with them. Throw the bottle hard and it smashes. Drag the broom 🧹 along the floor to wipe blood away.
 
-🇫🇮 **Krääsä 🚽:** vessanpönttö, televisio, roskis, nojatuoli, pöytä, jääkaappi, liikennekartio ja rengas ovat kiinteitä: pinoa niitä ja laita nukkeja niiden päälle. Pullon ja paistinpannun nukke voi ottaa käteen ja lyödä niillä.
+🇫🇮 **Krääsä 🚽:** vessanpönttö, televisio, roskis, nojatuoli, pöytä, jääkaappi, liikennekartio ja rengas ovat kiinteitä: pinoa niitä ja laita nukkeja niiden päälle. Telkkarista tulee aina ohjelmaa 📺. Pullon, paistinpannun ja harjan nukke voi ottaa käteen ja lyödä niillä. Paiskaa pullo kovaa, niin se särkyy. Raahaa harjaa 🧹 lattiaa pitkin, niin veri pyyhkiytyy pois.
 
 🇬🇧 **Weapons 🔫:** drop a weapon onto a doll, or drag it there, and the doll takes it in its hand. In 😡 angry mode the doll uses it. Double-click a gun and press 💥: it fires nonstop, also while you drag it around, so you can shoot the dolls yourself (🔄 turns it around). A lit 💣 bomb goes off after 4 seconds: it hurts the dolls nearby and blows up everything else in its blast: building pieces and loose weapons. Other bombs and barrels in the blast go off too!
 
@@ -29,6 +29,10 @@
 🇬🇧 **Swing it yourself 🗡️:** grab a sword or a bat and drag it fast into a doll: the doll loses a life and falls over. Carrying it slowly doesn't hurt anybody.
 
 🇫🇮 **Huitaise itse 🗡️:** tartu miekkaan tai mailaan ja vedä se nopeasti nukkeen: nukke menettää elämän ja kaatuu. Hitaasti kantaminen ei satuta ketään.
+
+🇬🇧 **Wounds and pieces 🩸:** a doll that loses a life gets a wound and bleeds for a while; the blood stays on the floor until you sweep it away with the broom. Anything that is blown up or smashed bursts into small pieces that lie around for a moment and then fade away. You can throw items like dolls, and a thrown weapon hurts the doll it hits.
+
+🇫🇮 **Haavat ja palaset 🩸:** nukke, joka menettää elämän, saa haavan ja vuotaa verta jonkin aikaa; veri jää lattialle, kunnes lakaiset sen pois harjalla. Kaikki, mikä räjäytetään tai särkyy, hajoaa pieniksi paloiksi, jotka makaavat hetken ja haalistuvat sitten pois. Tavaroita voi heittää kuten nukkeja, ja heitetty ase satuttaa nukkea, johon se osuu.
 
 🇬🇧 **Special dolls 🤖:** the last four dolls in the menu are always angry and attack the moment they land. They have more lives than the plain dolls and their hits take one life more. 🤖 Robot: 5 lives. 🥷 Ninja: 4 lives, very fast. 🛡️ Knight: 6 lives, slow. 🧟 Zombie: 5 lives, slow, arms out.
 

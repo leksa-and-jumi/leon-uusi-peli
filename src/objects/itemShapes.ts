@@ -28,6 +28,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawBottle(g);
     case 'pan':
       return drawPan(g);
+    case 'broom':
+      return drawBroom(g);
   }
 }
 
@@ -411,5 +413,39 @@ function drawPan(g: Graphics): Graphics {
   g.fillEllipse(28.5, -5.5, 9, 5);
   g.lineStyle(1.2, c.shine, 0.6);
   g.strokeCircle(33, 0, 13.2);
+  return g;
+}
+
+/** A broom: a long wooden handle and a head of straw bristles tied with a red band. */
+function drawBroom(g: Graphics): Graphics {
+  const wood = ITEM_COLORS.wood;
+  const c = ITEM_COLORS.broom;
+  // Handle
+  g.fillStyle(wood.dark);
+  g.fillRoundedRect(-30, -2.6, 66, 5.2, 2.4);
+  g.fillStyle(wood.fill);
+  g.fillRect(-29, -1.6, 64, 2.2);
+  // The bristles fan out from the band to the end
+  shape(g, c.bristleDark, [
+    [36, -6.5],
+    [53, -13],
+    [53, 13],
+    [36, 6.5],
+  ]);
+  shape(g, c.bristle, [
+    [37, -5.2],
+    [52, -11.5],
+    [52, 11.5],
+    [37, 5.2],
+  ]);
+  g.lineStyle(1, c.bristleDark, 0.75);
+  for (const tip of [-8, -4, 0, 4, 8]) {
+    g.lineBetween(38, tip * 0.45, 52, tip);
+  }
+  // The band that ties them to the handle
+  g.fillStyle(c.bandDark);
+  g.fillRoundedRect(33, -7.2, 6, 14.4, 2);
+  g.fillStyle(c.band);
+  g.fillRoundedRect(34, -6.2, 3.2, 12.4, 1.4);
   return g;
 }

@@ -5,14 +5,17 @@ import {
   DEPTH,
   GUN_ACTIONS,
   ITEM_COLORS,
+  ITEM_TOSS,
   ITEMS,
   PICKUP_WAIT_MS,
   THING_ACTIONS,
+  TOSS,
   type ActionId,
   type ItemDef,
   type ItemKind,
 } from '../config';
-import type { Box } from '../logic/ground';
+import { clamp } from '../logic/bounds';
+import { blockedX, overlaps, type Box } from '../logic/ground';
 import type { Facing } from '../logic/walk';
 import { Body } from './Body';
 import { drawItem, FUSE_TIP } from './itemShapes';
@@ -26,6 +29,7 @@ import type { World } from './World';
 export class Item extends Body {
   readonly size: ItemDef;
   readonly actions: readonly ActionId[];
+  readonly crumbs: readonly number[];
   readonly display: Phaser.GameObjects.Container;
   private readonly spark: Phaser.GameObjects.Graphics | null = null;
   private holder: Person | null = null;
@@ -39,6 +43,14 @@ export class Item extends Body {
   private exploded = false;
   /** Time left before a doll may grab it again after one has let go of it. */
   private noPickupMs = 0;
+  /** Sideways speed from being thrown, until it slides to a stop. */
+  private vx = 0;
+  /** Thrown, and still on its way: it hurts the doll it hits. */
+  private tossed = false;
+  /** Thrown, and not come to rest yet: only then can it break on what it hits. */
+  private thrown = false;
+  /** Smashed to pieces. */
+  private broken = false;
   /** The doll that let go of it. That doll doesn't take it back while it still lies by its feet. */
   private dropper: Person | null = null;
   private clockMs = 0;
@@ -46,6 +58,7 @@ export class Item extends Body {
   constructor(scene: Phaser.Scene, kind: ItemKind, x: number, y: number) {
     super(x, y);
     this.size = ITEMS[kind];
+    this.crumbs = this.size.crumbs;
     this.actions = this.size.bomb ? BOMB_ACTIONS : this.size.gun ? GUN_ACTIONS : THING_ACTIONS;
     const parts: Phaser.GameObjects.Graphics[] = [drawItem(scene.make.graphics({}, false), kind)];
     if (this.size.bomb) {
@@ -71,7 +84,7 @@ export class Item extends Body {
   }
 
   override get gone(): boolean {
-    return super.gone || this.exploded || (this.holder?.gone ?? false);
+    return super.gone || this.exploded || this.broken || (this.holder?.gone ?? false);
   }
 
   /** In a doll's hand right now? */
@@ -81,7 +94,19 @@ export class Item extends Body {
 
   /** Lying or falling free, so a doll that touches it can take it. */
   get canBeTaken(): boolean {
-    return this.canBePicked && !this.held && !this.exploded && this.noPickupMs <= 0;
+    return (
+      this.canBePicked &&
+      !this.held &&
+      !this.tossed &&
+      !this.exploded &&
+      !this.broken &&
+      this.noPickupMs <= 0
+    );
+  }
+
+  /** Dragged along the floor, does it wipe stains away? */
+  get wipes(): boolean {
+    return this.size.wipes === true;
   }
 
   /** The doll that let go of it and hasn't moved away from it since, if any. */
@@ -97,6 +122,26 @@ export class Item extends Body {
   override grab(px: number, py: number): void {
     super.grab(px, py);
     this.dropper = null;
+    this.vx = 0;
+    this.tossed = false;
+    this.thrown = false;
+  }
+
+  /**
+   * Let go. While the mouse is moving, the item is thrown the way the mouse was
+   * going (speeds in pixels per second); a slow let-go is just a drop.
+   */
+  throwWith(speedX: number, speedY: number, solids: readonly Box[]): void {
+    const speed = Math.hypot(speedX, speedY);
+    if (speed < TOSS.minSpeed) {
+      this.release(solids);
+      return;
+    }
+    const scale = Math.min(TOSS.power, TOSS.maxSpeed / speed);
+    this.release(solids, speedY * scale);
+    this.vx = speedX * scale;
+    this.tossed = true;
+    this.thrown = true;
   }
 
   isOn(action: ActionId): boolean {
@@ -157,7 +202,11 @@ export class Item extends Body {
       this.x = hand.x;
       this.y = hand.y;
     } else {
+      const wasFalling = this.state === 'falling';
+      this.glide(deltaMs, world);
       const state = this.physics(deltaMs, world);
+      if (wasFalling && state === 'resting') this.strike(this.lastImpact, world);
+      if (state === 'resting' && this.vx === 0) this.thrown = false;
       this.lieAt(state === 'flying' ? this.spin : 0);
       if (state !== 'flying') this.fire(deltaMs, world);
     }
@@ -178,6 +227,50 @@ export class Item extends Body {
 
   destroy(): void {
     this.display.destroy();
+  }
+
+  /**
+   * Fly or slide sideways after a throw. It bounces off walls, and a thrown thing
+   * to hit with hurts the first standing doll it flies into.
+   */
+  private glide(deltaMs: number, world: World): void {
+    if (this.vx === 0 || this.state === 'held' || this.state === 'flying') return;
+    const { halfWidth, height } = this.size;
+    const wanted = this.x + this.vx * (deltaMs / 1000);
+    const inside = clamp(wanted, world.area.left + halfWidth, world.area.right - halfWidth);
+    this.x = blockedX(this.x, inside, halfWidth, this.y, height, world.solidBoxes(this), 0);
+    if (this.x !== wanted) this.bounceBack(world);
+    if (this.state === 'resting') this.vx *= Math.exp(-deltaMs / ITEM_TOSS.slideMs);
+    if (Math.abs(this.vx) < ITEM_TOSS.stopSpeed) {
+      this.vx = 0;
+      this.tossed = false;
+    }
+
+    const melee = this.size.melee;
+    if (!this.tossed || !melee || Math.abs(this.vx) < ITEM_TOSS.hitSpeed) return;
+    const victim = world.people.find((person) => person.canBeHit && overlaps(this.box, person.box));
+    if (!victim) return;
+    const direction = this.vx < 0 ? -1 : 1;
+    const solids = world.solidBoxes(victim);
+    const deadly = victim.hit(direction, solids, melee.damage, melee.pushSpeed);
+    world.hitEffect(victim.feet.x, this.y - height / 2, deadly, 'clang');
+    this.tossed = false;
+    this.bounceBack(world);
+  }
+
+  /** Bounce back off whatever it ran into, and maybe break on it. */
+  private bounceBack(world: World): void {
+    const speed = Math.abs(this.vx);
+    this.vx *= -ITEM_TOSS.bounce;
+    this.strike(speed, world);
+  }
+
+  /** It hit something at this speed: a fragile thing that was thrown smashes to pieces. */
+  private strike(speed: number, world: World): void {
+    const breaksAt = this.size.breaksAt;
+    if (this.broken || !this.thrown || breaksAt === undefined || speed < breaksAt) return;
+    this.broken = true;
+    world.breakApart(this, this.vx * 0.5, -160);
   }
 
   /** A gun set to fire nonstop shoots the way it points, wherever it is. */
