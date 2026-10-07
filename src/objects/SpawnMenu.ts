@@ -1,11 +1,14 @@
 import type Phaser from 'phaser';
 import {
   BLOCKS,
+  BUILD_KINDS,
   GAME_WIDTH,
   ITEMS,
+  JUNK_KINDS,
   MENU,
   PEOPLE,
   TABS,
+  WEAPON_KINDS,
   type BlockKind,
   type ItemKind,
   type PersonLook,
@@ -24,13 +27,14 @@ export type SpawnChoice =
 
 const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
   people: PEOPLE.map((look) => ({ type: 'person', look })),
-  items: (Object.keys(ITEMS) as ItemKind[]).map((kind) => ({ type: 'item', kind })),
-  build: (Object.keys(BLOCKS) as BlockKind[]).map((kind) => ({ type: 'block', kind })),
+  items: WEAPON_KINDS.map((kind) => ({ type: 'item', kind })),
+  build: BUILD_KINDS.map((kind) => ({ type: 'block', kind })),
+  junk: JUNK_KINDS,
 };
 
 /**
- * The menu along the top. The small buttons on the left switch between dolls, items
- * and building pieces; the big slots pick what the next click puts into the area.
+ * The menu along the top. The small buttons on the left switch between dolls, weapons,
+ * building pieces and junk; the big slots pick what the next click puts into the area.
  */
 export class SpawnMenu {
   private readonly scene: Phaser.Scene;

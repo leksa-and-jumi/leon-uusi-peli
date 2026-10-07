@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fallStep } from './fall';
+import { ceilingBounce, fallStep } from './fall';
 
 describe('fallStep', () => {
   it('falls faster and faster', () => {
@@ -20,5 +20,19 @@ describe('fallStep', () => {
   it('stays put after landing', () => {
     const landed = { y: 500, speed: 0, landed: true };
     expect(fallStep(landed, 1000, 500, 100)).toBe(landed);
+  });
+});
+
+describe('ceilingBounce', () => {
+  it('changes nothing below the ceiling', () => {
+    expect(ceilingBounce(400, -300, 120, 100, 0.4)).toEqual({ y: 400, speed: -300 });
+  });
+
+  it('stops at the ceiling and bounces back down', () => {
+    expect(ceilingBounce(200, -300, 120, 100, 0.4)).toEqual({ y: 220, speed: 120 });
+  });
+
+  it('does not speed up something that is already coming down', () => {
+    expect(ceilingBounce(200, 50, 120, 100, 0.4)).toEqual({ y: 220, speed: 50 });
   });
 });

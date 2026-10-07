@@ -3,6 +3,7 @@ import {
   BLAST,
   BLOCKS,
   BULLET,
+  CEILING,
   COLORS,
   DEPTH,
   DOUBLE_CLICK_MS,
@@ -43,7 +44,7 @@ import type { HitSound, World } from '../objects/World';
 const AREA: PlaceArea = {
   left: 0,
   right: GAME_WIDTH,
-  top: MENU.height,
+  top: MENU.height + CEILING.height,
   floorY: GAME_HEIGHT - FLOOR.height,
 };
 
@@ -116,6 +117,8 @@ export class MainScene extends Phaser.Scene {
     };
 
     this.add.rectangle(0, AREA.floorY, GAME_WIDTH, FLOOR.height, FLOOR.color).setOrigin(0);
+    this.add.rectangle(0, MENU.height, GAME_WIDTH, CEILING.height, CEILING.color).setOrigin(0);
+    this.add.rectangle(0, AREA.top - 2, GAME_WIDTH, 2, CEILING.edge).setOrigin(0);
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - HINT.fromBottom, HINT.text, {
         fontSize: HINT.fontSize,

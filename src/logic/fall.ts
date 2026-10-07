@@ -17,3 +17,20 @@ export function fallStep(fall: Fall, gravity: number, floorY: number, deltaMs: n
   }
   return { y, speed, landed: false };
 }
+
+/**
+ * Something flying up hits the ceiling: it stops there and bounces back down with
+ * part of its speed. `y` is its bottom, `height` how tall it is, and a negative
+ * `speed` is upward. Below the ceiling nothing changes.
+ */
+export function ceilingBounce(
+  y: number,
+  speed: number,
+  height: number,
+  ceilingY: number,
+  bounce: number,
+): { y: number; speed: number } {
+  const lowest = ceilingY + height;
+  if (y >= lowest) return { y, speed };
+  return { y: lowest, speed: speed < 0 ? -speed * bounce : speed };
+}

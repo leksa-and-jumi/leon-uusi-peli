@@ -13,6 +13,13 @@ export const FLOOR = {
   color: 0x000000,
 } as const;
 
+/** The ceiling along the top of the area: nothing gets past it. */
+export const CEILING = {
+  height: 10,
+  color: 0x3a3a3a,
+  edge: 0x1c1c1c,
+} as const;
+
 /** Every text in the game is shown in English and Finnish. */
 export const HINT = {
   text:
@@ -29,6 +36,8 @@ export const PHYSICS = {
   gravity: 1800,
   /** Feet this little inside a box still count as standing on top of it. */
   groundSlack: 2,
+  /** Something flying up bounces off the ceiling with this much of its speed. */
+  ceilingBounce: 0.45,
   /** Things this low don't stop a walking doll: it steps up onto them (a plank, not a crate). */
   stepUp: 20,
 } as const;
@@ -256,6 +265,8 @@ export const TOSS = {
   bounceMinSpeed: 420,
   /** A thrown doll at least this fast knocks over the dolls it hits. */
   knockSpeed: 170,
+  /** A doll swung around in the hand has to move at least this fast to knock others over. */
+  swingKnockSpeed: 320,
   /** A doll that is hit slides away at least this fast, or this much of the thrown doll's speed. */
   pushSpeed: 260,
   pushShare: 0.55,
@@ -358,11 +369,11 @@ export const MENU = {
   color: 0x2b2b2b,
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
-  tabs: { x: 8, y: 9, width: 46, height: 25, gap: 3, vertical: true },
+  tabs: { x: 8, y: 7, width: 46, height: 20, gap: 2, vertical: true },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
-  tabFontSize: '16px',
+  tabFontSize: '14px',
   slots: { x: 66, y: 10, width: 72, height: 80, gap: 12 },
   slotColor: 0x9e9e9e,
   slotRadius: 10,
@@ -390,6 +401,7 @@ export const TABS = [
   { id: 'people', emoji: '🧍' },
   { id: 'items', emoji: '🔫' },
   { id: 'build', emoji: '🧱' },
+  { id: 'junk', emoji: '🚽' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -413,7 +425,12 @@ export interface BlockDef {
   blast?: BombDef;
 }
 
-export type BlockKind = 'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barrel';
+/** The pieces on the building page. */
+export type BuildKind = 'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barrel';
+/** Junk that is solid like a building piece: you can stack it and stand on it. */
+export type JunkBlockKind =
+  'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire';
+export type BlockKind = BuildKind | JunkBlockKind;
 
 export const BLOCKS: Record<BlockKind, BlockDef> = {
   crate: {
@@ -452,6 +469,54 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 1.2,
     colors: { fill: 0xc62828, dark: 0x6d1414, light: 0xf08a85, detail: 0xffd54f },
     blast: { fuseMs: 1500, radius: 150, damage: 3, pushSpeed: 700 },
+  },
+  toilet: {
+    halfWidth: 25,
+    height: 58,
+    menuScale: 1.05,
+    colors: { fill: 0xf4f6f7, dark: 0x8b979e, light: 0xffffff, detail: 0xc3ccd1 },
+  },
+  tv: {
+    halfWidth: 31,
+    height: 46,
+    menuScale: 0.95,
+    colors: { fill: 0x4a4a55, dark: 0x1f1f26, light: 0x7d7d8a, detail: 0x86b3c9 },
+  },
+  trashcan: {
+    halfWidth: 20,
+    height: 50,
+    menuScale: 1.15,
+    colors: { fill: 0x9aa6ae, dark: 0x4c575e, light: 0xd3dbe0, detail: 0x6b767d },
+  },
+  armchair: {
+    halfWidth: 34,
+    height: 56,
+    menuScale: 0.95,
+    colors: { fill: 0xa14040, dark: 0x5a1f1f, light: 0xc96a6a, detail: 0x3b2a20 },
+  },
+  table: {
+    halfWidth: 50,
+    height: 46,
+    menuScale: 0.65,
+    colors: { fill: 0xb5814a, dark: 0x60401f, light: 0xdcae78, detail: 0x8a5f33 },
+  },
+  fridge: {
+    halfWidth: 27,
+    height: 112,
+    menuScale: 0.62,
+    colors: { fill: 0xe6ebee, dark: 0x7c888f, light: 0xffffff, detail: 0x59646b },
+  },
+  cone: {
+    halfWidth: 18,
+    height: 42,
+    menuScale: 1.35,
+    colors: { fill: 0xf57c00, dark: 0x9a4a00, light: 0xffb056, detail: 0xfafafa },
+  },
+  tire: {
+    halfWidth: 24,
+    height: 48,
+    menuScale: 1.2,
+    colors: { fill: 0x2a2a2e, dark: 0x0e0e10, light: 0x55555c, detail: 0xa9b1ba },
   },
 };
 
@@ -507,7 +572,11 @@ export interface ItemDef {
   bomb?: BombDef;
 }
 
-export type ItemKind = 'pistol' | 'mgun' | 'sword' | 'axe' | 'spear' | 'bat' | 'bomb';
+/** The items on the weapons page. */
+export type WeaponKind = 'pistol' | 'mgun' | 'sword' | 'axe' | 'spear' | 'bat' | 'bomb';
+/** Junk a doll can hold, and hit others with. */
+export type JunkItemKind = 'bottle' | 'pan';
+export type ItemKind = WeaponKind | JunkItemKind;
 
 export const ITEMS: Record<ItemKind, ItemDef> = {
   pistol: {
@@ -582,7 +651,56 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: 0, along: 10 },
     bomb: { fuseMs: 4000, radius: 170, damage: 3, pushSpeed: 700 },
   },
+  bottle: {
+    halfWidth: 26,
+    height: 16,
+    menuScale: 1.3,
+    lie: { x: -19, y: -8 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 70, damage: 1, pushSpeed: 300 },
+  },
+  pan: {
+    halfWidth: 30,
+    height: 32,
+    menuScale: 1.15,
+    lie: { x: -19, y: -16 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 74, damage: 1, pushSpeed: 540 },
+  },
 };
+
+/** What is on the weapons page, the building page and the junk page of the menu. */
+export const WEAPON_KINDS: readonly WeaponKind[] = [
+  'pistol',
+  'mgun',
+  'sword',
+  'axe',
+  'spear',
+  'bat',
+  'bomb',
+];
+export const BUILD_KINDS: readonly BuildKind[] = [
+  'crate',
+  'wall',
+  'plank',
+  'stone',
+  'girder',
+  'barrel',
+];
+export const JUNK_KINDS: readonly (
+  { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
+)[] = [
+  { type: 'block', kind: 'toilet' },
+  { type: 'item', kind: 'bottle' },
+  { type: 'block', kind: 'tv' },
+  { type: 'block', kind: 'trashcan' },
+  { type: 'block', kind: 'armchair' },
+  { type: 'block', kind: 'table' },
+  { type: 'block', kind: 'fridge' },
+  { type: 'block', kind: 'cone' },
+  { type: 'item', kind: 'pan' },
+  { type: 'block', kind: 'tire' },
+];
 
 /** The colors of the items. */
 export const ITEM_COLORS = {
@@ -591,6 +709,8 @@ export const ITEM_COLORS = {
   sword: { guard: 0xffc107, guardDark: 0xb8860b, grip: 0x5d4037, wrap: 0x3e2723 },
   wood: { fill: 0xc9a46a, dark: 0x7a5a2e, light: 0xecd2a0, wrap: 0x3e2723 },
   bomb: { body: 0x1b1b1b, shine: 0x8a8a8a, cap: 0x9e9e9e, fuse: 0xbcaaa4, spark: 0xffb300 },
+  bottle: { glass: 0x2e7d4f, dark: 0x174428, shine: 0xa5e0bd, label: 0xf3ead2, cap: 0xc9a227 },
+  pan: { metal: 0x3a3f44, dark: 0x1a1d20, shine: 0x8b959c, handle: 0x5d4037, inside: 0x23272b },
 } as const;
 
 /** A doll that has just let go of an item doesn't grab it again for this long. */

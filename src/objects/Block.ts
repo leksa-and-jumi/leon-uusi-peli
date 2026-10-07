@@ -12,11 +12,13 @@ import {
 } from '../config';
 import { shade } from '../logic/color';
 import { Body } from './Body';
+import { drawJunk } from './junkShapes';
 import type { World } from './World';
 
 /**
- * A building piece: a crate, a wall, a plank, a stone, a steel beam or a barrel. They
- * stack, and dolls can stand on them. A barrel explodes when a bullet or a blast hits it.
+ * Something solid: a building piece (crate, wall, plank, stone, steel beam, barrel) or
+ * a piece of junk (toilet, TV, fridge and so on). They stack, and dolls can stand on
+ * them. A barrel explodes when a bullet or a blast hits it.
  */
 export class Block extends Body {
   override readonly solid = true;
@@ -90,12 +92,22 @@ type Graphics = Phaser.GameObjects.Graphics;
 
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
 export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
-  if (kind === 'crate') return drawCrate(g, BLOCKS.crate);
-  if (kind === 'wall') return drawWall(g, BLOCKS.wall);
-  if (kind === 'plank') return drawPlank(g, BLOCKS.plank);
-  if (kind === 'stone') return drawStone(g, BLOCKS.stone);
-  if (kind === 'girder') return drawGirder(g, BLOCKS.girder);
-  return drawBarrel(g, BLOCKS.barrel);
+  switch (kind) {
+    case 'crate':
+      return drawCrate(g, BLOCKS.crate);
+    case 'wall':
+      return drawWall(g, BLOCKS.wall);
+    case 'plank':
+      return drawPlank(g, BLOCKS.plank);
+    case 'stone':
+      return drawStone(g, BLOCKS.stone);
+    case 'girder':
+      return drawGirder(g, BLOCKS.girder);
+    case 'barrel':
+      return drawBarrel(g, BLOCKS.barrel);
+    default:
+      return drawJunk(g, kind);
+  }
 }
 
 /** A little lighter or darker shade of a color, always the same for the same `index`. */
