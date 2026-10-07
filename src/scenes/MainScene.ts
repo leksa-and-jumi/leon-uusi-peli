@@ -21,6 +21,7 @@ import {
   SOUND,
   SWING,
   THINGS_MAX,
+  TOPPLE,
   TOSS,
   type ActionId,
   type BlastDef,
@@ -125,6 +126,9 @@ export class MainScene extends Phaser.Scene {
         this.showHit(x, y, deadly, sound);
       },
       pinned: (person) => this.pinned(person),
+      shove: (box, direction) => {
+        this.shove(box, direction);
+      },
       landed: (fallSpeed) => {
         const { quietestFall, loudestFall } = SOUND.thud;
         this.sfx.thud((fallSpeed - quietestFall) / (loudestFall - quietestFall));
@@ -217,16 +221,23 @@ export class MainScene extends Phaser.Scene {
     return [...boxes, ...dolls];
   }
 
-  /** Is a building piece lying on this doll, or standing where it lies? */
+  /** Is a building piece lying on top of this doll (not just standing beside it)? */
   private pinned(person: Person): boolean {
     const body = person.hitBox;
     return this.solids.some(
       ({ box }) =>
         box.left < body.right &&
         box.right > body.left &&
-        box.top < body.bottom &&
-        box.bottom > body.top - CRUSH.restGap,
+        Math.abs(box.bottom - body.top) <= CRUSH.restGap,
     );
+  }
+
+  /** Something heavy and fast runs into the tall pieces right at `box`: they fall over. */
+  private shove(box: Box, direction: Facing): void {
+    const reach = { ...box, left: box.left - TOPPLE.reach, right: box.right + TOPPLE.reach };
+    for (const block of this.blocks) {
+      if (block.canTopple && overlaps(reach, block.box)) block.topple(direction, this.world);
+    }
   }
 
   private press(px: number, py: number): void {

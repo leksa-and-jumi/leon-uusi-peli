@@ -112,3 +112,37 @@ export function blockedX(
 export function pressingOn(box: Box, solids: readonly Box[], stepUp: number): Box | undefined {
   return solids.find((solid) => overlaps(box, solid) && solid.top < box.bottom - stepUp);
 }
+
+/**
+ * How far left (`least`) and right (`most`) the feet of a doll lying on the ground
+ * may be, so that its body doesn't lie through anything solid standing on the same
+ * ground. `side` is the way its head points (1 right, -1 left); `low` is how low a
+ * thing may be for the doll to just lie over it, and things whose bottom is higher
+ * than that above the ground lie on top of the doll and don't count.
+ */
+export function lyingRoom(
+  x: number,
+  y: number,
+  side: number,
+  halfWidth: number,
+  height: number,
+  solids: readonly Box[],
+  room: { least: number; most: number },
+  low: number,
+): { least: number; most: number } {
+  // The body reaches `height` toward the head and `halfWidth` the other way
+  const toLeft = side > 0 ? halfWidth : height;
+  const toRight = side > 0 ? height : halfWidth;
+  let { least, most } = room;
+  for (const solid of solids) {
+    const onSameGround = solid.bottom > y - low && solid.top < y - low;
+    const through = solid.left < x + toRight && solid.right > x - toLeft;
+    if (!onSameGround || !through) continue;
+    if ((solid.left + solid.right) / 2 >= x) {
+      most = Math.min(most, solid.left - toRight);
+    } else {
+      least = Math.max(least, solid.right + toLeft);
+    }
+  }
+  return { least, most };
+}

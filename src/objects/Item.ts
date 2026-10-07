@@ -9,6 +9,7 @@ import {
   ITEMS,
   PICKUP_WAIT_MS,
   THING_ACTIONS,
+  TOPPLE,
   TOSS,
   type ActionId,
   type ItemDef,
@@ -305,6 +306,8 @@ export class Item extends Body {
   /** Bounce back off whatever it ran into, and maybe break on it. */
   private bounceBack(world: World): void {
     const speed = Math.abs(this.vx);
+    // Thrown hard into a tall piece, it knocks the piece over
+    if (speed >= TOPPLE.minSpeed) world.shove(this.box, this.vx < 0 ? -1 : 1);
     this.vx *= -ITEM_TOSS.bounce;
     this.strike(speed, world);
   }

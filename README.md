@@ -18,6 +18,10 @@
 
 🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥! Pudota pala nuken päälle, niin se litistää nuken: pää painuu alas, nukke jää palan alle ja pysyy siellä, kunnes otat palan pois (elämiä se ei menetä).
 
+🇬🇧 **Gravity ⚖️:** pieces have to balance. A beam or a crate whose middle hangs out past what it stands on tips toward its heavy side and slides off. Tall pieces (brick walls and fridges) fall over onto their side when they lose their balance, or when you throw or swing a doll into them or throw a weapon at them, and they knock over the next tall piece like dominoes. A doll knocked down beside a piece lies next to it, not through it.
+
+🇫🇮 **Painovoima ⚖️:** palojen pitää pysyä tasapainossa. Palkki tai laatikko, jonka keskikohta roikkuu tuen ohi, kallistuu painavamman puolensa suuntaan ja liukuu pois. Korkeat palat (tiiliseinät ja jääkaapit) kaatuvat kyljelleen, kun ne menettävät tasapainonsa tai kun heität tai heilautat nuken niitä päin tai heität niitä aseella, ja ne kaatavat seuraavan korkean palan kuin dominot. Palan viereen kaadettu nukke makaa sen vieressä eikä sen läpi.
+
 🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. The TV always has a program on 📺. A doll can hold the bottle, the frying pan and the broom and hit with them. Throw the bottle hard and it smashes. Drag the broom 🧹 along the floor to wipe blood away.
 
 🇫🇮 **Krääsä 🚽:** vessanpönttö, televisio, roskis, nojatuoli, pöytä, jääkaappi, liikennekartio ja rengas ovat kiinteitä: pinoa niitä ja laita nukkeja niiden päälle. Telkkarista tulee aina ohjelmaa 📺. Pullon, paistinpannun ja harjan nukke voi ottaa käteen ja lyödä niillä. Paiskaa pullo kovaa, niin se särkyy. Raahaa harjaa 🧹 lattiaa pitkin, niin veri pyyhkiytyy pois.

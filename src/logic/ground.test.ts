@@ -4,6 +4,7 @@ import {
   boxAround,
   groundBelow,
   liftOut,
+  lyingRoom,
   overlaps,
   pressingOn,
   tiltedBox,
@@ -145,5 +146,48 @@ describe('pressingOn', () => {
     const beside = { left: 120, right: 180, top: 380, bottom: 500 };
     const above = { left: 80, right: 120, top: 300, bottom: 380 };
     expect(pressingOn(doll, [beside, above], 20)).toBeUndefined();
+  });
+});
+
+describe('lyingRoom', () => {
+  const room = { least: 0, most: 800 };
+  const wallRight = { left: 460, right: 494, top: 372, bottom: 500 };
+
+  it("leaves all the room when nothing stands in the body's way", () => {
+    expect(lyingRoom(100, 500, 1, 24, 120, [wallRight], room, 20)).toEqual(room);
+  });
+
+  it('keeps the head out of a wall on the side it points to', () => {
+    // Lying with the head to the right, the body reaches 120 that way
+    expect(lyingRoom(400, 500, 1, 24, 120, [wallRight], room, 20)).toEqual({
+      least: 0,
+      most: 340,
+    });
+  });
+
+  it('keeps the feet out of a wall behind them', () => {
+    const wallLeft = { left: 360, right: 394, top: 372, bottom: 500 };
+    expect(lyingRoom(400, 500, 1, 24, 120, [wallLeft], room, 20)).toEqual({
+      least: 418,
+      most: 800,
+    });
+  });
+
+  it('works the same with the head to the left', () => {
+    const wallLeft = { left: 300, right: 334, top: 372, bottom: 500 };
+    expect(lyingRoom(400, 500, -1, 24, 120, [wallLeft], room, 20)).toEqual({
+      least: 454,
+      most: 800,
+    });
+  });
+
+  it('ignores a thing that lies on top of the doll', () => {
+    const crateOnDoll = { left: 420, right: 476, top: 404, bottom: 460 };
+    expect(lyingRoom(400, 500, 1, 24, 120, [crateOnDoll], room, 20)).toEqual(room);
+  });
+
+  it('ignores a low thing the doll can lie over', () => {
+    const plank = { left: 420, right: 560, top: 482, bottom: 500 };
+    expect(lyingRoom(400, 500, 1, 24, 120, [plank], room, 20)).toEqual(room);
   });
 });

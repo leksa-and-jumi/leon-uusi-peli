@@ -17,6 +17,8 @@ export interface World {
   solidBoxes: (body: Body) => Box[];
   /** Show a hit at this spot, and play its sound. `deadly` when it was the last one. */
   hitEffect: (x: number, y: number, deadly: boolean, sound: HitSound) => void;
+  /** Something heavy and fast runs into whatever tall piece is right at `box`: it falls over. */
+  shove: (box: Box, direction: Facing) => void;
   /** Is something solid lying on this doll, so that it can't get up? */
   pinned: (person: Person) => boolean;
   /** A doll hit the ground, falling this fast (pixels per second). */
