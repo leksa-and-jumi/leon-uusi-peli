@@ -4,12 +4,18 @@ import { shade } from '../logic/color';
 import { Body } from './Body';
 import type { World } from './World';
 
-/** A building piece: a crate, a wall or a plank. They stack, and dolls can stand on them. */
+/**
+ * A building piece: a crate, a wall, a plank, a stone, a steel beam or a barrel. They
+ * stack, and dolls can stand on them. A barrel explodes when a bullet or a blast hits it.
+ */
 export class Block extends Body {
   override readonly solid = true;
   readonly size: BlockDef;
   readonly actions = THING_ACTIONS;
   private readonly display: Phaser.GameObjects.Graphics;
+  /** Time left until a barrel that has been set off explodes, or `null`. */
+  private fuseMs: number | null = null;
+  private exploded = false;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
@@ -18,14 +24,36 @@ export class Block extends Body {
     this.display.setPosition(x, y);
   }
 
+  override get gone(): boolean {
+    return super.gone || this.exploded;
+  }
+
+  /** Does it go off with a blast when it is hit? */
+  get explosive(): boolean {
+    return this.size.blast !== undefined;
+  }
+
   isOn(): boolean {
     return false;
+  }
+
+  /** Hit by a bullet or caught in a blast: a barrel explodes at most `ms` from now. */
+  setOff(ms: number): void {
+    if (!this.explosive || this.exploded) return;
+    this.fuseMs = Math.min(this.fuseMs ?? ms, ms);
   }
 
   update(deltaMs: number, world: World): void {
     const state = this.physics(deltaMs, world);
     this.display.setPosition(this.x, this.y);
     this.display.rotation = state === 'flying' ? this.spin : 0;
+
+    if (this.fuseMs === null || !this.size.blast) return;
+    this.fuseMs -= deltaMs;
+    if (this.fuseMs <= 0) {
+      this.exploded = true;
+      world.explode(this, this.size.blast);
+    }
   }
 
   bringToTop(): void {
@@ -43,7 +71,10 @@ type Graphics = Phaser.GameObjects.Graphics;
 export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
   if (kind === 'crate') return drawCrate(g, BLOCKS.crate);
   if (kind === 'wall') return drawWall(g, BLOCKS.wall);
-  return drawPlank(g, BLOCKS.plank);
+  if (kind === 'plank') return drawPlank(g, BLOCKS.plank);
+  if (kind === 'stone') return drawStone(g, BLOCKS.stone);
+  if (kind === 'girder') return drawGirder(g, BLOCKS.girder);
+  return drawBarrel(g, BLOCKS.barrel);
 }
 
 /** A little lighter or darker shade of a color, always the same for the same `index`. */
@@ -175,5 +206,84 @@ function drawPlank(g: Graphics, def: BlockDef): Graphics {
     g.fillCircle(x, top + 5.5, BLOCK_LOOK.plank.nail);
     g.fillCircle(x, top + 12.5, BLOCK_LOOK.plank.nail);
   }
+  return g;
+}
+
+/** A block of stone: rough and gray, with a few cracks. */
+function drawStone(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(left, top, width, height, 4);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(left + 2, top + 2, width - 4, height - 4, 3);
+  // Lighter and darker patches make it look rough
+  g.fillStyle(colors.light, 0.5);
+  g.fillRoundedRect(left + 5, top + 4, width * 0.45, height * 0.3, 3);
+  g.fillStyle(colors.detail, 0.45);
+  g.fillRoundedRect(left + width * 0.5, top + height * 0.55, width * 0.4, height * 0.3, 3);
+  g.lineStyle(1.3, colors.dark, 0.8);
+  g.lineBetween(left + 12, top + 3, left + 18, top + 12);
+  g.lineBetween(left + 18, top + 12, left + 14, top + 19);
+  g.lineBetween(halfWidth - 10, -3, halfWidth - 17, -11);
+  bevel(g, left + 3, top + 2, width - 6, height - 4, def);
+  return g;
+}
+
+/** A steel beam seen from the side: two thick edges, a thinner middle, and rivets. */
+function drawGirder(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const { flange, rivetEvery, rivet } = BLOCK_LOOK.girder;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+
+  g.fillStyle(colors.dark);
+  g.fillRect(left, top, width, height);
+  g.fillStyle(shade(colors.fill, -0.18));
+  g.fillRect(left + 1.5, top + flange, width - 3, height - flange * 2);
+  g.fillStyle(colors.fill);
+  g.fillRect(left + 1.5, top + 1, width - 3, flange);
+  g.fillRect(left + 1.5, -flange - 1, width - 3, flange);
+  g.fillStyle(colors.light, 0.8);
+  g.fillRect(left + 1.5, top + 1, width - 3, 1.2);
+  g.fillStyle(colors.detail);
+  for (let x = left + rivetEvery / 2; x < halfWidth; x += rivetEvery) {
+    g.fillCircle(x, top + height / 2, rivet);
+  }
+  return g;
+}
+
+/** A red barrel with two bands and a yellow warning sign: it explodes. */
+function drawBarrel(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const { round, band, sign } = BLOCK_LOOK.barrel;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(left, top, width, height, round);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(left + 2, top + 2, width - 4, height - 4, round - 2);
+  // A bright stripe down the side makes it look round
+  g.fillStyle(colors.light, 0.55);
+  g.fillRoundedRect(left + 6, top + 4, 6, height - 8, 3);
+  g.fillStyle(colors.dark, 0.85);
+  g.fillRect(left + 1, top + height * 0.22, width - 2, band);
+  g.fillRect(left + 1, top + height * 0.78 - band, width - 2, band);
+
+  // The sign: a yellow circle with an exclamation mark
+  const signY = top + height / 2;
+  g.fillStyle(colors.dark);
+  g.fillCircle(0, signY, sign + 1.5);
+  g.fillStyle(colors.detail);
+  g.fillCircle(0, signY, sign);
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(-1.4, signY - 5.5, 2.8, 7, 1);
+  g.fillCircle(0, signY + 4.2, 1.5);
   return g;
 }

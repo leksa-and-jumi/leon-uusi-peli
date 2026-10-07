@@ -4,6 +4,9 @@ import {
   hangingRest,
   JOINT_KEYS,
   kickJoints,
+  lyingRest,
+  nearestTurn,
+  randomSag,
   swingPose,
   trail,
   wrapAngle,
@@ -72,19 +75,23 @@ describe('hangingRest', () => {
   const hang = {
     armMax: 2.9,
     legMax: 1.1,
+    elbowMax: 2,
+    kneeMax: 2,
+    headMax: 0.8,
+    waistMax: 0.6,
     spread: 0,
-    bend: 0.5,
-    head: 0.5,
-    waist: 0.25,
     armFloat: 1.5,
     legFloat: 0.5,
   };
   const flop = limpPose(() => 1);
 
-  it('hangs arms and legs straight down when still and upright', () => {
+  it('hangs everything straight down when still and upright', () => {
     const rest = hangingRest(flop, 0, hang);
     expect(rest.frontArm).toBe(0);
     expect(rest.backLeg).toBe(0);
+    expect(rest.frontElbow).toBeCloseTo(0);
+    expect(rest.backKnee).toBeCloseTo(0);
+    expect(rest.head).toBe(0);
   });
 
   it('lets the arms follow further than the legs', () => {
@@ -93,18 +100,30 @@ describe('hangingRest', () => {
     expect(rest.frontLeg).toBeCloseTo(1.1);
   });
 
+  it('bends the knees to let the shins hang where the thighs cannot reach', () => {
+    const rest = hangingRest(flop, 2.5, hang);
+    expect(rest.frontKnee).toBeCloseTo(1.4);
+    expect(rest.frontElbow).toBeCloseTo(0);
+  });
+
+  it('bends the elbows only forward and the knees only back', () => {
+    const forward = hangingRest(flop, -3.1, hang);
+    expect(forward.frontElbow).toBeCloseTo(-0.2);
+    expect(forward.frontKnee).toBe(0);
+  });
+
+  it('tips the head and the waist, but not too far', () => {
+    const rest = hangingRest(flop, 2.5, hang);
+    expect(rest.head).toBeCloseTo(0.8);
+    expect(rest.waist).toBeCloseTo(0.6);
+  });
+
   it('throws arms and legs apart when dropping fast', () => {
     const rest = hangingRest(flop, 0, hang, 1);
     expect(rest.frontArm).toBeCloseTo(-1.5);
     expect(rest.backArm).toBeCloseTo(1.5);
     expect(rest.frontLeg).toBeCloseTo(-0.5);
     expect(rest.backLeg).toBeCloseTo(0.5);
-  });
-
-  it('keeps elbows and knees a little bent', () => {
-    const rest = hangingRest(flop, 0, hang);
-    expect(rest.frontElbow).toBeCloseTo(flop.frontElbow * 0.5);
-    expect(rest.backKnee).toBeCloseTo(flop.backKnee * 0.5);
   });
 });
 
@@ -156,5 +175,84 @@ describe('kickJoints', () => {
   it('adds to the speed the joints already have', () => {
     const moving = { ...STILL, head: 2 };
     expect(kickJoints(moving, 1, () => 1).head).toBe(3);
+  });
+});
+
+describe('nearestTurn', () => {
+  it('adds whole turns to get close', () => {
+    expect(nearestTurn(0.5, 6)).toBeCloseTo(0.5 + Math.PI * 2);
+    expect(nearestTurn(-Math.PI, 3)).toBeCloseTo(Math.PI);
+  });
+
+  it('leaves an angle that is already close', () => {
+    expect(nearestTurn(1, 1.5)).toBeCloseTo(1);
+  });
+});
+
+describe('lyingRest', () => {
+  const hang = {
+    armMax: 2.9,
+    legMax: 1.3,
+    elbowMax: 2.3,
+    kneeMax: 2.2,
+    headMax: 1,
+    waistMax: 0.7,
+    spread: 0,
+    armFloat: 0,
+    legFloat: 0,
+  };
+  const flatRight = Math.PI / 2;
+
+  /** How far from flat along the ground something points: 0 is flat. */
+  const offFlat = (turned: number, facing: 1 | -1, angle: number): number =>
+    Math.abs(Math.abs(wrapAngle(turned + facing * angle)) - Math.PI / 2);
+
+  it('lays arms and legs that hang along the body flat beside it', () => {
+    const rest = lyingRest(STAND, flatRight, 1, STILL, hang);
+    expect(rest.frontArm).toBeCloseTo(0);
+    expect(rest.backLeg).toBeCloseTo(0);
+    expect(rest.frontKnee).toBeCloseTo(0);
+    expect(rest.waist).toBe(0);
+  });
+
+  it('lays a raised arm flat above the head instead of leaving it up', () => {
+    const raised = { ...STAND, frontArm: -2.4 };
+    const rest = lyingRest(raised, flatRight, 1, STILL, hang);
+    expect(rest.frontArm).toBeCloseTo(-Math.PI);
+    expect(offFlat(flatRight, 1, rest.frontArm)).toBeCloseTo(0);
+  });
+
+  it('leaves nothing sticking up, whichever way the doll lies and faces', () => {
+    let seed = 0.37;
+    const random = (): number => {
+      seed = (seed * 9.17 + 0.23) % 1;
+      return seed;
+    };
+    for (const turned of [flatRight, -flatRight]) {
+      for (const facing of [1, -1] as const) {
+        for (let i = 0; i < 20; i++) {
+          const rest = lyingRest(limpPose(random), turned, facing, STILL, hang);
+          expect(offFlat(turned, facing, rest.frontArm)).toBeCloseTo(0);
+          expect(offFlat(turned, facing, rest.backArm)).toBeCloseTo(0);
+          expect(offFlat(turned, facing, rest.frontLeg)).toBeCloseTo(0);
+          expect(offFlat(turned, facing, rest.backLeg)).toBeCloseTo(0);
+        }
+      }
+    }
+  });
+
+  it('sags toward the floor, never up', () => {
+    const sag = { ...STILL, frontArm: 0.2 };
+    const rest = lyingRest(STAND, flatRight, 1, sag, hang);
+    // Pointing a little more downward than flat
+    expect(Math.abs(wrapAngle(flatRight + rest.frontArm))).toBeCloseTo(Math.PI / 2 - 0.2);
+  });
+});
+
+describe('randomSag', () => {
+  it('gives every joint a sag from zero to the most', () => {
+    expect(randomSag(0.2, () => 1).frontArm).toBeCloseTo(0.2);
+    expect(randomSag(0.2, () => 0).head).toBe(0);
+    expect(randomSag(0.2, () => 1).lift).toBe(0);
   });
 });

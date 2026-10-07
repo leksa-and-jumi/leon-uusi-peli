@@ -21,6 +21,8 @@ import {
   dangleStep,
   hangingRest,
   kickJoints,
+  lyingRest,
+  randomSag,
   swingPose,
   trail,
   wrapAngle,
@@ -62,6 +64,11 @@ const LIMP_JOINTS: Record<JointKey, Joint> = {
   backKnee: LIMP.heavy,
   waist: LIMP.heavy,
 };
+
+/** On the ground every joint drops flat and settles quickly. */
+const GROUND_JOINTS = Object.fromEntries(
+  Object.keys(LIMP_JOINTS).map((key) => [key, LIMP.ground]),
+) as Record<JointKey, Joint>;
 
 /** What a doll keeps doing until it is switched off. */
 export type Activity = 'idle' | 'walk' | 'dance' | 'angry';
@@ -106,8 +113,10 @@ export class Person extends Body {
   private rise: Rise | null = null;
   /** The way it was last knocked: it falls over that way. */
   private knockDir: Facing = 1;
-  /** The loose pose it flops into on the ground. A new one every time. */
+  /** A loose pose that makes its limbs hang a little apart. A new one every time. */
   private flop: Pose = limpPose();
+  /** How much each limb sags toward the floor when it lies down. A new one every time. */
+  private sag: Pose = randomSag(LIMP.sag);
   /** How far it tips over when it lies down: a bit different every time. */
   private lieAngle = Math.PI / 2;
   /** Its whole body: how far it has turned over, and how fast it is turning. */
@@ -239,7 +248,7 @@ export class Person extends Body {
       this.release(solids);
       return;
     }
-    const scale = Math.min(1, TOSS.maxSpeed / speed);
+    const scale = Math.min(TOSS.power, TOSS.maxSpeed / speed);
     this.release(solids, speedY * scale);
     this.vx = speedX * scale;
     this.tossed = true;
@@ -264,6 +273,7 @@ export class Person extends Body {
     this.punchMs = 0;
     this.knockDir = direction;
     this.flop = limpPose();
+    this.sag = randomSag(LIMP.sag);
     this.lieAngle = Math.PI / 2 - randomBetween(0, LIMP.lieSpread);
     this.limbSpeeds = kickJoints(this.limbSpeeds, LIMP.hitKick);
     this.tumble = {
@@ -388,7 +398,8 @@ export class Person extends Body {
     const direction: Facing = this.vx < 0 ? -1 : 1;
     for (const other of world.people) {
       if (other === this || !other.canBeHit || !overlaps(this.box, other.box)) continue;
-      other.hit(direction, world.solidBoxes(other), 0, TOSS.pushSpeed);
+      const push = Math.max(TOSS.pushSpeed, Math.abs(this.vx) * TOSS.pushShare);
+      other.hit(direction, world.solidBoxes(other), 0, push);
       world.hitEffect(other.x, other.y - PERSON.height * 0.6, false);
       this.vx *= TOSS.keep;
     }
@@ -429,8 +440,14 @@ export class Person extends Body {
     const pulled = trail(this.speed.x, LIMP.limbTrail, LIMP.limbTrailMax);
     const down = this.facing * wrapAngle(pulled - rotation);
     const float = Math.max(0, trail(this.speed.y, LIMP.floatTrail, 1));
-    const rest = state === 'resting' ? this.flop : hangingRest(this.flop, down, LIMP.hang, float);
-    const swung = swingPose(this.limbs, this.limbSpeeds, rest, LIMP_JOINTS, deltaMs);
+    const hanging = hangingRest(this.flop, down, LIMP.hang, float);
+    // The further it has tipped over on the ground, the more its limbs lie down flat
+    const flatness =
+      state === 'resting' ? clamp((Math.abs(Math.sin(rotation)) - 0.4) / 0.4, 0, 1) : 0;
+    const lying = lyingRest(this.limbs, rotation, this.facing, this.sag, LIMP.hang);
+    const limbRest = flatness > 0 ? blendPose(hanging, lying, flatness) : hanging;
+    const joints = flatness > 0.5 ? GROUND_JOINTS : LIMP_JOINTS;
+    const swung = swingPose(this.limbs, this.limbSpeeds, limbRest, joints, deltaMs);
     this.limbs = swung.pose;
     this.limbSpeeds = swung.speeds;
     this.figure.setPose(this.limbs);

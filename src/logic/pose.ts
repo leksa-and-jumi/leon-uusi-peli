@@ -74,7 +74,7 @@ export const MOVES = {
   held: { armsUp: 2.9, swingMs: 900, leg: 0.18, elbow: -0.2, knee: 0.35 },
   punch: { arm: -Math.PI / 2, backArm: 0.5, backElbow: -1.5, lean: 0.12 },
   /** A limp doll: how far each joint can flop, at most. */
-  limp: { arm: 2.4, leg: 0.9, elbow: 1.6, knee: 1.5, waist: 0.75, head: 0.8 },
+  limp: { arm: 2.9, leg: 1.2, elbow: 2.2, knee: 2, waist: 1, head: 1 },
 } as const;
 
 /** The pose at a moment in time. `timeMs` keeps counting, so moves repeat smoothly. */

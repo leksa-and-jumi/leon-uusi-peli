@@ -13,7 +13,7 @@ import {
 } from '../config';
 import { slotAt, slotRect } from '../logic/menu';
 import { drawBlock } from './Block';
-import { drawItem } from './Item';
+import { drawItem } from './itemShapes';
 import { PersonFigure } from './personShape';
 
 /** One thing you can pick from the menu and put into the area. */

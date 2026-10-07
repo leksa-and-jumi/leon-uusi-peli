@@ -54,46 +54,139 @@ export const JOINT_KEYS = [
 
 /** How a limp doll hangs in the air. */
 export interface Hang {
-  /** Arms and legs can't swing further than this from straight along the body. */
+  /** Upper arms and thighs can't swing further than this from straight along the body. */
   armMax: number;
   legMax: number;
+  /** Elbows only bend forward and knees only back, at most this far. */
+  elbowMax: number;
+  kneeMax: number;
+  /** The head and the waist can't tip further than this. */
+  headMax: number;
+  waistMax: number;
   /** How much of its own random flop each limb keeps, so they don't hang side by side. */
   spread: number;
-  /** How much the elbows and knees stay bent. */
-  bend: number;
-  /** How much the head and the waist follow the pull. */
-  head: number;
-  waist: number;
   /** How far arms and legs fly apart when the doll drops fast. */
   armFloat: number;
   legFloat: number;
 }
 
 /**
- * Where the joints of a limp doll want to be while it hangs in the air. `down` is the
- * way straight down, seen from the doll (0 when it hangs upright and still). `float`
- * goes from 0 to 1 as the doll drops faster: its arms and legs fly up and apart.
+ * Where the joints of a limp doll want to be while it hangs in the air: everything
+ * hangs straight down as far as its joint lets it. `down` is the way straight down,
+ * seen from the doll (0 when it hangs upright and still). `float` goes from 0 to 1 as
+ * the doll drops faster: its arms and legs fly up and apart.
  */
 export function hangingRest(flop: Pose, down: number, hang: Hang, float = 0): Pose {
-  const arm = clamp(down, -hang.armMax, hang.armMax);
-  const leg = clamp(down, -hang.legMax, hang.legMax);
-  const armsApart = float * hang.armFloat;
-  const legsApart = float * hang.legFloat;
+  const upper = (max: number, own: number, apart: number): number =>
+    clamp(down, -max, max) + own * hang.spread + apart;
+  const frontArm = upper(hang.armMax, flop.frontArm, -float * hang.armFloat);
+  const backArm = upper(hang.armMax, flop.backArm, float * hang.armFloat);
+  const frontLeg = upper(hang.legMax, flop.frontLeg, -float * hang.legFloat);
+  const backLeg = upper(hang.legMax, flop.backLeg, float * hang.legFloat);
+  // Forearms and shins hang down from the elbow and the knee, as far as those bend
+  const elbow = (arm: number): number => clamp(down - arm, -hang.elbowMax, 0);
+  const knee = (leg: number): number => clamp(down - leg, 0, hang.kneeMax);
   return {
-    frontArm: arm + flop.frontArm * hang.spread - armsApart,
-    backArm: arm + flop.backArm * hang.spread + armsApart,
-    frontLeg: leg + flop.frontLeg * hang.spread - legsApart,
-    backLeg: leg + flop.backLeg * hang.spread + legsApart,
-    frontElbow: flop.frontElbow * hang.bend,
-    backElbow: flop.backElbow * hang.bend,
-    frontKnee: flop.frontKnee * hang.bend,
-    backKnee: flop.backKnee * hang.bend,
-    waist: leg * hang.waist,
-    head: leg * hang.head,
+    frontArm,
+    backArm,
+    frontLeg,
+    backLeg,
+    frontElbow: elbow(frontArm),
+    backElbow: elbow(backArm),
+    frontKnee: knee(frontLeg),
+    backKnee: knee(backLeg),
+    waist: clamp(down, -hang.waistMax, hang.waistMax),
+    head: clamp(down, -hang.headMax, hang.headMax),
     lift: 0,
     lean: 0,
   };
 }
+
+/** The same angle as `angle`, with whole turns added so it is as close to `near` as it can be. */
+export function nearestTurn(angle: number, near: number): number {
+  const turn = Math.PI * 2;
+  return angle + Math.round((near - angle) / turn) * turn;
+}
+
+/**
+ * Where the joints of a limp doll want to be once it lies on the ground: nothing
+ * sticks up. Every arm and leg drops flat onto the ground on the side it is already
+ * leaning toward, and sags a little toward the floor.
+ *
+ * `turned` is how far the whole body has tipped over (π/2 is flat on its side),
+ * `facing` is 1 or -1, and `sag` holds a small amount for each joint.
+ */
+export function lyingRest(
+  current: Pose,
+  turned: number,
+  facing: 1 | -1,
+  sag: Pose,
+  hang: Hang,
+): Pose {
+  // Seen from outside, 0 points straight down and ±π/2 lies flat along the ground
+  const flat = (pointsNow: number, sagBy: number): number => {
+    const now = wrapAngle(pointsNow);
+    const side = Math.abs(now) < 1e-6 ? (Math.sin(turned) < 0 ? -1 : 1) : Math.sign(now);
+    return side * (Math.PI / 2 - sagBy);
+  };
+  const upper = (angle: number, sagBy: number, max: number): number => {
+    const target = facing * (flat(turned + facing * angle, sagBy) - turned);
+    return clamp(nearestTurn(target, angle), -max, max);
+  };
+  const lower = (upperNow: number, bend: number, upperRest: number, sagBy: number): number => {
+    const target = facing * (flat(turned + facing * (upperNow + bend), sagBy) - turned);
+    return wrapAngle(target - upperRest);
+  };
+
+  const frontArm = upper(current.frontArm, sag.frontArm, Math.PI);
+  const backArm = upper(current.backArm, sag.backArm, Math.PI);
+  const frontLeg = upper(current.frontLeg, sag.frontLeg, hang.legMax);
+  const backLeg = upper(current.backLeg, sag.backLeg, hang.legMax);
+  const elbow = (now: number, bend: number, rest: number, sagBy: number): number =>
+    clamp(lower(now, bend, rest, sagBy), -hang.elbowMax, 0);
+  const knee = (now: number, bend: number, rest: number, sagBy: number): number =>
+    clamp(lower(now, bend, rest, sagBy), 0, hang.kneeMax);
+  // The head droops toward the floor
+  const headDown = facing * (Math.sin(turned) < 0 ? -1 : 1) * sag.head;
+  return {
+    frontArm,
+    backArm,
+    frontLeg,
+    backLeg,
+    frontElbow: elbow(current.frontArm, current.frontElbow, frontArm, sag.frontElbow),
+    backElbow: elbow(current.backArm, current.backElbow, backArm, sag.backElbow),
+    frontKnee: knee(current.frontLeg, current.frontKnee, frontLeg, sag.frontKnee),
+    backKnee: knee(current.backLeg, current.backKnee, backLeg, sag.backKnee),
+    waist: 0,
+    head: clamp(headDown, -hang.headMax, hang.headMax),
+    lift: 0,
+    lean: 0,
+  };
+}
+
+/** A small random sag for every joint, from 0 to `most`. */
+export function randomSag(most: number, random: () => number = Math.random): Pose {
+  const sag = { ...ZERO };
+  for (const key of JOINT_KEYS) {
+    sag[key] = random() * most;
+  }
+  return sag;
+}
+
+const ZERO: Pose = {
+  frontArm: 0,
+  backArm: 0,
+  frontLeg: 0,
+  backLeg: 0,
+  frontElbow: 0,
+  backElbow: 0,
+  frontKnee: 0,
+  backKnee: 0,
+  waist: 0,
+  head: 0,
+  lift: 0,
+  lean: 0,
+};
 
 /**
  * Let every joint of a pose swing loosely toward `rest`. `speeds` holds how fast
