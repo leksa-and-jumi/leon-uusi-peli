@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blendPose, limpPose, MOVES, poseFor, shakePose, STAND } from './pose';
+import { blendPose, limpPose, MOVES, poseFor, STAND } from './pose';
 
 describe('poseFor', () => {
   it('stands still with arms and legs straight down', () => {
@@ -103,18 +103,5 @@ describe('blendPose', () => {
   it('does not go past either pose', () => {
     expect(blendPose(STAND, limp, 7)).toEqual(limp);
     expect(blendPose(STAND, limp, -3)).toEqual(STAND);
-  });
-});
-
-describe('shakePose', () => {
-  it('swings the arms opposite ways and leaves the knees alone', () => {
-    const shaken = shakePose(STAND, 0.2);
-    expect(shaken.frontArm).toBeCloseTo(0.2);
-    expect(shaken.backArm).toBeCloseTo(-0.2);
-    expect(shaken.frontKnee).toBe(STAND.frontKnee);
-  });
-
-  it('changes nothing when the amount is zero', () => {
-    expect(shakePose(STAND, 0)).toEqual(STAND);
   });
 });

@@ -64,20 +64,26 @@ export interface Hang {
   /** How much the head and the waist follow the pull. */
   head: number;
   waist: number;
+  /** How far arms and legs fly apart when the doll drops fast. */
+  armFloat: number;
+  legFloat: number;
 }
 
 /**
  * Where the joints of a limp doll want to be while it hangs in the air. `down` is the
- * way straight down, seen from the doll (0 when it hangs upright and still).
+ * way straight down, seen from the doll (0 when it hangs upright and still). `float`
+ * goes from 0 to 1 as the doll drops faster: its arms and legs fly up and apart.
  */
-export function hangingRest(flop: Pose, down: number, hang: Hang): Pose {
+export function hangingRest(flop: Pose, down: number, hang: Hang, float = 0): Pose {
   const arm = clamp(down, -hang.armMax, hang.armMax);
   const leg = clamp(down, -hang.legMax, hang.legMax);
+  const armsApart = float * hang.armFloat;
+  const legsApart = float * hang.legFloat;
   return {
-    frontArm: arm + flop.frontArm * hang.spread,
-    backArm: arm + flop.backArm * hang.spread,
-    frontLeg: leg + flop.frontLeg * hang.spread,
-    backLeg: leg + flop.backLeg * hang.spread,
+    frontArm: arm + flop.frontArm * hang.spread - armsApart,
+    backArm: arm + flop.backArm * hang.spread + armsApart,
+    frontLeg: leg + flop.frontLeg * hang.spread - legsApart,
+    backLeg: leg + flop.backLeg * hang.spread + legsApart,
     frontElbow: flop.frontElbow * hang.bend,
     backElbow: flop.backElbow * hang.bend,
     frontKnee: flop.frontKnee * hang.bend,
@@ -113,4 +119,17 @@ export function swingPose(
     nextSpeeds[key] = swung.speed;
   }
   return { pose: nextPose, speeds: nextSpeeds };
+}
+
+/**
+ * Give every joint a random shove, at most `size` (radians per second) either way.
+ * Makes a limp doll flop when it hits the ground or gets hit. `random` gives
+ * numbers from 0 to 1, like `Math.random`.
+ */
+export function kickJoints(speeds: Pose, size: number, random: () => number = Math.random): Pose {
+  const kicked = { ...speeds };
+  for (const key of JOINT_KEYS) {
+    kicked[key] = speeds[key] + (random() * 2 - 1) * size;
+  }
+  return kicked;
 }

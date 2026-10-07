@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
-import { BLOCKS, DEPTH, THING_ACTIONS, type BlockDef, type BlockKind } from '../config';
+import { BLOCK_LOOK, BLOCKS, DEPTH, THING_ACTIONS, type BlockDef, type BlockKind } from '../config';
+import { shade } from '../logic/color';
 import { Body } from './Body';
 import type { World } from './World';
 
@@ -8,13 +9,11 @@ export class Block extends Body {
   override readonly solid = true;
   readonly size: BlockDef;
   readonly actions = THING_ACTIONS;
-  readonly breakable: boolean;
   private readonly display: Phaser.GameObjects.Graphics;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
     this.size = BLOCKS[kind];
-    this.breakable = this.size.breakable;
     this.display = drawBlock(scene.add.graphics(), kind).setDepth(DEPTH.block);
     this.display.setPosition(x, y);
   }
@@ -38,12 +37,121 @@ export class Block extends Body {
   }
 }
 
+type Graphics = Phaser.GameObjects.Graphics;
+
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
-export function drawBlock(
-  g: Phaser.GameObjects.Graphics,
-  kind: BlockKind,
-): Phaser.GameObjects.Graphics {
-  const { halfWidth, height, colors } = BLOCKS[kind];
+export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
+  if (kind === 'crate') return drawCrate(g, BLOCKS.crate);
+  if (kind === 'wall') return drawWall(g, BLOCKS.wall);
+  return drawPlank(g, BLOCKS.plank);
+}
+
+/** A little lighter or darker shade of a color, always the same for the same `index`. */
+function tone(color: number, index: number): number {
+  const { tones } = BLOCK_LOOK;
+  return shade(color, tones[index % tones.length] ?? 0);
+}
+
+/** A bright top edge and a dark bottom edge make a flat shape look like a solid thing. */
+function bevel(g: Graphics, x: number, y: number, width: number, height: number, def: BlockDef) {
+  g.fillStyle(def.colors.light, 0.75);
+  g.fillRect(x, y, width, 2);
+  g.fillStyle(def.colors.dark, 0.55);
+  g.fillRect(x, y + height - 2, width, 2);
+}
+
+/** A wooden crate: upright boards, a frame around them, a slanted brace and nails. */
+function drawCrate(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const { boards, frame, brace, nail } = BLOCK_LOOK.crate;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+
+  g.fillStyle(colors.dark);
+  g.fillRect(left, top, width, height);
+
+  // The boards in the middle, each its own shade, with a streak of grain
+  const boardWidth = (width - 4) / boards;
+  for (let i = 0; i < boards; i++) {
+    const x = left + 2 + i * boardWidth;
+    g.fillStyle(tone(colors.fill, i * 3 + 1));
+    g.fillRect(x + 0.5, top + 2, boardWidth - 1, height - 4);
+    g.lineStyle(1, colors.dark, 0.35);
+    g.lineBetween(x + boardWidth * 0.4, top + 12 + i * 5, x + boardWidth * 0.4, -16 - i * 3);
+  }
+
+  // The slanted brace across them
+  g.lineStyle(brace + 3, colors.dark);
+  g.lineBetween(left + frame, -frame, halfWidth - frame, top + frame);
+  g.lineStyle(brace, shade(colors.fill, 0.1));
+  g.lineBetween(left + frame, -frame, halfWidth - frame, top + frame);
+
+  // The frame: four boards around the edge
+  const frameColor = shade(colors.fill, 0.16);
+  const sides: [number, number, number, number][] = [
+    [left + 2, top + 2, width - 4, frame],
+    [left + 2, -frame - 2, width - 4, frame],
+    [left + 2, top + 2, frame, height - 4],
+    [halfWidth - frame - 2, top + 2, frame, height - 4],
+  ];
+  for (const [x, y, w, h] of sides) {
+    g.fillStyle(frameColor);
+    g.fillRect(x, y, w, h);
+  }
+  g.lineStyle(1.5, colors.dark, 0.8);
+  g.strokeRect(left + frame + 2, top + frame + 2, width - frame * 2 - 4, height - frame * 2 - 4);
+  bevel(g, left + 2, top + 2, width - 4, height - 4, def);
+
+  // A nail in every corner
+  g.fillStyle(colors.detail);
+  const inset = 2 + frame / 2;
+  for (const x of [left + inset, halfWidth - inset]) {
+    for (const y of [top + inset, -inset]) {
+      g.fillCircle(x, y, nail);
+    }
+  }
+  return g;
+}
+
+/** A brick wall: rows of bricks with mortar between them, every other row shifted. */
+function drawWall(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const { brickHeight, brickWidth, mortar } = BLOCK_LOOK.wall;
+  const left = -halfWidth;
+  const top = -height;
+
+  g.fillStyle(colors.detail);
+  g.fillRect(left, top, halfWidth * 2, height);
+
+  for (let row = 0; top + row * brickHeight < 0; row++) {
+    const y = top + row * brickHeight;
+    const rowHeight = Math.min(brickHeight, -y);
+    const shift = row % 2 === 0 ? 0 : -brickWidth / 2;
+    for (let i = 0, x = left + shift; x < halfWidth; i++, x += brickWidth) {
+      // Bricks at the ends of a shifted row are cut off at the edge of the wall
+      const from = Math.max(x, left) + mortar / 2;
+      const to = Math.min(x + brickWidth, halfWidth) - mortar / 2;
+      const brickTop = y + mortar / 2;
+      const tall = rowHeight - mortar;
+      if (to - from < 1 || tall < 1) continue;
+      g.fillStyle(tone(colors.fill, row * 3 + i * 5));
+      g.fillRect(from, brickTop, to - from, tall);
+      g.fillStyle(colors.light, 0.45);
+      g.fillRect(from, brickTop, to - from, 2);
+      g.fillStyle(colors.dark, 0.45);
+      g.fillRect(from, brickTop + tall - 2, to - from, 2);
+    }
+  }
+
+  g.lineStyle(1.5, colors.dark);
+  g.strokeRect(left, top, halfWidth * 2, height);
+  return g;
+}
+
+/** A wooden plank: wood grain, a knot, and two nails at each end. */
+function drawPlank(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
   const width = halfWidth * 2;
   const left = -halfWidth;
   const top = -height;
@@ -51,30 +159,21 @@ export function drawBlock(
   g.fillStyle(colors.dark);
   g.fillRect(left, top, width, height);
   g.fillStyle(colors.fill);
-  g.fillRect(left + 2, top + 2, width - 4, height - 4);
-  // A bright top edge and a dark bottom edge make it look like a solid box
-  g.fillStyle(colors.light);
-  g.fillRect(left + 2, top + 2, width - 4, 3);
+  g.fillRect(left + 1.5, top + 1.5, width - 3, height - 3);
 
-  g.lineStyle(2, colors.dark);
-  if (kind === 'crate') {
-    g.strokeRect(left + 7, top + 7, width - 14, height - 14);
-    g.lineBetween(left + 7, top + 7, halfWidth - 7, -7);
-    g.lineBetween(left + 7, -7, halfWidth - 7, top + 7);
-  } else if (kind === 'wall') {
-    const brick = 16;
-    for (let y = top + brick; y < -2; y += brick) {
-      g.lineBetween(left + 2, y, halfWidth - 2, y);
-    }
-    for (let row = 0, y = top; y < -2; row++, y += brick) {
-      const x = row % 2 === 0 ? 0 : -halfWidth / 2;
-      g.lineBetween(x, y + 2, x, Math.min(y + brick, -2));
-      if (row % 2 === 1) g.lineBetween(-x, y + 2, -x, Math.min(y + brick, -2));
-    }
-  } else {
-    for (let x = left + 35; x < halfWidth - 5; x += 35) {
-      g.lineBetween(x, top + 3, x, -3);
-    }
+  // Wood grain: a few long streaks, and a knot
+  g.lineStyle(1, colors.dark, 0.35);
+  g.lineBetween(left + 16, top + 6, left + 74, top + 6);
+  g.lineBetween(left + 40, top + 10, halfWidth - 22, top + 10);
+  g.lineBetween(left + 20, top + 13.5, left + 60, top + 13.5);
+  g.fillStyle(colors.dark, 0.45);
+  g.fillEllipse(halfWidth - 44, top + 7, 9, 4);
+  bevel(g, left + 1.5, top + 1.5, width - 3, height - 3, def);
+
+  g.fillStyle(colors.detail);
+  for (const x of [left + 6, halfWidth - 6]) {
+    g.fillCircle(x, top + 5.5, BLOCK_LOOK.plank.nail);
+    g.fillCircle(x, top + 12.5, BLOCK_LOOK.plank.nail);
   }
   return g;
 }

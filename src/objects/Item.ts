@@ -80,6 +80,12 @@ export class Item extends Body {
     this.spark?.setVisible(this.fuseMs !== null);
   }
 
+  /** Caught in another blast: a bomb goes off at most `ms` from now. */
+  setOff(ms: number): void {
+    if (!this.size.bomb || this.exploded) return;
+    this.fuseMs = Math.min(this.fuseMs ?? ms, ms);
+  }
+
   /** A doll takes it. From now on it moves with the doll's hand. */
   takenBy(person: Person): void {
     this.holder = person;

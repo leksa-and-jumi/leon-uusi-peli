@@ -3,6 +3,7 @@ import {
   dangleStep,
   hangingRest,
   JOINT_KEYS,
+  kickJoints,
   swingPose,
   trail,
   wrapAngle,
@@ -68,7 +69,16 @@ describe('trail', () => {
 });
 
 describe('hangingRest', () => {
-  const hang = { armMax: 2.9, legMax: 1.1, spread: 0, bend: 0.5, head: 0.5, waist: 0.25 };
+  const hang = {
+    armMax: 2.9,
+    legMax: 1.1,
+    spread: 0,
+    bend: 0.5,
+    head: 0.5,
+    waist: 0.25,
+    armFloat: 1.5,
+    legFloat: 0.5,
+  };
   const flop = limpPose(() => 1);
 
   it('hangs arms and legs straight down when still and upright', () => {
@@ -81,6 +91,14 @@ describe('hangingRest', () => {
     const rest = hangingRest(flop, 2.5, hang);
     expect(rest.frontArm).toBeCloseTo(2.5);
     expect(rest.frontLeg).toBeCloseTo(1.1);
+  });
+
+  it('throws arms and legs apart when dropping fast', () => {
+    const rest = hangingRest(flop, 0, hang, 1);
+    expect(rest.frontArm).toBeCloseTo(-1.5);
+    expect(rest.backArm).toBeCloseTo(1.5);
+    expect(rest.frontLeg).toBeCloseTo(-0.5);
+    expect(rest.backLeg).toBeCloseTo(0.5);
   });
 
   it('keeps elbows and knees a little bent', () => {
@@ -117,5 +135,26 @@ describe('swingPose', () => {
       16,
     );
     expect(STAND).toEqual(before);
+  });
+});
+
+describe('kickJoints', () => {
+  it('shoves every joint, but not the hop or the lean', () => {
+    const kicked = kickJoints(STILL, 3, () => 1);
+    for (const key of JOINT_KEYS) {
+      expect(kicked[key]).toBe(3);
+    }
+    expect(kicked.lift).toBe(0);
+    expect(kicked.lean).toBe(0);
+  });
+
+  it('shoves either way', () => {
+    expect(kickJoints(STILL, 3, () => 0).frontArm).toBe(-3);
+    expect(kickJoints(STILL, 3, () => 0.5).frontArm).toBe(0);
+  });
+
+  it('adds to the speed the joints already have', () => {
+    const moving = { ...STILL, head: 2 };
+    expect(kickJoints(moving, 1, () => 1).head).toBe(3);
   });
 });

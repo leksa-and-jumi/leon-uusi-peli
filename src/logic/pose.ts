@@ -74,7 +74,7 @@ export const MOVES = {
   held: { armsUp: 2.9, swingMs: 900, leg: 0.18, elbow: -0.2, knee: 0.35 },
   punch: { arm: -Math.PI / 2, backArm: 0.5, backElbow: -1.5, lean: 0.12 },
   /** A limp doll: how far each joint can flop, at most. */
-  limp: { arm: 2.2, leg: 0.7, elbow: 1.4, knee: 1.3, waist: 0.55, head: 0.6 },
+  limp: { arm: 2.4, leg: 0.9, elbow: 1.6, knee: 1.5, waist: 0.75, head: 0.8 },
 } as const;
 
 /** The pose at a moment in time. `timeMs` keeps counting, so moves repeat smoothly. */
@@ -205,19 +205,4 @@ export function blendPose(from: Pose, to: Pose, amount: number): Pose {
     pose[key] = from[key] + (to[key] - from[key]) * t;
   }
   return pose;
-}
-
-/**
- * Shake a pose a little: arms, legs and head swing by `amount` radians, each its own
- * way. Used for the wobble of a limp doll that has just hit the floor.
- */
-export function shakePose(pose: Pose, amount: number): Pose {
-  return {
-    ...pose,
-    frontArm: pose.frontArm + amount,
-    backArm: pose.backArm - amount,
-    frontLeg: pose.frontLeg - amount * 0.5,
-    backLeg: pose.backLeg + amount * 0.5,
-    head: pose.head + amount * 0.6,
-  };
 }

@@ -29,8 +29,8 @@ export const PHYSICS = {
   gravity: 1800,
   /** Feet this little inside a box still count as standing on top of it. */
   groundSlack: 2,
-  /** Bumps this low don't stop a walking doll. */
-  stepUp: 4,
+  /** Things this low don't stop a walking doll: it steps up onto them (a plank, not a crate). */
+  stepUp: 20,
 } as const;
 
 /** What is drawn in front of what: bigger numbers are in front. */
@@ -98,48 +98,63 @@ export const ANGRY = {
   levelSlack: 30,
 } as const;
 
-/** Getting punched: slide back, tip over, lie on the floor, get back up. */
+/** Getting knocked over: the doll goes limp, lies on the ground, and gets back up. */
 export const KNOCK = {
-  fallMs: 260,
+  /** How long it lies on the ground before getting up. */
   lieMs: 1300,
-  riseMs: 420,
-  /** How fast the person slides back while tipping over (pixels per second). */
+  /** Getting up takes this long. */
+  riseMs: 450,
+  /** How fast it is shoved away by a punch (pixels per second). */
   pushSpeed: 260,
 } as const;
 
-/** How a doll that is knocked over flops, like a loose ragdoll. */
-export const FLOP = {
-  /** It doesn't lie perfectly flat: up to this much less, in radians. */
-  lieSpread: 0.22,
-  /** How the arms, legs and head wobble when it hits the floor. */
-  wobble: { size: 0.5, fadeMs: 260, beatMs: 240 },
-  /** How much of the wobble the whole body does. */
-  bodyWobble: 0.12,
-} as const;
-
-/** A doll with no lives left is a limp ragdoll: every joint swings loosely. */
+/**
+ * A doll that is knocked over, lifted or thrown is a limp ragdoll: every joint swings
+ * loosely. Smaller stiffness and damping make it floppier.
+ */
 export const LIMP = {
   /** Arms, elbows and the head: light and loose. */
-  loose: { stiffness: 60, damping: 5 },
-  /** Legs, knees and the waist: heavier, so they calm down sooner. */
-  heavy: { stiffness: 85, damping: 8 },
+  loose: { stiffness: 34, damping: 3 },
+  /** Legs, knees and the waist: heavier, so they calm down a bit sooner. */
+  heavy: { stiffness: 48, damping: 4.5 },
   /** The whole body swinging from the hand that holds it. */
-  hangBody: { stiffness: 38, damping: 5 },
+  hangBody: { stiffness: 24, damping: 3 },
   /** The whole body flopping down flat on the ground. */
-  settle: { stiffness: 130, damping: 15 },
+  settle: { stiffness: 110, damping: 13 },
   /** How far limbs trail behind when the doll is moved (radians per pixel per second). */
-  limbTrail: 0.0026,
-  limbTrailMax: 1.3,
+  limbTrail: 0.0036,
+  limbTrailMax: 1.7,
   /** The same for the whole body hanging from the hand. */
-  bodyTrail: 0.0013,
-  bodyTrailMax: 0.9,
-  hang: { armMax: 2.9, legMax: 1.1, spread: 0.15, bend: 0.35, head: 0.5, waist: 0.25 },
+  bodyTrail: 0.0018,
+  bodyTrailMax: 1.2,
+  /** How soon arms and legs fly apart when the doll drops (per pixel per second). */
+  floatTrail: 0.0016,
+  hang: {
+    armMax: 2.9,
+    legMax: 1.3,
+    spread: 0.2,
+    bend: 0.5,
+    head: 0.8,
+    waist: 0.45,
+    armFloat: 1.5,
+    legFloat: 0.6,
+  },
   /** Grabbed lower than this part of its height, a limp doll hangs upside down. */
   upsideDownBelow: 0.4,
-  /** How fast it starts to tip over when the last hit lands (radians per second). */
-  deathSpin: 5,
-  /** A hit on a doll that is already limp pushes it this much of the usual push. */
+  /** How fast it starts to tip over when a hit lands (radians per second). */
+  knockSpin: 5,
+  /** A hit makes the joints flop about this hard (radians per second). */
+  hitKick: 5,
+  /** Hitting the ground makes them flop: this much per pixel per second of the fall. */
+  landKick: 0.008,
+  landKickMax: 7,
+  /** A hit on a doll that has no lives left pushes it this much of the usual push. */
   corpsePush: 0.6,
+  /** It doesn't lie perfectly flat: up to this much less, in radians. */
+  lieSpread: 0.22,
+  /** A living doll put down gently, leaning less than this, just stands back up. */
+  standWithin: 0.45,
+  quickRiseMs: 220,
   /** How fast a limp doll lying half outside the area scoots back in (pixels per second). */
   scootSpeed: 320,
 } as const;
@@ -285,11 +300,10 @@ export type TabId = (typeof TABS)[number]['id'];
 export interface BlockDef {
   halfWidth: number;
   height: number;
-  /** Does a bomb blow it to bits? */
-  breakable: boolean;
   /** How much smaller it is drawn in the menu. */
   menuScale: number;
-  colors: { fill: number; dark: number; light: number };
+  /** `detail` is the mortar between bricks, or the nails in wood. */
+  colors: { fill: number; dark: number; light: number; detail: number };
 }
 
 export type BlockKind = 'crate' | 'wall' | 'plank';
@@ -298,25 +312,31 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
   crate: {
     halfWidth: 28,
     height: 56,
-    breakable: true,
     menuScale: 1,
-    colors: { fill: 0xa9713c, dark: 0x6e4420, light: 0xcf9a62 },
+    colors: { fill: 0xb07a45, dark: 0x5e3a1a, light: 0xdcaa70, detail: 0x3a2a1a },
   },
   wall: {
     halfWidth: 17,
     height: 128,
-    breakable: false,
     menuScale: 0.55,
-    colors: { fill: 0x9c4a3c, dark: 0x5a2a22, light: 0xc0705f },
+    colors: { fill: 0xa8503f, dark: 0x4e221b, light: 0xd58a76, detail: 0xcfc4b2 },
   },
   plank: {
     halfWidth: 70,
     height: 18,
-    breakable: true,
     menuScale: 0.45,
-    colors: { fill: 0xc9a46a, dark: 0x8a6a3a, light: 0xe3c592 },
+    colors: { fill: 0xc9a46a, dark: 0x7a5a2e, light: 0xecd2a0, detail: 0x4a3a26 },
   },
 };
+
+/** How the building pieces are drawn. */
+export const BLOCK_LOOK = {
+  /** Each board or brick is a little lighter or darker than its neighbors. */
+  tones: [-0.1, 0.05, 0.12, -0.04, 0.08, -0.13, 0],
+  crate: { boards: 4, frame: 8, brace: 7, nail: 1.7 },
+  wall: { brickHeight: 16, brickWidth: 17, mortar: 1.5 },
+  plank: { nail: 1.6 },
+} as const;
 
 /** A gun: shoots bullets at dolls that are in front of it. */
 export interface GunDef {
@@ -418,6 +438,8 @@ export const BLAST = {
   fontSize: '110px',
   ms: 520,
   grow: 1.5,
+  /** Another bomb caught in the blast goes off this soon after. */
+  chainMs: 160,
   /** The spark on a lit fuse blinks this fast. */
   blinkMs: 140,
 } as const;

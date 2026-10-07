@@ -25,6 +25,7 @@ import { overlaps, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
 import { sweepHit } from '../logic/shot';
+import { sameTeam } from '../logic/team';
 import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
 import type { Facing } from '../logic/walk';
 import { ActionBubbles } from '../objects/ActionBubbles';
@@ -383,7 +384,10 @@ export class MainScene extends Phaser.Scene {
       bullet.x += bullet.direction * bullet.gun.bulletSpeed * (delta / 1000);
       bullet.picture.x = bullet.x;
 
-      const targets = this.people.filter((person) => person !== bullet.shooter && person.canBeHit);
+      // Bullets fly past dolls of the shooter's own color
+      const targets = this.people.filter(
+        (person) => person.canBeHit && !sameTeam(person.look, bullet.shooter.look),
+      );
       const boxes = [...this.solids.map((solid) => solid.box), ...targets.map((p) => p.box)];
       const hit = sweepHit(fromX, bullet.x, bullet.y, boxes);
       const flownOut = bullet.x < AREA.left || bullet.x > AREA.right;
@@ -404,23 +408,29 @@ export class MainScene extends Phaser.Scene {
     this.bullets = [];
   }
 
-  /** A bomb goes off: dolls nearby are hurt and thrown back, breakable pieces are gone. */
+  /**
+   * A bomb goes off. Dolls in the blast are hurt and thrown back. Building pieces
+   * and loose items in the blast are gone, and other bombs go off right after.
+   */
   private explode(bomb: Item): void {
     const blast = bomb.def.bomb;
     if (!blast) return;
     const { x, y } = bomb.feet;
     const middleY = y - bomb.size.height / 2;
+    const caught = (body: Body): boolean => inBlast(x, middleY, body.box, blast.radius);
 
     for (const person of this.people) {
-      if (!person.canBePicked || !inBlast(x, middleY, person.box, blast.radius)) continue;
+      if (!person.canBePicked || !caught(person)) continue;
       const direction = blastDirection(x, person.feet.x);
       person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed);
     }
-    this.forget(
-      this.blocks.filter(
-        (block) => block.breakable && inBlast(x, middleY, block.box, blast.radius),
-      ),
-    );
+
+    const loose = this.items.filter((item) => item !== bomb && !item.isHeld && caught(item));
+    for (const other of loose.filter((item) => item.def.bomb)) {
+      other.setOff(BLAST.chainMs);
+    }
+    this.forget([...this.blocks.filter(caught), ...loose.filter((item) => !item.def.bomb)]);
+
     this.popUp(x, middleY, BLAST.emoji, BLAST.fontSize, BLAST.ms, BLAST.grow);
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
   }
