@@ -12,6 +12,7 @@ import {
   PICK_PADDING,
   PUNCH_DAMAGE,
   STUCK,
+  TOPPLE,
   TOSS,
   WALK,
   type ActionId,
@@ -38,6 +39,7 @@ import {
   blockedX,
   boxAround,
   liftOut,
+  lyingRoom,
   overlaps,
   pressingOn,
   tiltedBox,
@@ -45,7 +47,6 @@ import {
 } from '../logic/ground';
 import { isDead, takeHit } from '../logic/health';
 import type { Spot } from '../logic/pick';
-import type { PlaceArea } from '../logic/place';
 import {
   blendPose,
   limpPose,
@@ -423,6 +424,7 @@ export class Person extends Body {
     // A doll swung around in the hand knocks over the dolls it is swung into
     if (state === 'held' && Math.hypot(this.speed.x, this.speed.y) >= TOSS.swingKnockSpeed) {
       this.bump(this.speed.x, world);
+      world.shove(this.hitBox, this.speed.x < 0 ? -1 : 1);
     }
 
     if (state === 'flying') {
@@ -431,7 +433,7 @@ export class Person extends Body {
       this.getUp(this.rise, deltaMs);
     } else if (this.ragdoll) {
       if (wasFalling && state === 'resting') this.land(fallSpeed, world);
-      this.flopAbout(deltaMs, state, world.area);
+      this.flopAbout(deltaMs, state, world);
       this.maybeGetUp(deltaMs, state, world);
     } else if (state !== 'resting') {
       this.draw('held', 0);
@@ -548,7 +550,11 @@ export class Person extends Body {
     }
     const wanted = this.x + this.vx * (deltaMs / 1000);
     this.walkTo(wanted, world);
-    if (this.x !== wanted) this.vx *= -TOSS.bounce;
+    if (this.x !== wanted) {
+      // Thrown hard into a tall piece, it knocks the piece over
+      if (Math.abs(this.vx) >= TOPPLE.minSpeed) world.shove(this.box, this.vx < 0 ? -1 : 1);
+      this.vx *= -TOSS.bounce;
+    }
     if (this.state === 'resting') this.vx *= Math.exp(-deltaMs / TOSS.slideMs);
     if (Math.abs(this.vx) < TOSS.stopSpeed) this.vx = 0;
     if (!this.tossed || Math.abs(this.vx) < TOSS.knockSpeed) return;
@@ -615,7 +621,7 @@ export class Person extends Body {
    * spins freely; on the ground it flops down flat, on whichever side it was falling
    * toward. All the while the arms, legs and head swing loosely behind the way it moves.
    */
-  private flopAbout(deltaMs: number, state: BodyState, area: PlaceArea): void {
+  private flopAbout(deltaMs: number, state: BodyState, world: World): void {
     const held = state === 'held';
     const { angle, speed } = this.tumble;
     if (held) {
@@ -630,7 +636,7 @@ export class Person extends Body {
       const side = Math.abs(tipped) > 0.05 ? Math.sign(tipped) : this.knockDir;
       const flat = side * this.lieAngle;
       this.tumble = dangleStep({ angle: turned, speed }, flat, LIMP.settle, deltaMs);
-      this.scootInside(side, area, deltaMs);
+      this.scootClear(side, world, deltaMs);
     }
 
     const rotation = this.tumble.angle;
@@ -662,14 +668,22 @@ export class Person extends Body {
   }
 
   /**
-   * A limp doll lying by the edge of the area scoots in a little, so its whole body
-   * stays where you can see it and grab it. `side` is the way its head points.
+   * A limp doll scoots a little along the ground until its whole body lies clear:
+   * inside the area, where you can see and grab it, and beside the building pieces
+   * instead of through them. `side` is the way its head points.
    */
-  private scootInside(side: number, area: PlaceArea, deltaMs: number): void {
+  private scootClear(side: number, world: World, deltaMs: number): void {
     const { halfWidth, height } = PERSON;
-    const least = area.left + (side < 0 ? height : halfWidth);
-    const most = area.right - (side > 0 ? height : halfWidth);
-    const wanted = clamp(this.x, least, most);
+    const { left, right } = world.area;
+    const inside = {
+      least: left + (side < 0 ? height : halfWidth),
+      most: right - (side > 0 ? height : halfWidth),
+    };
+    const solids = world.solidBoxes(this);
+    const room = lyingRoom(this.x, this.y, side, halfWidth, height, solids, inside, PHYSICS.stepUp);
+    // Squeezed in from both sides, there is nowhere better to lie
+    if (room.least > room.most) return;
+    const wanted = clamp(this.x, room.least, room.most);
     const step = LIMP.scootSpeed * (deltaMs / 1000);
     this.x += clamp(wanted - this.x, -step, step);
   }

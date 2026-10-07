@@ -5,13 +5,20 @@ import {
   BLOCK_LOOK,
   BLOCKS,
   DEPTH,
+  PHYSICS,
   THING_ACTIONS,
+  TOPPLE,
   type ActionId,
   type BlockDef,
   type BlockKind,
 } from '../config';
+import { isTall, leaning, supportSpan, toppled, topplePose } from '../logic/balance';
+import { clamp } from '../logic/bounds';
 import { shade } from '../logic/color';
-import { Body } from './Body';
+import { blockedX, liftOut } from '../logic/ground';
+import type { PersonSize } from '../logic/place';
+import type { Facing } from '../logic/walk';
+import { Body, type BodyState } from './Body';
 import { drawJunk } from './junkShapes';
 import { drawTvProgram } from './tvScreen';
 import type { World } from './World';
@@ -19,11 +26,13 @@ import type { World } from './World';
 /**
  * Something solid: a building piece (crate, wall, plank, stone, steel beam, barrel) or
  * a piece of junk (toilet, TV, fridge and so on). They stack, and dolls can stand on
- * them. A barrel explodes when a bullet or a blast hits it.
+ * them. They have to balance: a piece whose middle isn't over what holds it up slides
+ * off, and a tall one falls over onto its side. A barrel explodes when a bullet or a
+ * blast hits it.
  */
 export class Block extends Body {
   override readonly solid = true;
-  readonly size: BlockDef;
+  readonly def: BlockDef;
   readonly actions: readonly ActionId[];
   readonly crumbs: readonly number[];
   private readonly display: Phaser.GameObjects.Container;
@@ -33,12 +42,22 @@ export class Block extends Body {
   /** Time left until a barrel that has been set off explodes, or `null`. */
   private fuseMs: number | null = null;
   private exploded = false;
+  /** How wide and tall it is right now: a piece that has fallen over lies on its side. */
+  private shape: PersonSize;
+  /** Which way it has fallen over: 0 is standing, 1 onto its right side, -1 onto its left. */
+  private fallen: Facing | 0 = 0;
+  /** Falling over right now: where it stood, and for how long it has been going. */
+  private tipping: { fromX: number; fromY: number; ms: number } | null = null;
+  /** Sliding off what it stands on: how fast, and how far it leans meanwhile. */
+  private slideSpeed = 0;
+  private lean = 0;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
-    this.size = BLOCKS[kind];
-    this.actions = this.size.blast ? BARREL_ACTIONS : THING_ACTIONS;
-    const { fill, dark, light } = this.size.colors;
+    this.def = BLOCKS[kind];
+    this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
+    this.actions = this.def.blast ? BARREL_ACTIONS : THING_ACTIONS;
+    const { fill, dark, light } = this.def.colors;
     this.crumbs = [fill, dark, light];
     const parts = [drawBlock(scene.make.graphics({}, false), kind)];
     if (kind === 'tv') {
@@ -48,13 +67,23 @@ export class Block extends Body {
     this.display = scene.add.container(x, y, parts).setDepth(DEPTH.block);
   }
 
+  get size(): PersonSize {
+    return this.shape;
+  }
+
   override get gone(): boolean {
     return super.gone || this.exploded;
   }
 
   /** Does it go off with a blast when it is hit? */
   get explosive(): boolean {
-    return this.size.blast !== undefined;
+    return this.def.blast !== undefined;
+  }
+
+  /** Standing up, staying put, and tall enough to fall over onto its side. */
+  get canTopple(): boolean {
+    const { halfWidth, height } = this.def;
+    return this.fallen === 0 && this.carries && isTall(halfWidth, height, TOPPLE.tallRatio);
   }
 
   /** A barrel that has been set off glows on its 🔥 bubble until it goes off. */
@@ -64,8 +93,8 @@ export class Block extends Body {
 
   /** Set a barrel off, or stop it again while its fuse still burns. */
   toggleFuse(): void {
-    if (!this.size.blast || this.exploded) return;
-    this.fuseMs = this.fuseMs === null ? this.size.blast.fuseMs : null;
+    if (!this.def.blast || this.exploded) return;
+    this.fuseMs = this.fuseMs === null ? this.def.blast.fuseMs : null;
     this.display.setAlpha(1);
   }
 
@@ -75,20 +104,46 @@ export class Block extends Body {
     this.fuseMs = Math.min(this.fuseMs ?? ms, ms);
   }
 
+  override grab(px: number, py: number): void {
+    super.grab(px, py);
+    this.tipping = null;
+    this.slideSpeed = 0;
+  }
+
+  /**
+   * Fall over onto one side, around the bottom corner on that side. From now on it
+   * lies there, as wide as it was tall. Whatever tall piece it falls onto goes over
+   * too, like dominoes.
+   */
+  topple(direction: Facing, world: World): void {
+    if (!this.canTopple) return;
+    const lying = toppled({ x: this.x, ...this.shape }, direction);
+    this.tipping = { fromX: this.x, fromY: this.y, ms: 0 };
+    this.fallen = direction;
+    this.shape = { halfWidth: lying.halfWidth, height: lying.height };
+    const { left, right } = world.area;
+    this.x = clamp(lying.x, left + lying.halfWidth, right - lying.halfWidth);
+    this.slideSpeed = 0;
+    world.shove(this.box, direction);
+    this.y = liftOut(this.box, world.solidBoxes(this));
+  }
+
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
     const state = this.physics(deltaMs, world);
-    this.display.setPosition(this.x, this.y);
-    this.display.rotation = state === 'flying' ? this.spin : 0;
+    const tip = state === 'resting' && !this.tipping ? this.keepBalance(deltaMs, world) : 0;
+    if (tip === 0) this.slideSpeed = 0;
+    this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
+    this.draw(state, deltaMs);
     if (this.screen) drawTvProgram(this.screen, this.clockMs);
 
-    if (this.fuseMs === null || !this.size.blast) return;
+    if (this.fuseMs === null || !this.def.blast) return;
     this.fuseMs -= deltaMs;
     // It blinks while its fuse burns
     this.display.setAlpha(Math.floor(this.fuseMs / BLAST.blinkMs) % 2 === 0 ? 1 : 0.55);
     if (this.fuseMs <= 0) {
       this.exploded = true;
-      world.explode(this, this.size.blast);
+      world.explode(this, this.def.blast);
     }
   }
 
@@ -98,6 +153,55 @@ export class Block extends Body {
 
   destroy(): void {
     this.display.destroy();
+  }
+
+  /**
+   * Gravity: its heavy middle has to be over what holds it up. If it isn't, a tall
+   * piece falls over that way, and any other piece slides off that way, faster and
+   * faster. Says which way it is going: -1 left, 1 right, 0 when it is balanced.
+   */
+  private keepBalance(deltaMs: number, world: World): Facing | 0 {
+    const solids = world.solidBoxes(this);
+    const span = supportSpan(this.box, solids, world.area.floorY, PHYSICS.groundSlack);
+    const tip = span === 'floor' || span === null ? 0 : leaning(this.x, span, TOPPLE.give);
+    if (tip === 0) return 0;
+    if (this.canTopple) {
+      this.topple(tip, world);
+      return 0;
+    }
+    const seconds = deltaMs / 1000;
+    const { halfWidth, height } = this.shape;
+    this.slideSpeed += TOPPLE.slideAccel * seconds;
+    const wanted = clamp(
+      this.x + tip * this.slideSpeed * seconds,
+      world.area.left + halfWidth,
+      world.area.right - halfWidth,
+    );
+    this.x = blockedX(this.x, wanted, halfWidth, this.y, height, solids, 0);
+    return tip;
+  }
+
+  private draw(state: BodyState, deltaMs: number): void {
+    if (this.tipping && state !== 'held' && state !== 'flying') {
+      this.tipping.ms += deltaMs;
+      const part = this.tipping.ms / TOPPLE.ms;
+      if (part < 1 && this.fallen !== 0) {
+        // It starts slowly and comes down faster, like something heavy
+        const { fromX, fromY } = this.tipping;
+        const pose = topplePose(fromX, fromY, this.y, this.def.halfWidth, this.fallen, part ** 2);
+        this.display.setPosition(pose.x, pose.y);
+        this.display.rotation = pose.rotation;
+        return;
+      }
+      this.tipping = null;
+    }
+    // A piece lying on its side is drawn turned, around the bottom edge it stood on
+    const turned = this.fallen * (Math.PI / 2);
+    this.display.setPosition(
+      this.x - this.fallen * (this.def.height / 2),
+      this.fallen === 0 ? this.y : this.y - this.def.halfWidth,
+    );
+    this.display.rotation = turned + (state === 'flying' ? this.spin : this.lean);
   }
 }
 

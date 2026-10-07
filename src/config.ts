@@ -63,6 +63,25 @@ export const STUCK = {
   spray: 20,
 } as const;
 
+/** Gravity on building pieces: they have to balance, or they tip off and fall over. */
+export const TOPPLE = {
+  /** A piece at least this many times taller than wide falls over onto its side. */
+  tallRatio: 1.6,
+  /** Its middle may hang this far past the end of what holds it up before it goes. */
+  give: 1,
+  /** Falling over onto its side takes this long. */
+  ms: 380,
+  /** A piece that isn't tall slides off toward its heavy side, faster and faster. */
+  slideAccel: 900,
+  /** While it slides off it leans this much (radians). */
+  lean: 0.32,
+  leanMs: 110,
+  /** A thrown doll or item has to hit a tall piece at least this fast to knock it over. */
+  minSpeed: 380,
+  /** How close something has to come to a tall piece to knock it over. */
+  reach: 4,
+} as const;
+
 /** Something solid landing on a doll squashes it down. */
 export const CRUSH = {
   /**
