@@ -15,6 +15,7 @@ import {
   type ActionId,
   type GunDef,
   type PersonLook,
+  type WoundKind,
 } from '../config';
 import { clamp } from '../logic/bounds';
 import { chaseStep, nearestIndex } from '../logic/chase';
@@ -289,9 +290,10 @@ export class Person extends Body {
     solids: readonly Box[],
     damage: number = PUNCH_DAMAGE,
     pushSpeed: number = KNOCK.pushSpeed,
+    wound: WoundKind = 'bruise',
   ): boolean {
     this.knockOver(direction, pushSpeed);
-    return this.lose(damage, solids);
+    return this.lose(damage, solids, wound);
   }
 
   /**
@@ -302,7 +304,7 @@ export class Person extends Body {
     if (this.dead) return false;
     this.flinchMs = PERSON.flinch.ms;
     this.flinchDir = direction;
-    const deadly = this.lose(damage, solids);
+    const deadly = this.lose(damage, solids, 'hole');
     if (deadly) this.knockOver(direction, KNOCK.pushSpeed);
     return deadly;
   }
@@ -325,14 +327,15 @@ export class Person extends Body {
     this.vx = direction * pushSpeed * (this.dead ? LIMP.corpsePush : 1);
   }
 
-  /** Lose lives. Says whether that was the last one. */
-  private lose(damage: number, solids: readonly Box[]): boolean {
+  /** Lose lives, and get the mark of what did it. Says whether that was the last life. */
+  private lose(damage: number, solids: readonly Box[], wound: WoundKind): boolean {
     if (this.dead) return false;
     if (damage > 0) {
-      // Every hit that hurts leaves a wound that sprays and then drips for a while
-      this.figure.addWound();
-      this.spray += BLOOD.burst;
-      this.bleedMs = BLOOD.bleedMs;
+      // Every hit that hurts leaves its own kind of mark, which sprays and then drips
+      const bleeding = BLOOD.byWound[wound];
+      this.figure.addWound(wound);
+      this.spray += bleeding.burst;
+      this.bleedMs = Math.max(this.bleedMs, bleeding.bleedMs);
     }
     this.lives = takeHit(this.lives, damage);
     if (!isDead(this.lives)) return false;
@@ -653,6 +656,7 @@ export class Person extends Body {
       world.solidBoxes(target),
       (weapon?.melee?.damage ?? PUNCH_DAMAGE) + (this.look.punch ?? PUNCH_DAMAGE) - PUNCH_DAMAGE,
       weapon?.melee?.pushSpeed,
+      weapon?.melee?.wound,
     );
     const sound = weapon?.melee ? 'clang' : 'punch';
     world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly, sound);
