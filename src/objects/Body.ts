@@ -1,5 +1,5 @@
 import { PHYSICS, PICK_PADDING, THROW, type ActionId } from '../config';
-import { fallStep } from '../logic/fall';
+import { ceilingBounce, fallStep } from '../logic/fall';
 import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
 import { boxAround, groundBelow, liftOut, type Box } from '../logic/ground';
 import type { Spot } from '../logic/pick';
@@ -161,8 +161,10 @@ export abstract class Body {
       ground,
       deltaMs,
     );
-    this.y = fall.y;
-    this.fallSpeed = fall.speed;
+    // Nothing flies up past the ceiling: it bounces back down
+    const below = ceilingBounce(fall.y, fall.speed, height, world.area.top, PHYSICS.ceilingBounce);
+    this.y = below.y;
+    this.fallSpeed = below.speed;
     return fall.landed ? 'resting' : 'falling';
   }
 }

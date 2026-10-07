@@ -10,13 +10,17 @@
 
 ## How to play / Miten pelataan
 
-🇬🇧 The menu at the top has three pages: 🧍 dolls, 🔫 weapons and items, 🧱 building pieces. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away.
+🇬🇧 The menu at the top has four pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces and 🚽 junk. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it.
 
-🇫🇮 Ylävalikossa on kolme sivua: 🧍 nuket, 🔫 aseet ja tavarat, 🧱 rakennuspalat. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois.
+🇫🇮 Ylävalikossa on neljä sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat ja 🚽 krääsä. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi.
 
 🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets; dolls step up onto low ones. The red barrel explodes when a bullet or a blast hits it, or when you double-click it and press 🔥!
 
 🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥!
+
+🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. A doll can hold the bottle and the frying pan and hit with them.
+
+🇫🇮 **Krääsä 🚽:** vessanpönttö, televisio, roskis, nojatuoli, pöytä, jääkaappi, liikennekartio ja rengas ovat kiinteitä: pinoa niitä ja laita nukkeja niiden päälle. Pullon ja paistinpannun nukke voi ottaa käteen ja lyödä niillä.
 
 🇬🇧 **Weapons 🔫:** drop a weapon onto a doll, or drag it there, and the doll takes it in its hand. In 😡 angry mode the doll uses it. Double-click a gun and press 💥: it fires nonstop, also while you drag it around, so you can shoot the dolls yourself (🔄 turns it around). A lit 💣 bomb goes off after 4 seconds: it hurts the dolls nearby and blows up everything else in its blast: building pieces and loose weapons. Other bombs and barrels in the blast go off too!
 
@@ -42,9 +46,9 @@
 
 🇫🇮 **Joukkueet 🎨:** samanväriset nuket ovat samalla puolella. Vihainen nukke käy vain erivärisien kimppuun, ja sen luodit lentävät omanväristen ohi.
 
-🇬🇧 **Ragdolls 🪆:** a doll that is knocked over, lifted or thrown goes completely limp. Lift one and it hangs from your hand with arms, legs and head dangling; shake it and they swing (grab it by a foot and it hangs upside down!). On the ground it flops down flat: no arm or leg stays up in the air. A living doll gets back up after a moment; one with no lives left stays limp. Let go while moving the mouse and you throw it: the dolls it hits fall over and get back up, without losing lives.
+🇬🇧 **Ragdolls 🪆:** a doll that is knocked over, lifted or thrown goes completely limp. Lift one and it hangs from your hand with arms, legs and head dangling; shake it and they swing (grab it by a foot and it hangs upside down!). On the ground it flops down flat: no arm or leg stays up in the air. A living doll gets back up after a moment; one with no lives left stays limp. Swing a doll around in your hand and it knocks over the dolls it hits. Let go while moving the mouse and you throw it: the dolls it hits fall over and get back up, without losing lives.
 
-🇫🇮 **Räsynuket 🪆:** kaadettu, nostettu tai heitetty nukke menee täysin lötköksi. Nosta se, niin se roikkuu kädestäsi kädet, jalat ja pää roikkuen; heiluta sitä, niin ne heiluvat (tartu jalasta, niin se roikkuu pää alaspäin!). Maassa se lötkähtää litteäksi: yksikään käsi tai jalka ei jää pystyyn ilmaan. Elävä nukke nousee hetken päästä ylös; nukke, jolla ei ole elämiä, jää lötköksi. Päästä irti, kun hiiri liikkuu, niin heität sen: nuket, joihin se osuu, kaatuvat ja nousevat ylös menettämättä elämiä.
+🇫🇮 **Räsynuket 🪆:** kaadettu, nostettu tai heitetty nukke menee täysin lötköksi. Nosta se, niin se roikkuu kädestäsi kädet, jalat ja pää roikkuen; heiluta sitä, niin ne heiluvat (tartu jalasta, niin se roikkuu pää alaspäin!). Maassa se lötkähtää litteäksi: yksikään käsi tai jalka ei jää pystyyn ilmaan. Elävä nukke nousee hetken päästä ylös; nukke, jolla ei ole elämiä, jää lötköksi. Heiluta nukkea kädessäsi, niin se kaataa nuket, joihin se osuu. Päästä irti, kun hiiri liikkuu, niin heität sen: nuket, joihin se osuu, kaatuvat ja nousevat ylös menettämättä elämiä.
 
 | Item / Tavara  | 🇬🇧                                        | 🇫🇮                                            |
 | -------------- | ----------------------------------------- | --------------------------------------------- |

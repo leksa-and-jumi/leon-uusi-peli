@@ -339,6 +339,11 @@ export class Person extends Body {
     const state = this.physics(deltaMs, world);
     this.measureSpeed(deltaMs);
 
+    // A doll swung around in the hand knocks over the dolls it is swung into
+    if (state === 'held' && Math.hypot(this.speed.x, this.speed.y) >= TOSS.swingKnockSpeed) {
+      this.bump(this.speed.x, world);
+    }
+
     if (state === 'flying') {
       this.draw('held', this.spin);
     } else if (this.rise) {
@@ -440,14 +445,25 @@ export class Person extends Body {
     if (Math.abs(this.vx) < TOSS.stopSpeed) this.vx = 0;
     if (!this.tossed || Math.abs(this.vx) < TOSS.knockSpeed) return;
 
-    const direction: Facing = this.vx < 0 ? -1 : 1;
+    if (this.bump(this.vx, world)) this.vx *= TOSS.keep;
+  }
+
+  /**
+   * Moving sideways at `speedX`, knock over every standing doll this one runs into.
+   * They aren't hurt. Says whether it hit anybody.
+   */
+  private bump(speedX: number, world: World): boolean {
+    const direction: Facing = speedX < 0 ? -1 : 1;
+    const body = this.hitBox;
+    let hitSomeone = false;
     for (const other of world.people) {
-      if (other === this || !other.canBeHit || !overlaps(this.box, other.box)) continue;
-      const push = Math.max(TOSS.pushSpeed, Math.abs(this.vx) * TOSS.pushShare);
+      if (other === this || !other.canBeHit || !overlaps(body, other.box)) continue;
+      const push = Math.max(TOSS.pushSpeed, Math.abs(speedX) * TOSS.pushShare);
       other.hit(direction, world.solidBoxes(other), 0, push);
       world.hitEffect(other.x, other.y - PERSON.height * 0.6, false, 'punch');
-      this.vx *= TOSS.keep;
+      hitSomeone = true;
     }
+    return hitSomeone;
   }
 
   /** The throw is over: from now on it falls like everything else. */

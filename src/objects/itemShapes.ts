@@ -24,6 +24,10 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawBat(g);
     case 'bomb':
       return drawBomb(g);
+    case 'bottle':
+      return drawBottle(g);
+    case 'pan':
+      return drawPan(g);
   }
 }
 
@@ -321,5 +325,91 @@ function drawBomb(g: Graphics): Graphics {
   g.fillCircle(1, 1, 9);
   g.fillStyle(c.shine, 0.9);
   g.fillEllipse(-5.5, -6.5, 6, 3.5);
+  return g;
+}
+
+/** A green glass bottle, held by the neck: cap, neck, shoulder, body and a paper label. */
+function drawBottle(g: Graphics): Graphics {
+  const c = ITEM_COLORS.bottle;
+  shape(g, c.dark, [
+    [-4, -3.6],
+    [10, -3.6],
+    [17, -8],
+    [43, -8],
+    [45, -6],
+    [45, 6],
+    [43, 8],
+    [17, 8],
+    [10, 3.6],
+    [-4, 3.6],
+  ]);
+  shape(g, c.glass, [
+    [-3, -2.4],
+    [10, -2.4],
+    [17.5, -6.6],
+    [42.5, -6.6],
+    [43.6, -5.5],
+    [43.6, 5.5],
+    [42.5, 6.6],
+    [17.5, 6.6],
+    [10, 2.4],
+    [-3, 2.4],
+  ]);
+  // Light shining through the glass along the top
+  shape(
+    g,
+    c.shine,
+    [
+      [-1, -1.8],
+      [10, -1.8],
+      [17.5, -5.4],
+      [41, -5.4],
+      [41, -3.6],
+      [18, -3.6],
+      [10, -0.6],
+      [-1, -0.6],
+    ],
+    0.7,
+  );
+  g.fillStyle(c.dark, 0.35);
+  g.fillRect(18, 3.5, 24, 2.5);
+  // Paper label
+  g.fillStyle(c.label);
+  g.fillRect(22, -6.6, 15, 13.2);
+  g.fillStyle(c.dark, 0.5);
+  g.fillRect(24.5, -3, 10, 1.4);
+  g.fillRect(24.5, 0, 10, 1.4);
+  g.fillRect(24.5, 3, 6, 1.4);
+  // Cap
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-7.5, -4.4, 5, 8.8, 1.5);
+  g.fillStyle(c.cap);
+  g.fillRoundedRect(-6.8, -3.6, 3.6, 7.2, 1);
+  return g;
+}
+
+/** A frying pan seen from above: a wooden handle and a round, dark pan with a rim. */
+function drawPan(g: Graphics): Graphics {
+  const c = ITEM_COLORS.pan;
+  // Handle with a metal neck and a hole to hang it by
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-11, -3.4, 30, 6.8, 3);
+  g.fillStyle(c.handle);
+  g.fillRoundedRect(-10, -2.4, 22, 4.8, 2.4);
+  g.fillStyle(c.dark);
+  g.fillCircle(-6.5, 0, 1.3);
+  g.fillStyle(c.metal);
+  g.fillRect(12, -2.4, 7, 4.8);
+  // Pan: dark rim, metal edge, and the darker inside with a shine
+  g.fillStyle(c.dark);
+  g.fillCircle(33, 0, 16);
+  g.fillStyle(c.metal);
+  g.fillCircle(33, 0, 14.6);
+  g.fillStyle(c.inside);
+  g.fillCircle(33, 0, 11.5);
+  g.fillStyle(c.shine, 0.45);
+  g.fillEllipse(28.5, -5.5, 9, 5);
+  g.lineStyle(1.2, c.shine, 0.6);
+  g.strokeCircle(33, 0, 13.2);
   return g;
 }
