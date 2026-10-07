@@ -21,15 +21,21 @@ import { PersonFigure } from './personShape';
 
 /** One thing you can pick from the menu and put into the area. */
 export type SpawnChoice =
+  | { type: 'none' }
   | { type: 'person'; look: PersonLook }
   | { type: 'item'; kind: ItemKind }
   | { type: 'block'; kind: BlockKind };
 
+/** Every page starts with an empty slot: with that picked, a click puts nothing in. */
+const NOTHING: SpawnChoice = { type: 'none' };
+/** The slot that is picked when a page opens: the first one with something in it. */
+const FIRST_THING = 1;
+
 const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
-  people: PEOPLE.map((look) => ({ type: 'person', look })),
-  items: WEAPON_KINDS.map((kind) => ({ type: 'item', kind })),
-  build: BUILD_KINDS.map((kind) => ({ type: 'block', kind })),
-  junk: JUNK_KINDS,
+  people: [NOTHING, ...PEOPLE.map((look): SpawnChoice => ({ type: 'person', look }))],
+  items: [NOTHING, ...WEAPON_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
+  build: [NOTHING, ...BUILD_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
+  junk: [NOTHING, ...JUNK_KINDS],
 };
 
 /**
@@ -44,7 +50,7 @@ export class SpawnMenu {
   /** The pictures in the slots of the open page. */
   private pictures: Phaser.GameObjects.GameObject[] = [];
   private tab: TabId = 'people';
-  private selectedIndex = 0;
+  private selectedIndex = FIRST_THING;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -110,7 +116,7 @@ export class SpawnMenu {
     if (tab) {
       if (tab.id !== this.tab) {
         this.tab = tab.id;
-        this.selectedIndex = 0;
+        this.selectedIndex = FIRST_THING;
         this.showPage();
       }
       return null;
@@ -157,6 +163,14 @@ export class SpawnMenu {
       const middleX = slot.x + slot.width / 2;
       const middleY = slot.y + slot.height / 2;
       const bottomY = slot.y + slot.height - MENU.feetInset;
+      // Small enough to fit in the slot with some room around it
+      const fit = (halfWidth: number, height: number, most: number): number =>
+        Math.min(
+          most,
+          (slot.width - MENU.slotPadding * 2) / (halfWidth * 2),
+          (slot.height - MENU.slotPadding * 2) / height,
+        );
+      if (choice.type === 'none') return;
       if (choice.type === 'person') {
         const figure = new PersonFigure(scene, choice.look).container
           .setScale(MENU.personScale)
@@ -164,16 +178,17 @@ export class SpawnMenu {
         this.pictures.push(figure.setDepth(MENU.depth + 1));
       } else if (choice.type === 'item') {
         const def = ITEMS[choice.kind];
-        const scale = def.menuScale;
+        const scale = fit(def.halfWidth, def.height, def.menuScale);
         const picture = drawItem(scene.add.graphics(), choice.kind)
           .setScale(scale)
           .setPosition(middleX + def.lie.x * scale, middleY + (def.lie.y + def.height / 2) * scale);
         this.pictures.push(picture.setDepth(MENU.depth + 1));
       } else {
         const def = BLOCKS[choice.kind];
+        const scale = fit(def.halfWidth, def.height, def.menuScale);
         const picture = drawBlock(scene.add.graphics(), choice.kind)
-          .setScale(def.menuScale)
-          .setPosition(middleX, middleY + (def.height / 2) * def.menuScale);
+          .setScale(scale)
+          .setPosition(middleX, middleY + (def.height / 2) * scale);
         this.pictures.push(picture.setDepth(MENU.depth + 1));
       }
     });

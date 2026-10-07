@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { DOLL, EXTRA_COLORS, PERSON, type PersonLook } from '../config';
+import { BLOOD, DOLL, EXTRA_COLORS, PERSON, type PersonLook } from '../config';
 import { shade } from '../logic/color';
 import { STAND, type Pose } from '../logic/pose';
 
@@ -51,6 +51,12 @@ export class PersonFigure {
   private readonly eyes: Graphics;
   private readonly deadEyes: Graphics;
   private readonly brows: Graphics;
+  /** The wound marks on its chest: one more for every time it is hurt. */
+  private readonly wounds: Graphics;
+  private woundCount = 0;
+  /** A knight's face is hidden behind its helmet: no eyes, no eyebrows. */
+  private readonly faceless: boolean;
+  private readonly bloodColor: number;
   private current: Pose = STAND;
 
   constructor(scene: Phaser.Scene, look: PersonLook) {
@@ -61,7 +67,10 @@ export class PersonFigure {
     // Arms hang from the upper body, so their shoulders are measured from the waist
     this.backArm = paint.arm(-shoulder.x, shoulder.y - waist.y);
     this.frontArm = paint.arm(shoulder.x, shoulder.y - waist.y);
-    this.eyes = paint.eyes();
+    this.faceless = look.extra === 'helmet';
+    this.bloodColor = look.blood ?? BLOOD.color;
+    this.wounds = scene.make.graphics({}, false).setPosition(0, -waist.y);
+    this.eyes = paint.eyes().setVisible(!this.faceless);
     this.deadEyes = paint.deadEyes().setVisible(false);
     this.brows = paint.angryBrows().setVisible(false);
 
@@ -75,6 +84,7 @@ export class PersonFigure {
       .add([
         this.backArm.upper,
         paint.chest().setPosition(0, -waist.y),
+        this.wounds,
         this.headPart,
         this.frontArm.upper,
       ]);
@@ -108,14 +118,30 @@ export class PersonFigure {
 
   /** Angry eyebrows on or off. */
   setAngry(angry: boolean): void {
-    this.brows.setVisible(angry);
+    this.brows.setVisible(angry && !this.faceless);
   }
 
   /** A doll with no lives left gets crosses for eyes. */
   setDead(dead: boolean): void {
-    this.eyes.setVisible(!dead);
-    this.deadEyes.setVisible(dead);
+    this.eyes.setVisible(!dead && !this.faceless);
+    this.deadEyes.setVisible(dead && !this.faceless);
     if (dead) this.brows.setVisible(false);
+  }
+
+  /** A new wound mark somewhere on the chest, with a trickle running down from it. */
+  addWound(random: () => number = Math.random): void {
+    if (this.woundCount >= BLOOD.maxWounds) return;
+    this.woundCount += 1;
+    const { chest } = SHAPE;
+    const x = chest.x + 5 + random() * (chest.width - 10);
+    const y = chest.y + 5 + random() * (chest.height - 12);
+    const g = this.wounds;
+    g.fillStyle(shade(this.bloodColor, -0.45));
+    g.fillCircle(x, y, 3.4 + random() * 1.6);
+    g.fillStyle(this.bloodColor);
+    g.fillCircle(x - 0.6, y - 0.6, 2.2 + random());
+    g.fillCircle(x + 2.5, y + 2, 1.4);
+    g.fillRoundedRect(x - 1, y + 1, 2, 5 + random() * 8, 1);
   }
 
   /** Put something into the front hand. It moves with the arm from now on. */

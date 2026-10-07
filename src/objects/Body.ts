@@ -18,6 +18,8 @@ export abstract class Body {
   abstract readonly size: PersonSize;
   /** The bubbles that come up when it is double-clicked. */
   abstract readonly actions: readonly ActionId[];
+  /** The colors of the small pieces it breaks into when it is destroyed. */
+  abstract readonly crumbs: readonly number[];
   /** Others can stand on it and can't walk through it. */
   readonly solid: boolean = false;
   protected x: number;
@@ -28,7 +30,10 @@ export abstract class Body {
   protected spin = 0;
   /** How hard it is pulled down, compared with everything else (1 is the usual). */
   protected gravityScale = 1;
+  /** How fast it was falling when it last hit the ground (pixels per second). */
+  protected lastImpact = 0;
   private fallSpeed = 0;
+  private fallSpeedBefore = 0;
   private flownOut = false;
   /** From the point it is held by to its bottom middle. */
   protected grabOffset = { x: 0, y: 0 };
@@ -155,6 +160,7 @@ export abstract class Body {
       this.fallSpeed = 0;
       return 'resting';
     }
+    this.fallSpeedBefore = this.fallSpeed;
     const fall = fallStep(
       { y: this.y, speed: this.fallSpeed, landed: false },
       PHYSICS.gravity * this.gravityScale,
@@ -165,6 +171,10 @@ export abstract class Body {
     const below = ceilingBounce(fall.y, fall.speed, height, world.area.top, PHYSICS.ceilingBounce);
     this.y = below.y;
     this.fallSpeed = below.speed;
+    if (fall.landed) {
+      this.lastImpact =
+        this.fallSpeedBefore + PHYSICS.gravity * this.gravityScale * (deltaMs / 1000);
+    }
     return fall.landed ? 'resting' : 'falling';
   }
 }

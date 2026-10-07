@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import {
   ANGRY,
+  BLOOD,
   DEPTH,
   KNOCK,
   LIMP,
@@ -89,6 +90,8 @@ interface Rise {
 export class Person extends Body {
   readonly size = PERSON;
   readonly actions = PERSON_ACTIONS;
+  /** Dolls don't break into pieces. */
+  readonly crumbs: readonly number[] = [];
   /** Its colors. Dolls of the same color are on the same side. */
   readonly look: PersonLook;
   activity: Activity = 'idle';
@@ -101,6 +104,11 @@ export class Person extends Body {
   /** Keeps counting, so the moves keep going. */
   private clockMs = 0;
   private lives: number;
+  /** Drops that are about to spray out of a fresh wound. */
+  private spray = 0;
+  /** Time left of dripping from its wounds, and until the next drop. */
+  private bleedMs = 0;
+  private dripWaitMs = 0;
   /** Time left of jerking back from a bullet, and which way. */
   private flinchMs = 0;
   private flinchDir: Facing = 1;
@@ -320,6 +328,12 @@ export class Person extends Body {
   /** Lose lives. Says whether that was the last one. */
   private lose(damage: number, solids: readonly Box[]): boolean {
     if (this.dead) return false;
+    if (damage > 0) {
+      // Every hit that hurts leaves a wound that sprays and then drips for a while
+      this.figure.addWound();
+      this.spray += BLOOD.burst;
+      this.bleedMs = BLOOD.bleedMs;
+    }
     this.lives = takeHit(this.lives, damage);
     if (!isDead(this.lives)) return false;
     this.out = true;
@@ -338,6 +352,7 @@ export class Person extends Body {
     this.glide(deltaMs, world);
     const state = this.physics(deltaMs, world);
     this.measureSpeed(deltaMs);
+    this.bleed(deltaMs, world);
 
     // A doll swung around in the hand knocks over the dolls it is swung into
     if (state === 'held' && Math.hypot(this.speed.x, this.speed.y) >= TOSS.swingKnockSpeed) {
@@ -464,6 +479,26 @@ export class Person extends Body {
       hitSomeone = true;
     }
     return hitSomeone;
+  }
+
+  /** Spray and drip blood from where the wounds are. */
+  private bleed(deltaMs: number, world: World): void {
+    if (this.spray === 0 && this.bleedMs <= 0) return;
+    const { x, y, rotation } = this.drawn;
+    const up = PERSON.height * BLOOD.woundHeight;
+    const woundX = x + Math.sin(rotation) * up;
+    const woundY = y - Math.cos(rotation) * up;
+    const color = this.look.blood ?? BLOOD.color;
+    if (this.spray > 0) {
+      world.bleed(woundX, woundY, this.spray, color, true);
+      this.spray = 0;
+    }
+    if (this.bleedMs <= 0) return;
+    this.bleedMs -= deltaMs;
+    this.dripWaitMs -= deltaMs;
+    if (this.dripWaitMs > 0) return;
+    this.dripWaitMs = BLOOD.dripEveryMs;
+    world.bleed(woundX, woundY, 1, color, false);
   }
 
   /** The throw is over: from now on it falls like everything else. */

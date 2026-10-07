@@ -62,6 +62,19 @@ export class Sfx {
     this.tone(SOUND.out.tone);
   }
 
+  /** Glass breaking. */
+  shatter(): void {
+    if (!this.ready('shatter')) return;
+    this.tone(SOUND.shatter.tone);
+    this.burst(SOUND.shatter.hiss);
+  }
+
+  /** Something breaking into pieces. */
+  crumble(): void {
+    if (!this.ready('crumble')) return;
+    this.burst(SOUND.crumble.hiss);
+  }
+
   /** Can this sound be played right now? Also notes that it is being played. */
   private ready(name: string): boolean {
     const context = this.context;

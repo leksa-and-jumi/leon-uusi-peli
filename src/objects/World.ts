@@ -21,6 +21,10 @@ export interface World {
   landed: (fallSpeed: number) => void;
   /** Fire a bullet from this spot. With no shooter, it hits dolls of any color. */
   shoot: (shooter: Person | null, x: number, y: number, direction: Facing, gun: GunDef) => void;
+  /** Something smashes to pieces, which fly off with this push (pixels per second). */
+  breakApart: (body: Body, pushX: number, pushY: number) => void;
+  /** Blood sprays or drips from this spot: this many drops of this color. */
+  bleed: (x: number, y: number, drops: number, color: number, spray: boolean) => void;
   /** Something goes off with a blast: a bomb or a barrel. */
   explode: (source: Body, blast: BlastDef) => void;
 }

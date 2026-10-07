@@ -70,6 +70,8 @@ export interface PersonLook {
   armsForward?: boolean;
   /** Always in angry mode: it goes for the others the moment it lands. */
   angry?: boolean;
+  /** What it bleeds, when not red blood: oil for a robot, slime for a zombie. */
+  blood?: number;
 }
 
 /**
@@ -94,6 +96,7 @@ export const PEOPLE: readonly PersonLook[] = [
     punch: 2,
     speed: 0.9,
     angry: true,
+    blood: 0x1a1a1f,
   },
   {
     body: 0x30303a,
@@ -124,6 +127,7 @@ export const PEOPLE: readonly PersonLook[] = [
     speed: 0.55,
     armsForward: true,
     angry: true,
+    blood: 0x5f8f1f,
   },
 ];
 
@@ -374,7 +378,9 @@ export const MENU = {
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
   tabFontSize: '14px',
-  slots: { x: 66, y: 10, width: 72, height: 80, gap: 12 },
+  slots: { x: 66, y: 10, width: 64, height: 80, gap: 8 },
+  /** A picture in a slot is made small enough to leave this much room around it. */
+  slotPadding: 5,
   slotColor: 0x9e9e9e,
   slotRadius: 10,
   selected: { color: 0xffd54f, width: 5 },
@@ -570,16 +576,23 @@ export interface ItemDef {
   gun?: GunDef;
   melee?: MeleeDef;
   bomb?: BombDef;
+  /** It smashes to pieces when it hits something at least this fast (pixels per second). */
+  breaksAt?: number;
+  /** Dragged along the floor, it wipes stains away. */
+  wipes?: boolean;
+  /** The colors of the pieces it breaks into. */
+  crumbs: readonly number[];
 }
 
 /** The items on the weapons page. */
 export type WeaponKind = 'pistol' | 'mgun' | 'sword' | 'axe' | 'spear' | 'bat' | 'bomb';
 /** Junk a doll can hold, and hit others with. */
-export type JunkItemKind = 'bottle' | 'pan';
+export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 export type ItemKind = WeaponKind | JunkItemKind;
 
 export const ITEMS: Record<ItemKind, ItemDef> = {
   pistol: {
+    crumbs: [0x455a64, 0x1c262b, 0x4e342e],
     halfWidth: 15,
     height: 20,
     menuScale: 2,
@@ -596,6 +609,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     },
   },
   mgun: {
+    crumbs: [0x455a64, 0x1c262b, 0x4e342e],
     halfWidth: 32,
     height: 24,
     menuScale: 1.05,
@@ -612,6 +626,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     },
   },
   sword: {
+    crumbs: [0xeef3f6, 0xb4c0c8, 0xffc107],
     halfWidth: 36,
     height: 18,
     menuScale: 0.95,
@@ -620,6 +635,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 84, damage: 1, pushSpeed: 300 },
   },
   axe: {
+    crumbs: [0xb4c0c8, 0xc9a46a, 0x7a5a2e],
     halfWidth: 28,
     height: 21,
     menuScale: 1.2,
@@ -628,6 +644,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 76, damage: 2, pushSpeed: 380 },
   },
   spear: {
+    crumbs: [0xc9a46a, 0x7a5a2e, 0xb4c0c8],
     halfWidth: 49,
     height: 10,
     menuScale: 0.68,
@@ -636,6 +653,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 128, damage: 1, pushSpeed: 240 },
   },
   bat: {
+    crumbs: [0xc9a46a, 0x7a5a2e, 0xecd2a0],
     halfWidth: 36,
     height: 12,
     menuScale: 0.95,
@@ -644,6 +662,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 78, damage: 1, pushSpeed: 620 },
   },
   bomb: {
+    crumbs: [0x1b1b1b, 0x8a8a8a, 0xff9800],
     halfWidth: 13,
     height: 26,
     menuScale: 1.6,
@@ -652,20 +671,34 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     bomb: { fuseMs: 4000, radius: 170, damage: 3, pushSpeed: 700 },
   },
   bottle: {
+    crumbs: [0x2e7d4f, 0xa5e0bd, 0x174428],
     halfWidth: 26,
     height: 16,
     menuScale: 1.3,
     lie: { x: -19, y: -8 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 70, damage: 1, pushSpeed: 300 },
+    breaksAt: 520,
   },
   pan: {
+    crumbs: [0x3a3f44, 0x8b959c, 0x5d4037],
     halfWidth: 30,
     height: 32,
     menuScale: 1.15,
     lie: { x: -19, y: -16 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 74, damage: 1, pushSpeed: 540 },
+  },
+  broom: {
+    crumbs: [0xc9a46a, 0x7a5a2e, 0xd9b44a],
+    halfWidth: 42,
+    height: 26,
+    menuScale: 0.8,
+    lie: { x: -11, y: -13 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    // A broom knocks a doll over but doesn't hurt it, so sweeping makes no new mess
+    melee: { reach: 96, damage: 0, pushSpeed: 420 },
+    wipes: true,
   },
 };
 
@@ -700,6 +733,7 @@ export const JUNK_KINDS: readonly (
   { type: 'block', kind: 'cone' },
   { type: 'item', kind: 'pan' },
   { type: 'block', kind: 'tire' },
+  { type: 'item', kind: 'broom' },
 ];
 
 /** The colors of the items. */
@@ -711,6 +745,76 @@ export const ITEM_COLORS = {
   bomb: { body: 0x1b1b1b, shine: 0x8a8a8a, cap: 0x9e9e9e, fuse: 0xbcaaa4, spark: 0xffb300 },
   bottle: { glass: 0x2e7d4f, dark: 0x174428, shine: 0xa5e0bd, label: 0xf3ead2, cap: 0xc9a227 },
   pan: { metal: 0x3a3f44, dark: 0x1a1d20, shine: 0x8b959c, handle: 0x5d4037, inside: 0x23272b },
+  broom: { bristle: 0xd9b44a, bristleDark: 0x9a7a1e, band: 0xc62828, bandDark: 0x7f1d1d },
+} as const;
+
+/** Throwing an item: it flies like a thrown doll, and hurts the doll it hits. */
+export const ITEM_TOSS = {
+  /** A thrown thing to hit with has to fly at least this fast to hurt a doll. */
+  hitSpeed: 320,
+  /** How much speed it keeps when it bounces off a wall, or off the doll it hit. */
+  bounce: 0.35,
+  /** On the ground it slides to a stop in about this long. */
+  slideMs: 220,
+  stopSpeed: 15,
+} as const;
+
+/** The small pieces that things break into. */
+export const DEBRIS = {
+  /** One piece for every this many square pixels of the thing, between the least and the most. */
+  areaPerCrumb: 190,
+  least: 7,
+  most: 26,
+  burst: { spread: 240, size: { min: 4, max: 9 }, spin: 9 },
+  /** Pieces from a blast fly away from it this fast, and a bit upward. */
+  blastPush: 330,
+  blastLift: 260,
+  physics: { gravity: 1500, bounce: 0.38, restSpeed: 90, slideMs: 240 },
+  /** They lie there this long, then take this long to fade away. */
+  lieMs: 2600,
+  fadeMs: 1600,
+  /** At most this many pieces at once. The oldest go first. */
+  max: 320,
+  depth: 15,
+} as const;
+
+/** Wounds and blood. Hurt dolls bleed, and the drops stain the floor until they are wiped away. */
+export const BLOOD = {
+  color: 0xb71c1c,
+  /** How many drops spray out the moment a doll is hurt, and how far they fly. */
+  burst: 26,
+  spray: { spread: 230, size: { min: 2.2, max: 4.2 }, spin: 0 },
+  /** After that the wound drips for this long, one drop every so often. */
+  bleedMs: 7000,
+  dripEveryMs: 70,
+  drip: { spread: 45, size: { min: 2, max: 3.6 }, spin: 0 },
+  /** The wound is about this far up the doll's body, as a part of its height. */
+  woundHeight: 0.68,
+  /** At most this many wound marks are drawn on one doll. */
+  maxWounds: 7,
+  stain: { start: 5, grow: 1.1, most: 30, near: 7, max: 520 },
+  /** How thick a stain looks, and how far below the floor's edge it lies. */
+  stainHeight: 5,
+  stainDrop: 3,
+  stainAlpha: 0.92,
+  /** The broom wipes when its bottom is at most this far above the floor. */
+  sweepHeight: 16,
+  /** A spray of blood starts off upward this fast (pixels per second). */
+  sprayLift: -140,
+  depth: 5,
+} as const;
+
+/** The TV plays these programs one after the other, with a blink of snow in between. */
+export const TV = {
+  /** Where the glass of the screen is on the TV, from the middle of its bottom edge. */
+  screen: { x: -25, y: -39, width: 38, height: 28 },
+  channels: 3,
+  channelMs: 7000,
+  snowMs: 350,
+  cartoon: { sky: 0x7ec8f0, sun: 0xffe14d, grass: 0x58a946, cloud: 0xffffff, doll: 0x2b2b33 },
+  pong: { field: 0x10241a, line: 0x2f6b4c, ball: 0xffffff, paddle: 0xe0e0e0 },
+  music: { back: 0x23204a, bars: [0xff5d73, 0xffb84d, 0xfff06a, 0x67e28c, 0x5cc8ff, 0xb388ff] },
+  snow: [0x1c1c1c, 0x6e6e6e, 0xb8b8b8, 0xf2f2f2],
 } as const;
 
 /** A doll that has just let go of an item doesn't grab it again for this long. */
@@ -773,5 +877,14 @@ export const SOUND = {
   },
   out: {
     tone: { wave: 'triangle', from: 330, to: 70, seconds: 0.4, volume: 0.4 },
+  },
+  /** Glass breaking: a sharp crack and a bright tinkle. */
+  shatter: {
+    tone: { wave: 'triangle', from: 3400, to: 1700, seconds: 0.16, volume: 0.25 },
+    hiss: { from: 9000, to: 2500, seconds: 0.2, volume: 0.6 },
+  },
+  /** Something crumbling to pieces: a dull crunch. */
+  crumble: {
+    hiss: { from: 1400, to: 180, seconds: 0.28, volume: 0.6 },
   },
 } as const satisfies Record<string, unknown>;
