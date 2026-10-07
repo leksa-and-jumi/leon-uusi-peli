@@ -103,3 +103,12 @@ export function blockedX(
   }
   return x;
 }
+
+/**
+ * The solid thing that is pressing on something from above or has landed in it: the
+ * first one that overlaps `box` and is too tall to just step up onto. `undefined`
+ * when nothing does.
+ */
+export function pressingOn(box: Box, solids: readonly Box[], stepUp: number): Box | undefined {
+  return solids.find((solid) => overlaps(box, solid) && solid.top < box.bottom - stepUp);
+}

@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import {
   ANGRY,
   BLOOD,
+  CRUSH,
   DEPTH,
   KNOCK,
   LIMP,
@@ -32,7 +33,15 @@ import {
   type JointKey,
   type Swinger,
 } from '../logic/dangle';
-import { blockedX, overlaps, tiltedBox, type Box } from '../logic/ground';
+import {
+  blockedX,
+  boxAround,
+  liftOut,
+  overlaps,
+  pressingOn,
+  tiltedBox,
+  type Box,
+} from '../logic/ground';
 import { isDead, takeHit } from '../logic/health';
 import type { Spot } from '../logic/pick';
 import type { PlaceArea } from '../logic/place';
@@ -93,6 +102,8 @@ export class Person extends Body {
   readonly actions = PERSON_ACTIONS;
   /** Dolls don't break into pieces. */
   readonly crumbs: readonly number[] = [];
+  /** A doll steps up onto low things, but a tall thing that lands on it squashes it. */
+  protected override readonly climbsOnlyLow = true;
   /** Its colors. Dolls of the same color are on the same side. */
   readonly look: PersonLook;
   activity: Activity = 'idle';
@@ -169,6 +180,11 @@ export class Person extends Body {
   /** No lives left: stays limp and does nothing any more. */
   get dead(): boolean {
     return this.out;
+  }
+
+  /** Lying or tipping over on the ground: building pieces land on it and stay there. */
+  get isDown(): boolean {
+    return this.ragdoll && this.state === 'resting' && this.rise === null;
   }
 
   /** Standing on the ground, so it can be punched or shot. */
@@ -280,6 +296,12 @@ export class Person extends Body {
     this.tumble = { angle: this.tumble.angle, speed: this.tumble.speed + this.vx * TOSS.spin };
   }
 
+  /** Let go inside something solid, a doll ends up standing on top of it. */
+  override release(solids: readonly Box[], speedY = 0): void {
+    this.y = liftOut(this.box, solids);
+    super.release(solids, speedY);
+  }
+
   /**
    * Hit by a fist, a weapon, a blast or a thrown doll: lose lives, go limp, get
    * shoved away and fall over. With no lives left the doll never gets up again.
@@ -356,6 +378,7 @@ export class Person extends Body {
     const state = this.physics(deltaMs, world);
     this.measureSpeed(deltaMs);
     this.bleed(deltaMs, world);
+    this.feelWeight(state, world);
 
     // A doll swung around in the hand knocks over the dolls it is swung into
     if (state === 'held' && Math.hypot(this.speed.x, this.speed.y) >= TOSS.swingKnockSpeed) {
@@ -369,7 +392,7 @@ export class Person extends Body {
     } else if (this.ragdoll) {
       if (wasFalling && state === 'resting') this.land(fallSpeed, world);
       this.flopAbout(deltaMs, state, world.area);
-      this.maybeGetUp(deltaMs, state);
+      this.maybeGetUp(deltaMs, state, world);
     } else if (state !== 'resting') {
       this.draw('held', 0);
     } else {
@@ -384,6 +407,28 @@ export class Person extends Body {
 
   destroy(): void {
     this.figure.destroy();
+  }
+
+  /**
+   * Something solid has landed on a doll that was on its feet: the weight bends its
+   * head and its back forward and it goes down under the thing. It isn't hurt.
+   */
+  private feelWeight(state: BodyState, world: World): void {
+    if (this.ragdoll || state === 'held' || state === 'flying') return;
+    const { halfWidth, height } = PERSON;
+    const body = boxAround(this.x, this.y, halfWidth - 2, height);
+    const weight = pressingOn(body, world.solidBoxes(this), PHYSICS.stepUp);
+    if (!weight) return;
+    const middle = (weight.left + weight.right) / 2;
+    const under: Facing = this.x === middle ? this.facing : this.x < middle ? 1 : -1;
+    this.knockOver(under, 0);
+    this.vx = -under * CRUSH.push;
+    this.limbSpeeds = {
+      ...this.limbSpeeds,
+      head: this.limbSpeeds.head + CRUSH.headKick,
+      waist: this.limbSpeeds.waist + CRUSH.waistKick,
+    };
+    world.hitEffect(this.x, this.y - height, false, 'punch');
   }
 
   /** Go limp, starting from exactly how the doll is standing or moving right now. */
@@ -413,9 +458,14 @@ export class Person extends Body {
    * A living doll on the ground gets back up: at once when it was put down gently
    * and nearly upright, otherwise after lying there for a while.
    */
-  private maybeGetUp(deltaMs: number, state: BodyState): void {
+  private maybeGetUp(deltaMs: number, state: BodyState, world: World): void {
     if (this.dead || state !== 'resting') {
       this.downMs = 0;
+      return;
+    }
+    // With something lying on it, it stays down until that is taken away
+    if (world.pinned(this)) {
+      this.downMs = Math.max(this.downMs, 1);
       return;
     }
     const upright = Math.abs(wrapAngle(this.tumble.angle)) < LIMP.standWithin;
@@ -727,6 +777,9 @@ export class Person extends Body {
     container.setPosition(x, y);
     container.setScale(this.facing, 1);
     container.rotation = rotation;
+    // Lying flat on the ground, it is drawn behind the building pieces: it lies under them
+    const flat = this.isDown && Math.abs(Math.sin(rotation)) > 0.7;
+    container.setDepth(flat ? DEPTH.downDoll : DEPTH.person);
     this.drawn = { x, y, rotation };
   }
 }

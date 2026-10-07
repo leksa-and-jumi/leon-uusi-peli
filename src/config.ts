@@ -43,7 +43,33 @@ export const PHYSICS = {
 } as const;
 
 /** What is drawn in front of what: bigger numbers are in front. */
-export const DEPTH = { block: 10, person: 20, item: 30, bullet: 40 } as const;
+export const DEPTH = {
+  /** A doll lying on the ground is behind the building pieces: it lies under them. */
+  downDoll: 8,
+  block: 10,
+  person: 20,
+  item: 30,
+  bullet: 40,
+} as const;
+
+/** Something solid landing on a doll squashes it down. */
+export const CRUSH = {
+  /**
+   * The doll falls over toward the thing and its feet slide the other way this fast
+   * (pixels per second), so that it ends up with its body under the thing.
+   */
+  push: 190,
+  /** How hard its head and its back are bent forward by the weight (radians per second). */
+  headKick: 13,
+  waistKick: 6,
+  /** A thing counts as lying on a doll when it is this close above it. */
+  restGap: 6,
+  /**
+   * A thing that has sunk at most this far into a doll that is going down waits for
+   * the doll to give way under it, and then comes down on top of it.
+   */
+  sink: 70,
+} as const;
 
 /**
  * How a doll looks and what it is like. The body color also decides its side: dolls

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { blockedX, boxAround, groundBelow, liftOut, overlaps, tiltedBox } from './ground';
+import {
+  blockedX,
+  boxAround,
+  groundBelow,
+  liftOut,
+  overlaps,
+  pressingOn,
+  tiltedBox,
+} from './ground';
 
 const crate = { left: 100, right: 160, top: 440, bottom: 500 };
 
@@ -117,5 +125,25 @@ describe('tiltedBox', () => {
     const box = tiltedBox(100, 300, Math.PI, 20, 120);
     expect(box.top).toBeCloseTo(300);
     expect(box.bottom).toBeCloseTo(420);
+  });
+});
+
+describe('pressingOn', () => {
+  const doll = { left: 80, right: 120, top: 380, bottom: 500 };
+
+  it('finds a tall thing that has landed on the doll', () => {
+    const fallen = { left: 90, right: 150, top: 340, bottom: 400 };
+    expect(pressingOn(doll, [fallen], 20)).toBe(fallen);
+  });
+
+  it('ignores a low thing at the feet that can be stepped onto', () => {
+    const plank = { left: 60, right: 200, top: 485, bottom: 500 };
+    expect(pressingOn(doll, [plank], 20)).toBeUndefined();
+  });
+
+  it('ignores things that only touch or are somewhere else', () => {
+    const beside = { left: 120, right: 180, top: 380, bottom: 500 };
+    const above = { left: 80, right: 120, top: 300, bottom: 380 };
+    expect(pressingOn(doll, [beside, above], 20)).toBeUndefined();
   });
 });

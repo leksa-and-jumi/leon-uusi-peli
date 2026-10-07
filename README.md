@@ -14,9 +14,9 @@
 
 🇫🇮 Ylävalikossa on neljä sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat ja 🚽 krääsä. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi. Jokainen sivu alkaa tyhjällä ruudulla: kun se on valittuna, harmaan alueen klikkaus ei laita mitään paikalle.
 
-🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets; dolls step up onto low ones. The red barrel explodes when a bullet or a blast hits it, or when you double-click it and press 🔥!
+🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets; dolls step up onto low ones. The red barrel explodes when a bullet or a blast hits it, or when you double-click it and press 🔥! Drop a piece on a doll and it squashes the doll: its head bends down, it goes down under the piece and stays there until you take the piece away (it doesn't lose lives).
 
-🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥!
+🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥! Pudota pala nuken päälle, niin se litistää nuken: pää painuu alas, nukke jää palan alle ja pysyy siellä, kunnes otat palan pois (elämiä se ei menetä).
 
 🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. The TV always has a program on 📺. A doll can hold the bottle, the frying pan and the broom and hit with them. Throw the bottle hard and it smashes. Drag the broom 🧹 along the floor to wipe blood away.
 
