@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLOOD, DOLL, EXTRA_COLORS, PERSON, type PersonLook } from '../config';
+import { BLOOD, DOLL, EXTRA_COLORS, PERSON, type PersonLook, type WoundKind } from '../config';
 import { shade } from '../logic/color';
 import { STAND, type Pose } from '../logic/pose';
 
@@ -128,20 +128,82 @@ export class PersonFigure {
     if (dead) this.brows.setVisible(false);
   }
 
-  /** A new wound mark somewhere on the chest, with a trickle running down from it. */
-  addWound(random: () => number = Math.random): void {
+  /**
+   * A new mark somewhere on the chest, in the shape of what made it: a bruise, a
+   * slash, a stab wound, a bullet hole or a burn.
+   */
+  addWound(kind: WoundKind, random: () => number = Math.random): void {
     if (this.woundCount >= BLOOD.maxWounds) return;
     this.woundCount += 1;
     const { chest } = SHAPE;
-    const x = chest.x + 5 + random() * (chest.width - 10);
-    const y = chest.y + 5 + random() * (chest.height - 12);
+    const x = chest.x + 6 + random() * (chest.width - 12);
+    const y = chest.y + 6 + random() * (chest.height - 13);
     const g = this.wounds;
-    g.fillStyle(shade(this.bloodColor, -0.45));
-    g.fillCircle(x, y, 3.4 + random() * 1.6);
-    g.fillStyle(this.bloodColor);
-    g.fillCircle(x - 0.6, y - 0.6, 2.2 + random());
-    g.fillCircle(x + 2.5, y + 2, 1.4);
-    g.fillRoundedRect(x - 1, y + 1, 2, 5 + random() * 8, 1);
+    const blood = this.bloodColor;
+    const dark = shade(blood, -0.5);
+    const marks = BLOOD.marks;
+    /** A thin line of blood running down from the mark. */
+    const trickle = (fromX: number, fromY: number, length: number): void => {
+      g.fillStyle(blood);
+      g.fillRoundedRect(fromX - 0.9, fromY, 1.8, length, 0.9);
+      g.fillCircle(fromX, fromY + length, 1.3);
+    };
+
+    switch (kind) {
+      case 'bruise':
+        // A blotch that is dark in the middle and sickly at the edge
+        g.fillStyle(marks.bruiseEdge, 0.45);
+        g.fillEllipse(x, y, 13 + random() * 3, 10 + random() * 2);
+        g.fillStyle(marks.bruise, 0.75);
+        g.fillEllipse(x + 0.5, y + 0.3, 9, 7);
+        g.fillStyle(dark, 0.55);
+        g.fillEllipse(x - 1, y - 0.5, 4.5, 3.2);
+        break;
+      case 'slash': {
+        // A long slanted cut, wide open in the middle, with blood running from it
+        const lean = random() < 0.5 ? 1 : -1;
+        const half = 7 + random() * 2.5;
+        const rise = half * 0.75 * lean;
+        g.lineStyle(4, dark);
+        g.lineBetween(x - half, y - rise, x + half, y + rise);
+        g.lineStyle(2, blood);
+        g.lineBetween(x - half + 1, y - rise * 0.85, x + half - 1, y + rise * 0.85);
+        trickle(x - half * 0.4, y - rise * 0.4, 4 + random() * 6);
+        trickle(x + half * 0.5, y + rise * 0.5, 3 + random() * 5);
+        break;
+      }
+      case 'stab':
+        // A narrow, deep wound with a long trickle
+        g.fillStyle(dark);
+        g.fillEllipse(x, y, 4.5, 8);
+        g.fillStyle(marks.hole);
+        g.fillEllipse(x, y, 2, 5.5);
+        g.lineStyle(1.2, blood);
+        g.strokeEllipse(x, y, 5.5, 9);
+        trickle(x, y + 3, 7 + random() * 7);
+        break;
+      case 'hole':
+        // A small round bullet hole with a torn red rim
+        g.fillStyle(blood);
+        g.fillCircle(x, y, 4);
+        g.fillStyle(dark);
+        g.fillCircle(x, y, 3);
+        g.fillStyle(marks.hole);
+        g.fillCircle(x, y, 2);
+        trickle(x + 0.5, y + 2.5, 3 + random() * 5);
+        break;
+      case 'burn':
+        // A sooty scorch mark made of several patches, with a few glowing embers
+        for (let i = 0; i < 5; i++) {
+          g.fillStyle(marks.burn, 0.55 + random() * 0.3);
+          g.fillCircle(x + (random() - 0.5) * 12, y + (random() - 0.5) * 9, 3 + random() * 3.5);
+        }
+        g.fillStyle(marks.ember);
+        for (let i = 0; i < 3; i++) {
+          g.fillCircle(x + (random() - 0.5) * 10, y + (random() - 0.5) * 8, 0.9);
+        }
+        break;
+    }
   }
 
   /** Put something into the front hand. It moves with the arm from now on. */

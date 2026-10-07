@@ -252,7 +252,7 @@ export class Item extends Body {
     if (!victim) return;
     const direction = this.vx < 0 ? -1 : 1;
     const solids = world.solidBoxes(victim);
-    const deadly = victim.hit(direction, solids, melee.damage, melee.pushSpeed);
+    const deadly = victim.hit(direction, solids, melee.damage, melee.pushSpeed, melee.wound);
     world.hitEffect(victim.feet.x, this.y - height / 2, deadly, 'clang');
     this.tossed = false;
     this.bounceBack(world);

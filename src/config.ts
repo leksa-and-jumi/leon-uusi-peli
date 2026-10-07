@@ -552,10 +552,18 @@ export interface GunDef {
   barrelUp: number;
 }
 
+/**
+ * The mark a hit leaves on a doll: a bruise from a fist or something blunt, a slash
+ * from a blade, a stab from a point, a hole from a bullet, a burn from a blast.
+ */
+export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn';
+
 /** Something to hit with: reaches further and hurts more than a fist. */
 export interface MeleeDef {
   reach: number;
   damage: number;
+  /** The mark it leaves. */
+  wound: WoundKind;
   /** How fast the one who is hit slides away. */
   pushSpeed: number;
 }
@@ -632,7 +640,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 0.95,
     lie: { x: -22.5, y: -9 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 84, damage: 1, pushSpeed: 300 },
+    melee: { reach: 84, damage: 1, wound: 'slash', pushSpeed: 300 },
   },
   axe: {
     crumbs: [0xb4c0c8, 0xc9a46a, 0x7a5a2e],
@@ -641,7 +649,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 1.2,
     lie: { x: -15.5, y: -3 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 76, damage: 2, pushSpeed: 380 },
+    melee: { reach: 76, damage: 2, wound: 'slash', pushSpeed: 380 },
   },
   spear: {
     crumbs: [0xc9a46a, 0x7a5a2e, 0xb4c0c8],
@@ -650,7 +658,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 0.68,
     lie: { x: -19, y: -5 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 128, damage: 1, pushSpeed: 240 },
+    melee: { reach: 128, damage: 1, wound: 'stab', pushSpeed: 240 },
   },
   bat: {
     crumbs: [0xc9a46a, 0x7a5a2e, 0xecd2a0],
@@ -659,7 +667,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 0.95,
     lie: { x: -19, y: -6 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 78, damage: 1, pushSpeed: 620 },
+    melee: { reach: 78, damage: 1, wound: 'bruise', pushSpeed: 620 },
   },
   bomb: {
     crumbs: [0x1b1b1b, 0x8a8a8a, 0xff9800],
@@ -677,7 +685,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 1.3,
     lie: { x: -19, y: -8 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 70, damage: 1, pushSpeed: 300 },
+    melee: { reach: 70, damage: 1, wound: 'bruise', pushSpeed: 300 },
     breaksAt: 520,
   },
   pan: {
@@ -687,7 +695,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 1.15,
     lie: { x: -19, y: -16 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 74, damage: 1, pushSpeed: 540 },
+    melee: { reach: 74, damage: 1, wound: 'bruise', pushSpeed: 540 },
   },
   broom: {
     crumbs: [0xc9a46a, 0x7a5a2e, 0xd9b44a],
@@ -697,7 +705,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: -11, y: -13 },
     hand: { rotation: Math.PI / 4, along: 0 },
     // A broom knocks a doll over but doesn't hurt it, so sweeping makes no new mess
-    melee: { reach: 96, damage: 0, pushSpeed: 420 },
+    melee: { reach: 96, damage: 0, wound: 'bruise', pushSpeed: 420 },
     wipes: true,
   },
 };
@@ -781,11 +789,28 @@ export const DEBRIS = {
 /** Wounds and blood. Hurt dolls bleed, and the drops stain the floor until they are wiped away. */
 export const BLOOD = {
   color: 0xb71c1c,
-  /** How many drops spray out the moment a doll is hurt, and how far they fly. */
-  burst: 26,
+  /**
+   * How much each kind of wound bleeds: how many drops spray out at once, and how
+   * long it drips after that. A slash bleeds the most, a bruise hardly at all.
+   */
+  byWound: {
+    bruise: { burst: 5, bleedMs: 1200 },
+    slash: { burst: 34, bleedMs: 9000 },
+    stab: { burst: 22, bleedMs: 7500 },
+    hole: { burst: 18, bleedMs: 6000 },
+    burn: { burst: 9, bleedMs: 2200 },
+  },
+  /** The colors of marks that aren't blood: bruises, burns and the dark inside of a hole. */
+  marks: {
+    bruise: 0x4a2a5e,
+    bruiseEdge: 0x7d8a3a,
+    burn: 0x17120e,
+    ember: 0xff8a1e,
+    hole: 0x120a0a,
+  },
+  /** How far the drops fly. */
   spray: { spread: 230, size: { min: 2.2, max: 4.2 }, spin: 0 },
-  /** After that the wound drips for this long, one drop every so often. */
-  bleedMs: 7000,
+  /** While a wound drips, a drop falls this often. */
   dripEveryMs: 70,
   drip: { spread: 45, size: { min: 2, max: 3.6 }, spin: 0 },
   /** The wound is about this far up the doll's body, as a part of its height. */

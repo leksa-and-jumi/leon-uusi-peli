@@ -30,9 +30,9 @@
 
 🇫🇮 **Huitaise itse 🗡️:** tartu miekkaan tai mailaan ja vedä se nopeasti nukkeen: nukke menettää elämän ja kaatuu. Hitaasti kantaminen ei satuta ketään.
 
-🇬🇧 **Wounds and pieces 🩸:** a doll that loses a life gets a wound and bleeds for a while; the blood stays on the floor until you sweep it away with the broom. Anything that is blown up or smashed bursts into small pieces that lie around for a moment and then fade away. You can throw items like dolls, and a thrown weapon hurts the doll it hits.
+🇬🇧 **Wounds and pieces 🩸:** a doll that loses a life gets a mark and bleeds for a while. Every weapon leaves its own mark: a fist, a bat, a pan or a bottle leaves a bruise, a sword or an axe a slash, a spear a stab wound, a bullet a bullet hole and a blast a burn. A slash bleeds the most, a bruise hardly at all; the blood stays on the floor until you sweep it away with the broom. Anything that is blown up or smashed bursts into small pieces that lie around for a moment and then fade away. You can throw items like dolls, and a thrown weapon hurts the doll it hits.
 
-🇫🇮 **Haavat ja palaset 🩸:** nukke, joka menettää elämän, saa haavan ja vuotaa verta jonkin aikaa; veri jää lattialle, kunnes lakaiset sen pois harjalla. Kaikki, mikä räjäytetään tai särkyy, hajoaa pieniksi paloiksi, jotka makaavat hetken ja haalistuvat sitten pois. Tavaroita voi heittää kuten nukkeja, ja heitetty ase satuttaa nukkea, johon se osuu.
+🇫🇮 **Haavat ja palaset 🩸:** nukke, joka menettää elämän, saa jäljen ja vuotaa verta jonkin aikaa. Jokainen ase jättää oman jälkensä: nyrkistä, mailasta, pannusta tai pullosta jää mustelma, miekasta tai kirveestä viilto, keihäästä pistohaava, luodista luodinreikä ja räjähdyksestä palovamma. Viilto vuotaa eniten, mustelma tuskin lainkaan; veri jää lattialle, kunnes lakaiset sen pois harjalla. Kaikki, mikä räjäytetään tai särkyy, hajoaa pieniksi paloiksi, jotka makaavat hetken ja haalistuvat sitten pois. Tavaroita voi heittää kuten nukkeja, ja heitetty ase satuttaa nukkea, johon se osuu.
 
 🇬🇧 **Special dolls 🤖:** the last four dolls in the menu are always angry and attack the moment they land. They have more lives than the plain dolls and their hits take one life more. 🤖 Robot: 5 lives. 🥷 Ninja: 4 lives, very fast. 🛡️ Knight: 6 lives, slow. 🧟 Zombie: 5 lives, slow, arms out.
 

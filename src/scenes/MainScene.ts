@@ -286,7 +286,13 @@ export class MainScene extends Phaser.Scene {
       if (!swingLands(speed, SWING.minSpeed, sinceLastHit, SWING.cooldownMs)) continue;
       this.lastSwingHit.set(person, this.time.now);
       const direction = swingDirection(now.x - before.x, now.x, person.feet.x);
-      const deadly = person.hit(direction, this.solidBoxes(person), melee.damage, melee.pushSpeed);
+      const deadly = person.hit(
+        direction,
+        this.solidBoxes(person),
+        melee.damage,
+        melee.pushSpeed,
+        melee.wound,
+      );
       this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly, 'clang');
     }
   }
@@ -509,7 +515,7 @@ export class MainScene extends Phaser.Scene {
     for (const person of this.people) {
       if (!person.canBePicked || !caught(person)) continue;
       const direction = blastDirection(x, person.feet.x);
-      person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed);
+      person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed, 'burn');
     }
 
     const blocks = this.blocks.filter(caught);
