@@ -1,6 +1,6 @@
 /** Shared game constants. Tweak values here instead of inside scenes. */
-export const GAME_WIDTH = 800;
-export const GAME_HEIGHT = 600;
+export const GAME_WIDTH = 1120;
+export const GAME_HEIGHT = 660;
 
 export const COLORS = {
   background: 0x808080,
@@ -36,13 +36,39 @@ export const PHYSICS = {
 /** What is drawn in front of what: bigger numbers are in front. */
 export const DEPTH = { block: 10, person: 20, item: 30, bullet: 40 } as const;
 
-/** How a doll looks: the color it is made of, and the color of its ball joints. */
+/**
+ * How a doll looks and what it is like. The body color also decides its side: dolls
+ * of the same color don't fight each other.
+ */
 export interface PersonLook {
+  /** The color it is made of, and the color of its ball joints. */
   body: number;
   joint: number;
+  /** Eye color, when it isn't the usual dark. */
+  eye?: number;
+  /** Something extra that shows what kind of doll it is. */
+  extra?: 'antenna' | 'headband' | 'helmet' | 'patches';
+  /** How many hits it takes, when not the usual `PERSON.lives`. */
+  lives?: number;
+  /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
+  speed?: number;
+  /**
+   * How many lives its punch takes, when not the usual one. A stronger doll also
+   * hits that much harder with a sword, axe, spear or bat.
+   */
+  punch?: number;
+  /** It walks and runs with both arms stretched out in front. */
+  armsForward?: boolean;
+  /** Always in angry mode: it goes for the others the moment it lands. */
+  angry?: boolean;
 }
 
-/** The different-looking dolls you can pick from the menu. */
+/**
+ * The dolls you can pick from the menu. First six plain ones in different colors.
+ * Then four special ones that are always angry, have more lives than the plain ones
+ * and hit harder: a robot, a ninja (fast), a knight (toughest, slow) and a zombie
+ * (slow, arms out).
+ */
 export const PEOPLE: readonly PersonLook[] = [
   { body: 0xd9b382, joint: 0x8a6a45 },
   { body: 0x6fbf4a, joint: 0x2e7d32 },
@@ -50,7 +76,55 @@ export const PEOPLE: readonly PersonLook[] = [
   { body: 0xd9534f, joint: 0x7f1d1d },
   { body: 0xe8c84a, joint: 0x9a7b12 },
   { body: 0xa9b1ba, joint: 0x4a5560 },
+  {
+    body: 0x607d8b,
+    joint: 0x263238,
+    eye: 0xff1744,
+    extra: 'antenna',
+    lives: 5,
+    punch: 2,
+    speed: 0.9,
+    angry: true,
+  },
+  {
+    body: 0x30303a,
+    joint: 0x101014,
+    eye: 0xffffff,
+    extra: 'headband',
+    lives: 4,
+    punch: 2,
+    speed: 1.7,
+    angry: true,
+  },
+  {
+    body: 0xdfe6ea,
+    joint: 0x78909c,
+    extra: 'helmet',
+    lives: 6,
+    punch: 2,
+    speed: 0.8,
+    angry: true,
+  },
+  {
+    body: 0x8aa35c,
+    joint: 0x4d5e2a,
+    eye: 0xfff176,
+    extra: 'patches',
+    lives: 5,
+    punch: 2,
+    speed: 0.55,
+    armsForward: true,
+    angry: true,
+  },
 ];
+
+/** The colors of the extras that the special dolls wear. */
+export const EXTRA_COLORS = {
+  antenna: { rod: 0x263238, ball: 0xff1744 },
+  headband: { band: 0xd32f2f, dark: 0x8e1c1c },
+  helmet: { visor: 0x263238, crest: 0x1e88e5, crestDark: 0x0d47a1 },
+  patches: { blotch: 0x5a6e38 },
+} as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */
 export const DOLL = {
@@ -69,6 +143,8 @@ export const PERSON = {
   /** At most this many people at once; the oldest one leaves when a new one comes. */
   max: 100,
   face: { eye: 0x1b1b1b, angryBrow: 0x1b1b1b },
+  /** A doll that is shot but still standing jerks back this much (radians), for this long. */
+  flinch: { lean: 0.14, ms: 130 },
   /** A doll is out after this many punches. */
   lives: 3,
   /** A lying person is lifted this much, so they lie on the floor and not in it. */
@@ -166,26 +242,31 @@ export const LIMP = {
 
 /** Throwing a doll: let go of it while moving the mouse. */
 export const TOSS = {
-  /** The throw goes the way the mouse moved over this last stretch of time. */
-  windowMs: 110,
+  /** The throw uses the fastest stretch of the mouse movement in this last bit of time. */
+  windowMs: 220,
   /** How much harder than the mouse moved the doll flies. */
-  power: 1.25,
+  power: 1.5,
   /** Slower than this (pixels per second) is just letting go, not a throw. */
   minSpeed: 200,
-  maxSpeed: 1900,
+  maxSpeed: 2400,
+  /** A thrown doll is pulled down less, so it flies in a longer arc. */
+  gravityScale: 0.6,
+  /** It bounces off the ground with this much of its speed, when it lands at least this fast. */
+  floorBounce: 0.42,
+  bounceMinSpeed: 420,
   /** A thrown doll at least this fast knocks over the dolls it hits. */
   knockSpeed: 170,
   /** A doll that is hit slides away at least this fast, or this much of the thrown doll's speed. */
   pushSpeed: 260,
   pushShare: 0.55,
   /** How much speed the thrown doll keeps after hitting someone, or bouncing off a wall. */
-  keep: 0.82,
-  bounce: 0.45,
+  keep: 0.85,
+  bounce: 0.5,
   /** On the ground it slides to a stop in about this long. */
-  slideMs: 300,
+  slideMs: 320,
   stopSpeed: 15,
   /** How fast a limp doll spins in the air (radians per pixel flown). */
-  spin: 0.008,
+  spin: 0.007,
   /** How much the newest frame counts when measuring how fast a doll moves. */
   smoothing: 0.5,
 } as const;
@@ -249,6 +330,8 @@ export const PERSON_ACTIONS: readonly ActionId[] = [
 /** The bubbles of a building piece or an item, and of a bomb. */
 export const THING_ACTIONS: readonly ActionId[] = ['throw'];
 export const BOMB_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
+/** A barrel can be set off the same way. */
+export const BARREL_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
 /** The bubbles of a gun: turn it around, and make it fire nonstop. */
 export const GUN_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'fire'];
 /** The most bubbles anything has. */
@@ -288,6 +371,11 @@ export const MENU = {
   personScale: 0.56,
   /** How far above the slot's bottom edge the feet stand. */
   feetInset: 7,
+  /** The button that switches the sounds off and on. */
+  sound: { x: GAME_WIDTH - 148, y: 10, width: 48, height: 80, gap: 0 },
+  soundColor: 0x555555,
+  soundEmoji: { on: '🔊', off: '🔇' },
+  soundFontSize: '24px',
   /** The button that takes everything away. */
   clear: { x: GAME_WIDTH - 88, y: 10, width: 72, height: 80, gap: 0 },
   clearColor: 0xc62828,
@@ -322,7 +410,7 @@ export interface BlockDef {
   /** `detail` is the mortar between bricks, the nails in wood, or the sign on a barrel. */
   colors: { fill: number; dark: number; light: number; detail: number };
   /** It explodes when a bullet or another blast hits it. */
-  blast?: BlastDef;
+  blast?: BombDef;
 }
 
 export type BlockKind = 'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barrel';
@@ -363,7 +451,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     height: 50,
     menuScale: 1.2,
     colors: { fill: 0xc62828, dark: 0x6d1414, light: 0xf08a85, detail: 0xffd54f },
-    blast: { radius: 150, damage: 3, pushSpeed: 700 },
+    blast: { fuseMs: 1500, radius: 150, damage: 3, pushSpeed: 700 },
   },
 };
 
@@ -431,8 +519,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     gun: {
       range: 430,
       damage: 1,
-      everyMs: 900,
-      autoMs: 260,
+      everyMs: 1300,
+      autoMs: 700,
       bulletSpeed: 760,
       muzzle: { x: 80, y: 86 },
       barrelUp: 16,
@@ -528,3 +616,42 @@ export const BLAST = {
   /** The spark on a lit fuse blinks this fast. */
   blinkMs: 140,
 } as const;
+
+/**
+ * The sounds, all made with code. A tone slides from one pitch to another (in Hz); a
+ * hiss is a burst of noise through a filter that closes from one pitch to another.
+ */
+export const SOUND = {
+  /** How loud everything is, from 0 to 1. */
+  volume: 0.5,
+  /** The same sound isn't started again sooner than this. */
+  gapSeconds: 0.04,
+  hissSeconds: 1,
+  punch: {
+    tone: { wave: 'sine', from: 170, to: 55, seconds: 0.13, volume: 0.9 },
+    hiss: { from: 1800, to: 300, seconds: 0.06, volume: 0.35 },
+  },
+  clang: {
+    tone: { wave: 'sine', from: 190, to: 60, seconds: 0.12, volume: 0.7 },
+    ring: { wave: 'triangle', from: 1500, to: 900, seconds: 0.16, volume: 0.22 },
+    hiss: { from: 5000, to: 800, seconds: 0.07, volume: 0.3 },
+  },
+  shot: {
+    tone: { wave: 'square', from: 320, to: 70, seconds: 0.07, volume: 0.3 },
+    hiss: { from: 6000, to: 500, seconds: 0.11, volume: 0.55 },
+  },
+  blast: {
+    tone: { wave: 'sine', from: 110, to: 28, seconds: 0.7, volume: 1 },
+    hiss: { from: 2600, to: 60, seconds: 0.85, volume: 0.95 },
+  },
+  thud: {
+    tone: { wave: 'sine', from: 95, to: 42, seconds: 0.11, volume: 0.8 },
+    /** A fall this fast (pixels per second) makes the loudest thud. */
+    loudestFall: 900,
+    /** Slower falls than this make no sound. */
+    quietestFall: 220,
+  },
+  out: {
+    tone: { wave: 'triangle', from: 330, to: 70, seconds: 0.4, volume: 0.4 },
+  },
+} as const satisfies Record<string, unknown>;

@@ -5,6 +5,9 @@ import type { Facing } from '../logic/walk';
 import type { Body } from './Body';
 import type { Person } from './Person';
 
+/** What a hit sounds like: a fist, a weapon, or nothing extra (a bullet already banged). */
+export type HitSound = 'punch' | 'clang' | 'none';
+
 /** What everything in the area needs to know about the world around it each frame. */
 export interface World {
   area: PlaceArea;
@@ -12,8 +15,10 @@ export interface World {
   people: readonly Person[];
   /** The boxes of all the solid things, except `body` itself. */
   solidBoxes: (body: Body) => Box[];
-  /** Show a hit at this spot. `deadly` when it was the last one. */
-  hitEffect: (x: number, y: number, deadly: boolean) => void;
+  /** Show a hit at this spot, and play its sound. `deadly` when it was the last one. */
+  hitEffect: (x: number, y: number, deadly: boolean, sound: HitSound) => void;
+  /** A doll hit the ground, falling this fast (pixels per second). */
+  landed: (fallSpeed: number) => void;
   /** Fire a bullet from this spot. With no shooter, it hits dolls of any color. */
   shoot: (shooter: Person | null, x: number, y: number, direction: Facing, gun: GunDef) => void;
   /** Something goes off with a blast: a bomb or a barrel. */

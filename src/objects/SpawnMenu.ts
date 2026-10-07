@@ -36,6 +36,7 @@ export class SpawnMenu {
   private readonly scene: Phaser.Scene;
   private readonly panel: Phaser.GameObjects.Graphics;
   private readonly highlight: Phaser.GameObjects.Graphics;
+  private readonly soundLabel: Phaser.GameObjects.Text;
   /** The pictures in the slots of the open page. */
   private pictures: Phaser.GameObjects.GameObject[] = [];
   private tab: TabId = 'people';
@@ -63,6 +64,14 @@ export class SpawnMenu {
       .setOrigin(0.5)
       .setDepth(MENU.depth + 1);
 
+    const sound = slotRect(MENU.sound, 0);
+    this.soundLabel = scene.add
+      .text(sound.x + sound.width / 2, sound.y + sound.height / 2, MENU.soundEmoji.on, {
+        fontSize: MENU.soundFontSize,
+      })
+      .setOrigin(0.5)
+      .setDepth(MENU.depth + 1);
+
     this.showPage();
   }
 
@@ -75,6 +84,11 @@ export class SpawnMenu {
     return choice;
   }
 
+  /** Show on the sound button whether the sounds are on. */
+  showSound(on: boolean): void {
+    this.soundLabel.setText(on ? MENU.soundEmoji.on : MENU.soundEmoji.off);
+  }
+
   /** Is this point on the menu (and not in the area below it)? */
   covers(py: number): boolean {
     return py < MENU.height;
@@ -82,10 +96,11 @@ export class SpawnMenu {
 
   /**
    * A click on the menu: switch the page, or pick the thing in the slot under it.
-   * Says `'clear'` when the clear button was pressed.
+   * Says `'clear'` or `'sound'` when one of those buttons was pressed.
    */
-  click(px: number, py: number): 'clear' | null {
+  click(px: number, py: number): 'clear' | 'sound' | null {
     if (slotAt(MENU.clear, 1, px, py) !== null) return 'clear';
+    if (slotAt(MENU.sound, 1, px, py) !== null) return 'sound';
 
     const tab = TABS[slotAt(MENU.tabs, TABS.length, px, py) ?? -1];
     if (tab) {
@@ -126,6 +141,9 @@ export class SpawnMenu {
     const clear = slotRect(MENU.clear, 0);
     panel.fillStyle(MENU.clearColor);
     panel.fillRoundedRect(clear.x, clear.y, clear.width, clear.height, MENU.slotRadius);
+    const sound = slotRect(MENU.sound, 0);
+    panel.fillStyle(MENU.soundColor);
+    panel.fillRoundedRect(sound.x, sound.y, sound.width, sound.height, MENU.slotRadius);
 
     CHOICES[this.tab].forEach((choice, index) => {
       const slot = slotRect(MENU.slots, index);

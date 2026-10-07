@@ -1,5 +1,15 @@
 import type Phaser from 'phaser';
-import { BLOCK_LOOK, BLOCKS, DEPTH, THING_ACTIONS, type BlockDef, type BlockKind } from '../config';
+import {
+  BARREL_ACTIONS,
+  BLAST,
+  BLOCK_LOOK,
+  BLOCKS,
+  DEPTH,
+  THING_ACTIONS,
+  type ActionId,
+  type BlockDef,
+  type BlockKind,
+} from '../config';
 import { shade } from '../logic/color';
 import { Body } from './Body';
 import type { World } from './World';
@@ -11,7 +21,7 @@ import type { World } from './World';
 export class Block extends Body {
   override readonly solid = true;
   readonly size: BlockDef;
-  readonly actions = THING_ACTIONS;
+  readonly actions: readonly ActionId[];
   private readonly display: Phaser.GameObjects.Graphics;
   /** Time left until a barrel that has been set off explodes, or `null`. */
   private fuseMs: number | null = null;
@@ -20,6 +30,7 @@ export class Block extends Body {
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
     this.size = BLOCKS[kind];
+    this.actions = this.size.blast ? BARREL_ACTIONS : THING_ACTIONS;
     this.display = drawBlock(scene.add.graphics(), kind).setDepth(DEPTH.block);
     this.display.setPosition(x, y);
   }
@@ -33,8 +44,16 @@ export class Block extends Body {
     return this.size.blast !== undefined;
   }
 
-  isOn(): boolean {
-    return false;
+  /** A barrel that has been set off glows on its 🔥 bubble until it goes off. */
+  isOn(action: ActionId): boolean {
+    return action === 'fuse' && this.fuseMs !== null;
+  }
+
+  /** Set a barrel off, or stop it again while its fuse still burns. */
+  toggleFuse(): void {
+    if (!this.size.blast || this.exploded) return;
+    this.fuseMs = this.fuseMs === null ? this.size.blast.fuseMs : null;
+    this.display.setAlpha(1);
   }
 
   /** Hit by a bullet or caught in a blast: a barrel explodes at most `ms` from now. */
@@ -50,6 +69,8 @@ export class Block extends Body {
 
     if (this.fuseMs === null || !this.size.blast) return;
     this.fuseMs -= deltaMs;
+    // It blinks while its fuse burns
+    this.display.setAlpha(Math.floor(this.fuseMs / BLAST.blinkMs) % 2 === 0 ? 1 : 0.55);
     if (this.fuseMs <= 0) {
       this.exploded = true;
       world.explode(this, this.size.blast);

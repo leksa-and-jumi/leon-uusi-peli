@@ -30,7 +30,7 @@ import {
   type JointKey,
   type Swinger,
 } from '../logic/dangle';
-import { blockedX, overlaps, type Box } from '../logic/ground';
+import { blockedX, overlaps, tiltedBox, type Box } from '../logic/ground';
 import { isDead, takeHit } from '../logic/health';
 import type { Spot } from '../logic/pick';
 import type { PlaceArea } from '../logic/place';
@@ -100,7 +100,10 @@ export class Person extends Body {
   private inReach = false;
   /** Keeps counting, so the moves keep going. */
   private clockMs = 0;
-  private lives: number = PERSON.lives;
+  private lives: number;
+  /** Time left of jerking back from a bullet, and which way. */
+  private flinchMs = 0;
+  private flinchDir: Facing = 1;
   /** No lives left. */
   private out = false;
 
@@ -143,9 +146,14 @@ export class Person extends Body {
   constructor(scene: Phaser.Scene, look: PersonLook, x: number, feetY: number) {
     super(x, feetY);
     this.look = look;
+    this.lives = look.lives ?? PERSON.lives;
     this.last = { x, y: feetY };
     this.figure = new PersonFigure(scene, look);
     this.figure.container.setDepth(DEPTH.person);
+    if (look.angry) {
+      this.activity = 'angry';
+      this.figure.setAngry(true);
+    }
     this.draw('held', 0);
   }
 
@@ -169,16 +177,20 @@ export class Person extends Body {
     return this.item;
   }
 
-  /** A doll lying on the ground is grabbed along its whole body, not just at its feet. */
+  /** The space its body really takes up, however it is turned: upright, lying or hanging. */
+  get hitBox(): Box {
+    const { x, y, rotation } = this.drawn;
+    return tiltedBox(x, y, rotation, PERSON.halfWidth, PERSON.height);
+  }
+
+  /** A doll is grabbed along its whole body, also when it lies on the ground. */
   override get pickBox(): Box {
-    const tipped = Math.sin(this.drawn.rotation);
-    if (Math.abs(tipped) < 0.5) return super.pickBox;
-    const headX = this.drawn.x + tipped * PERSON.height;
+    const box = this.hitBox;
     return {
-      left: Math.min(this.drawn.x, headX) - PICK_PADDING,
-      right: Math.max(this.drawn.x, headX) + PICK_PADDING,
-      top: this.drawn.y - PERSON.halfWidth * 2 - PICK_PADDING,
-      bottom: this.drawn.y + PERSON.halfWidth,
+      left: box.left - PICK_PADDING,
+      right: box.right + PICK_PADDING,
+      top: box.top - PICK_PADDING,
+      bottom: box.bottom,
     };
   }
 
@@ -188,7 +200,8 @@ export class Person extends Body {
 
   /** Switch walking, dancing or angry mode on, or off if it's already on. */
   toggle(activity: Exclude<Activity, 'idle'>): void {
-    if (this.dead) return;
+    // A doll that is always angry can't be made to do anything else
+    if (this.dead || this.look.angry) return;
     this.activity = this.activity === activity ? 'idle' : activity;
     this.figure.setAngry(this.activity === 'angry');
     this.punchMs = 0;
@@ -232,7 +245,7 @@ export class Person extends Body {
     this.floored = false;
     this.downMs = 0;
     this.vx = 0;
-    this.tossed = false;
+    this.endToss();
   }
 
   /**
@@ -251,6 +264,7 @@ export class Person extends Body {
     const scale = Math.min(TOSS.power, TOSS.maxSpeed / speed);
     this.release(solids, speedY * scale);
     this.vx = speedX * scale;
+    this.gravityScale = TOSS.gravityScale;
     this.tossed = true;
     this.floored = true;
     this.knockDir = this.vx < 0 ? -1 : 1;
@@ -258,8 +272,9 @@ export class Person extends Body {
   }
 
   /**
-   * Hit: lose lives, go limp, get shoved away and fall over. With no lives left the
-   * doll never gets up again. Says whether this hit was the last one.
+   * Hit by a fist, a weapon, a blast or a thrown doll: lose lives, go limp, get
+   * shoved away and fall over. With no lives left the doll never gets up again.
+   * Says whether this hit was the last one.
    */
   hit(
     direction: Facing,
@@ -267,6 +282,25 @@ export class Person extends Body {
     damage: number = PUNCH_DAMAGE,
     pushSpeed: number = KNOCK.pushSpeed,
   ): boolean {
+    this.knockOver(direction, pushSpeed);
+    return this.lose(damage, solids);
+  }
+
+  /**
+   * Hit by a bullet: lose lives, but stay on your feet. Only the last bullet makes
+   * the doll fall. Says whether this bullet was the last one.
+   */
+  shot(direction: Facing, solids: readonly Box[], damage: number): boolean {
+    if (this.dead) return false;
+    this.flinchMs = PERSON.flinch.ms;
+    this.flinchDir = direction;
+    const deadly = this.lose(damage, solids);
+    if (deadly) this.knockOver(direction, KNOCK.pushSpeed);
+    return deadly;
+  }
+
+  /** Go limp, get shoved away and fall over. */
+  private knockOver(direction: Facing, pushSpeed: number): void {
     this.goLimp();
     this.floored = true;
     this.downMs = 0;
@@ -281,8 +315,11 @@ export class Person extends Body {
       speed: this.tumble.speed + direction * LIMP.knockSpin,
     };
     this.vx = direction * pushSpeed * (this.dead ? LIMP.corpsePush : 1);
-    if (this.dead) return false;
+  }
 
+  /** Lose lives. Says whether that was the last one. */
+  private lose(damage: number, solids: readonly Box[]): boolean {
+    if (this.dead) return false;
     this.lives = takeHit(this.lives, damage);
     if (!isDead(this.lives)) return false;
     this.out = true;
@@ -295,6 +332,7 @@ export class Person extends Body {
 
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
+    this.flinchMs = Math.max(0, this.flinchMs - deltaMs);
     const wasFalling = this.state === 'falling';
     const fallSpeed = this.speed.y;
     this.glide(deltaMs, world);
@@ -306,7 +344,7 @@ export class Person extends Body {
     } else if (this.rise) {
       this.getUp(this.rise, deltaMs);
     } else if (this.ragdoll) {
-      if (wasFalling && state === 'resting') this.land(fallSpeed);
+      if (wasFalling && state === 'resting') this.land(fallSpeed, world);
       this.flopAbout(deltaMs, state, world.area);
       this.maybeGetUp(deltaMs, state);
     } else if (state !== 'resting') {
@@ -335,10 +373,17 @@ export class Person extends Body {
     this.tumble = { angle: this.drawn.rotation, speed: 0 };
   }
 
-  /** Hitting the ground makes every joint flop, harder after a longer fall. */
-  private land(fallSpeed: number): void {
+  /**
+   * Hitting the ground makes every joint flop, harder after a longer fall. A doll
+   * that was thrown hard bounces back up once or twice.
+   */
+  private land(fallSpeed: number, world: World): void {
     const kick = Math.min(Math.max(fallSpeed, 0) * LIMP.landKick, LIMP.landKickMax);
     this.limbSpeeds = kickJoints(this.limbSpeeds, kick);
+    world.landed(fallSpeed);
+    if (this.tossed && fallSpeed >= TOSS.bounceMinSpeed) {
+      this.hop(fallSpeed * TOSS.floorBounce);
+    }
   }
 
   /**
@@ -385,7 +430,7 @@ export class Person extends Body {
   private glide(deltaMs: number, world: World): void {
     if (this.state === 'held' || this.state === 'flying') return;
     if (this.vx === 0) {
-      if (this.state === 'resting') this.tossed = false;
+      if (this.state === 'resting') this.endToss();
       return;
     }
     const wanted = this.x + this.vx * (deltaMs / 1000);
@@ -400,9 +445,15 @@ export class Person extends Body {
       if (other === this || !other.canBeHit || !overlaps(this.box, other.box)) continue;
       const push = Math.max(TOSS.pushSpeed, Math.abs(this.vx) * TOSS.pushShare);
       other.hit(direction, world.solidBoxes(other), 0, push);
-      world.hitEffect(other.x, other.y - PERSON.height * 0.6, false);
+      world.hitEffect(other.x, other.y - PERSON.height * 0.6, false, 'punch');
       this.vx *= TOSS.keep;
     }
+  }
+
+  /** The throw is over: from now on it falls like everything else. */
+  private endToss(): void {
+    this.tossed = false;
+    this.gravityScale = 1;
   }
 
   private measureSpeed(deltaMs: number): void {
@@ -483,7 +534,7 @@ export class Person extends Body {
       const edge = PERSON.halfWidth;
       const walker = walkStep(
         { x: this.x, facing: this.facing },
-        WALK.speed,
+        WALK.speed * this.pace,
         deltaMs,
         world.area.left + edge,
         world.area.right - edge,
@@ -520,7 +571,7 @@ export class Person extends Body {
     const gun = weapon?.gun;
     const canShoot = gun !== undefined && this.clearShot(target, gun, solids);
     const reach = canShoot ? gun.range : (weapon?.melee?.reach ?? ANGRY.reach);
-    const chase = chaseStep(this.x, this.facing, target.x, reach, ANGRY.speed, deltaMs);
+    const chase = chaseStep(this.x, this.facing, target.x, reach, ANGRY.speed * this.pace, deltaMs);
     const blocked = this.walkTo(chase.x, world);
     this.facing = chase.facing;
 
@@ -549,10 +600,11 @@ export class Person extends Body {
     const deadly = target.hit(
       this.facing,
       world.solidBoxes(target),
-      weapon?.melee?.damage,
+      (weapon?.melee?.damage ?? PUNCH_DAMAGE) + (this.look.punch ?? PUNCH_DAMAGE) - PUNCH_DAMAGE,
       weapon?.melee?.pushSpeed,
     );
-    world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly);
+    const sound = weapon?.melee ? 'clang' : 'punch';
+    world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly, sound);
     this.waitMs = ANGRY.restMs;
     this.inReach = false;
     return 'punch';
@@ -593,11 +645,26 @@ export class Person extends Body {
     return this.x !== wanted;
   }
 
+  /** How much faster or slower than usual this kind of doll moves. */
+  private get pace(): number {
+    return this.look.speed ?? 1;
+  }
+
   /** Draw the doll in a pose (a limp doll keeps the pose its joints are in). */
   private draw(kind: PoseKind, rotation: number): void {
-    const pose = this.ragdoll ? this.limbs : poseFor(kind, this.clockMs);
+    const pose = this.ragdoll ? this.limbs : this.standingPose(kind);
     this.figure.setPose(pose);
-    this.place(this.x, this.y - pose.lift, rotation + this.facing * pose.lean);
+    // A bullet makes it jerk back for a moment
+    const flinch = this.flinchMs > 0 ? this.flinchDir * PERSON.flinch.lean : 0;
+    this.place(this.x, this.y - pose.lift, rotation + this.facing * pose.lean + flinch);
+  }
+
+  private standingPose(kind: PoseKind): Pose {
+    const pose = poseFor(kind, this.clockMs);
+    const moving = kind === 'walk' || kind === 'run';
+    if (!this.look.armsForward || !moving) return pose;
+    // A zombie shuffles along with both arms stretched out in front
+    return { ...pose, frontArm: -1.5, backArm: -1.3, frontElbow: 0, backElbow: -0.1 };
   }
 
   private place(x: number, y: number, rotation: number): void {
