@@ -6,6 +6,7 @@ import {
   BULLET,
   CEILING,
   COLORS,
+  CRUSH,
   DEBRIS,
   DEPTH,
   DOUBLE_CLICK_MS,
@@ -96,6 +97,8 @@ export class MainScene extends Phaser.Scene {
   private lastSwingHit = new WeakMap<Person, number>();
   /** The boxes of everything solid, worked out once per frame. */
   private solids: { body: Body; box: Box }[] = [];
+  /** The boxes of the dolls lying on the ground, worked out once per frame. */
+  private downDolls: Box[] = [];
   private world!: World;
 
   constructor() {
@@ -121,6 +124,7 @@ export class MainScene extends Phaser.Scene {
       hitEffect: (x, y, deadly, sound) => {
         this.showHit(x, y, deadly, sound);
       },
+      pinned: (person) => this.pinned(person),
       landed: (fallSpeed) => {
         const { quietestFall, loudestFall } = SOUND.thud;
         this.sfx.thud((fallSpeed - quietestFall) / (loudestFall - quietestFall));
@@ -176,6 +180,8 @@ export class MainScene extends Phaser.Scene {
       .filter((block) => block.carries)
       .map((block) => ({ body: block, box: block.box }));
 
+    this.downDolls = this.people.filter((person) => person.isDown).map((p) => p.hitBox);
+
     for (const body of this.everything()) {
       body.update(delta, this.world);
     }
@@ -194,8 +200,33 @@ export class MainScene extends Phaser.Scene {
     return [...this.blocks, ...this.people, ...this.items];
   }
 
+  /**
+   * What is solid for `except`: the building pieces, and for a building piece also
+   * the dolls lying on the ground, so that it lands on them and they stay under it.
+   */
   private solidBoxes(except: Body): Box[] {
-    return this.solids.filter((solid) => solid.body !== except).map((solid) => solid.box);
+    const boxes = this.solids.filter((solid) => solid.body !== except).map((solid) => solid.box);
+    if (!except.solid) return boxes;
+    const own = except.box;
+    // A piece that has just landed in a doll rides it down, instead of dropping through
+    const dolls = this.downDolls.map((doll) => {
+      const sunk = own.bottom - doll.top;
+      const over = own.left < doll.right && own.right > doll.left;
+      return over && sunk > 0 && sunk <= CRUSH.sink ? { ...doll, top: own.bottom } : doll;
+    });
+    return [...boxes, ...dolls];
+  }
+
+  /** Is a building piece lying on this doll, or standing where it lies? */
+  private pinned(person: Person): boolean {
+    const body = person.hitBox;
+    return this.solids.some(
+      ({ box }) =>
+        box.left < body.right &&
+        box.right > body.left &&
+        box.top < body.bottom &&
+        box.bottom > body.top - CRUSH.restGap,
+    );
   }
 
   private press(px: number, py: number): void {

@@ -30,6 +30,11 @@ export abstract class Body {
   protected spin = 0;
   /** How hard it is pulled down, compared with everything else (1 is the usual). */
   protected gravityScale = 1;
+  /**
+   * What it does when something solid is put where it is. An item climbs out and
+   * ends up on top of anything; a doll only steps up onto low things.
+   */
+  protected readonly climbsOnlyLow: boolean = false;
   /** How fast it was falling when it last hit the ground (pixels per second). */
   protected lastImpact = 0;
   private fallSpeed = 0;
@@ -144,8 +149,10 @@ export abstract class Body {
     const solids = world.solidBoxes(this);
     const { halfWidth, height } = this.size;
     if (!this.solid) {
-      // Something solid put on top of this: climb out and stand on it
-      this.y = liftOut(boxAround(this.x, this.y, halfWidth - 1, height), solids);
+      // Something solid put where this is: climb out and stand on it
+      const low = this.y - PHYSICS.stepUp - 1;
+      const climbable = this.climbsOnlyLow ? solids.filter((box) => box.top >= low) : solids;
+      this.y = liftOut(boxAround(this.x, this.y, halfWidth - 1, height), climbable);
     }
     const ground = groundBelow(
       this.x - halfWidth,
