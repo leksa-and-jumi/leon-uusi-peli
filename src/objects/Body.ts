@@ -26,6 +26,8 @@ export abstract class Body {
   protected held = false;
   protected flying: Flying | null = null;
   protected spin = 0;
+  /** How hard it is pulled down, compared with everything else (1 is the usual). */
+  protected gravityScale = 1;
   private fallSpeed = 0;
   private flownOut = false;
   /** From the point it is held by to its bottom middle. */
@@ -104,6 +106,14 @@ export abstract class Body {
   /** Is this bubble switched on (so it glows)? */
   abstract isOn(action: ActionId): boolean;
   abstract update(deltaMs: number, world: World): void;
+
+  /** Bounce up off the ground at this speed (pixels per second). */
+  protected hop(speed: number): void {
+    this.fallSpeed = -Math.abs(speed);
+    this.y -= 1;
+    this.state = 'falling';
+  }
+
   /** Draw it in front of the others of its kind. */
   abstract bringToTop(): void;
   abstract destroy(): void;
@@ -147,7 +157,7 @@ export abstract class Body {
     }
     const fall = fallStep(
       { y: this.y, speed: this.fallSpeed, landed: false },
-      PHYSICS.gravity,
+      PHYSICS.gravity * this.gravityScale,
       ground,
       deltaMs,
     );

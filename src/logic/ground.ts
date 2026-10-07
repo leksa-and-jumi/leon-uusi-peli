@@ -11,6 +11,27 @@ export function boxAround(x: number, y: number, halfWidth: number, height: numbe
   return { left: x - halfWidth, right: x + halfWidth, top: y - height, bottom: y };
 }
 
+/**
+ * A box around something that has tipped over. It stands on (x, y) and reaches `height`
+ * from there, turned by `rotation` (0 is upright, π/2 lies flat with its top to the right).
+ */
+export function tiltedBox(
+  x: number,
+  y: number,
+  rotation: number,
+  halfWidth: number,
+  height: number,
+): Box {
+  const topX = x + Math.sin(rotation) * height;
+  const topY = y - Math.cos(rotation) * height;
+  return {
+    left: Math.min(x, topX) - halfWidth,
+    right: Math.max(x, topX) + halfWidth,
+    top: Math.min(y, topY) - halfWidth * Math.abs(Math.sin(rotation)),
+    bottom: Math.max(y, topY) + halfWidth * Math.abs(Math.sin(rotation)),
+  };
+}
+
 /** Do the two boxes overlap? Just touching edges doesn't count. */
 export function overlaps(a: Box, b: Box): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;

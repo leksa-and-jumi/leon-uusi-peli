@@ -14,6 +14,7 @@ import {
   ITEMS,
   MENU,
   PERSON,
+  SOUND,
   SWING,
   THINGS_MAX,
   TOSS,
@@ -21,6 +22,7 @@ import {
   type BlastDef,
   type GunDef,
 } from '../config';
+import { Sfx } from '../audio/Sfx';
 import { blastDirection, inBlast } from '../logic/blast';
 import { overlaps, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
@@ -36,7 +38,7 @@ import type { Body } from '../objects/Body';
 import { Item } from '../objects/Item';
 import { Person } from '../objects/Person';
 import { SpawnMenu } from '../objects/SpawnMenu';
-import type { World } from '../objects/World';
+import type { HitSound, World } from '../objects/World';
 
 const AREA: PlaceArea = {
   left: 0,
@@ -63,6 +65,7 @@ interface Bullet {
 export class MainScene extends Phaser.Scene {
   private menu!: SpawnMenu;
   private bubbles!: ActionBubbles;
+  private readonly sfx = new Sfx();
   private people: Person[] = [];
   private blocks: Block[] = [];
   private items: Item[] = [];
@@ -97,8 +100,12 @@ export class MainScene extends Phaser.Scene {
       bottom: GAME_HEIGHT,
       people: this.people,
       solidBoxes: (body) => this.solidBoxes(body),
-      hitEffect: (x, y, deadly) => {
-        this.showHit(x, y, deadly);
+      hitEffect: (x, y, deadly, sound) => {
+        this.showHit(x, y, deadly, sound);
+      },
+      landed: (fallSpeed) => {
+        const { quietestFall, loudestFall } = SOUND.thud;
+        this.sfx.thud((fallSpeed - quietestFall) / (loudestFall - quietestFall));
       },
       shoot: (shooter, x, y, direction, gun) => {
         this.shoot(shooter, x, y, direction, gun);
@@ -121,6 +128,7 @@ export class MainScene extends Phaser.Scene {
     this.bubbles = new ActionBubbles(this);
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.sfx.unlock();
       this.press(pointer.x, pointer.y);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -162,7 +170,12 @@ export class MainScene extends Phaser.Scene {
 
   private press(px: number, py: number): void {
     if (this.menu.covers(py)) {
-      if (this.menu.click(px, py) === 'clear') {
+      const pressed = this.menu.click(px, py);
+      if (pressed === 'sound') {
+        this.sfx.muted = !this.sfx.muted;
+        this.menu.showSound(!this.sfx.muted);
+      }
+      if (pressed === 'clear') {
         this.forget(this.everything());
         this.clearBullets();
       }
@@ -243,7 +256,7 @@ export class MainScene extends Phaser.Scene {
       this.lastSwingHit.set(person, this.time.now);
       const direction = swingDirection(now.x - before.x, now.x, person.feet.x);
       const deadly = person.hit(direction, this.solidBoxes(person), melee.damage, melee.pushSpeed);
-      this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly);
+      this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly, 'clang');
     }
   }
 
@@ -295,7 +308,7 @@ export class MainScene extends Phaser.Scene {
         if (body instanceof Person) body.toggle(action);
         break;
       case 'fuse':
-        if (body instanceof Item) body.toggleFuse();
+        if (body instanceof Item || body instanceof Block) body.toggleFuse();
         break;
       case 'fire':
         if (body instanceof Item) body.toggleFire();
@@ -387,6 +400,7 @@ export class MainScene extends Phaser.Scene {
     direction: Facing,
     gun: GunDef,
   ): void {
+    this.sfx.shot();
     const picture = this.add
       .rectangle(x, y, BULLET.width, BULLET.height, BULLET.color)
       .setDepth(DEPTH.bullet);
@@ -400,12 +414,14 @@ export class MainScene extends Phaser.Scene {
       bullet.x += bullet.direction * bullet.gun.bulletSpeed * (delta / 1000);
       bullet.picture.x = bullet.x;
 
-      // A doll's bullets fly past dolls of its own color
+      // Bullets hit every living doll in their way: standing, lying, falling or held in
+      // the hand. A doll's own bullets fly past dolls of its color.
       const { shooter } = bullet;
       const targets = this.people.filter(
-        (person) => person.canBeHit && !(shooter && sameTeam(person.look, shooter.look)),
+        (person) =>
+          !person.dead && person.canBePicked && !(shooter && sameTeam(person.look, shooter.look)),
       );
-      const boxes = [...this.solids.map((solid) => solid.box), ...targets.map((p) => p.box)];
+      const boxes = [...this.solids.map((solid) => solid.box), ...targets.map((p) => p.hitBox)];
       const hit = sweepHit(fromX, bullet.x, bullet.y, boxes);
       const flownOut = bullet.x < AREA.left || bullet.x > AREA.right;
       if (hit === null && !flownOut) return true;
@@ -414,8 +430,8 @@ export class MainScene extends Phaser.Scene {
       const victim = hit === null ? undefined : targets[hit - this.solids.length];
       if (struck instanceof Block) struck.setOff(0);
       if (victim) {
-        const deadly = victim.hit(bullet.direction, this.solidBoxes(victim), bullet.gun.damage);
-        this.showHit(victim.feet.x, bullet.y, deadly);
+        const deadly = victim.shot(bullet.direction, this.solidBoxes(victim), bullet.gun.damage);
+        this.showHit(bullet.x, bullet.y, deadly, 'none');
       }
       bullet.picture.destroy();
       return false;
@@ -474,11 +490,15 @@ export class MainScene extends Phaser.Scene {
       ...items.filter((item) => !item.def.bomb),
     ]);
 
+    this.sfx.blast();
     this.popUp(x, middleY, BLAST.emoji, BLAST.fontSize, BLAST.ms, BLAST.grow);
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
   }
 
-  private showHit(x: number, y: number, deadly: boolean): void {
+  private showHit(x: number, y: number, deadly: boolean, sound: HitSound): void {
+    if (sound === 'punch') this.sfx.punch();
+    if (sound === 'clang') this.sfx.clang();
+    if (deadly) this.sfx.out();
     const emoji = deadly ? HIT_FX.deadEmoji : HIT_FX.emoji;
     this.popUp(x, y, emoji, HIT_FX.fontSize, deadly ? HIT_FX.deadMs : HIT_FX.ms, HIT_FX.grow);
   }

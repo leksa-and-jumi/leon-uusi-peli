@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { DOLL, PERSON, type PersonLook } from '../config';
+import { DOLL, EXTRA_COLORS, PERSON, type PersonLook } from '../config';
 import { shade } from '../logic/color';
 import { STAND, type Pose } from '../logic/pose';
 
@@ -188,6 +188,13 @@ class Painter {
     const { chest, waist, neck } = SHAPE;
     this.ball(g, 0, waist.y, waist.radius);
     this.block(g, chest.x, chest.y, chest.width, chest.height, chest.round);
+    if (this.look.extra === 'patches') {
+      // A zombie's chest has dark, rotten patches
+      g.fillStyle(EXTRA_COLORS.patches.blotch, 0.85);
+      g.fillCircle(chest.x + 9, chest.y + 9, 4.5);
+      g.fillCircle(chest.x + 20, chest.y + 17, 3.5);
+      g.fillCircle(chest.x + 7, chest.y + 20, 2.5);
+    }
     this.ball(g, 0, neck.y, neck.radius);
     return g;
   }
@@ -195,6 +202,32 @@ class Painter {
   head(): Graphics {
     const g = this.blank();
     const { head } = SHAPE;
+    const top = head.y - head.radius;
+    const back = -head.radius;
+    if (this.look.extra === 'headband') {
+      // The loose ends of a ninja's headband flutter behind the head
+      const c = EXTRA_COLORS.headband;
+      g.fillStyle(c.dark);
+      g.fillTriangle(back + 2, head.y - 8, back - 13, head.y - 12, back - 9, head.y - 4);
+      g.fillStyle(c.band);
+      g.fillTriangle(back + 2, head.y - 6, back - 12, head.y - 3, back - 6, head.y + 3);
+    }
+    if (this.look.extra === 'antenna') {
+      const c = EXTRA_COLORS.antenna;
+      g.lineStyle(2, c.rod);
+      g.lineBetween(0, top + 1, 0, top - 9);
+      g.fillStyle(c.ball);
+      g.fillCircle(0, top - 10, 3);
+    }
+    if (this.look.extra === 'helmet') {
+      // The crest on top of a knight's helmet
+      const c = EXTRA_COLORS.helmet;
+      g.fillStyle(c.crestDark);
+      g.fillTriangle(-9, top + 3, 5, top + 1, -13, top - 12);
+      g.fillStyle(c.crest);
+      g.fillTriangle(-7, top + 2, 4, top + 1, -10, top - 9);
+    }
+
     g.fillStyle(this.rim);
     g.fillCircle(0, head.y, head.radius);
     g.fillStyle(this.look.body);
@@ -202,6 +235,19 @@ class Painter {
     // A round shine on top makes the head look like a ball
     g.fillStyle(this.shine, DOLL.shineAlpha);
     g.fillEllipse(-1, head.y - head.radius * 0.45, head.radius * 1.1, head.radius * 0.6);
+
+    if (this.look.extra === 'headband') {
+      const c = EXTRA_COLORS.headband;
+      g.fillStyle(c.dark);
+      g.fillRect(back + 1.5, head.y - 10, head.radius * 2 - 3, 6);
+      g.fillStyle(c.band);
+      g.fillRect(back + 1.5, head.y - 10, head.radius * 2 - 3, 4.5);
+    }
+    if (this.look.extra === 'helmet') {
+      // A dark slit to see through
+      g.fillStyle(EXTRA_COLORS.helmet.visor);
+      g.fillRoundedRect(-4, head.y - 3.5, head.radius + 3, 5, 2);
+    }
     return g;
   }
 
@@ -209,9 +255,15 @@ class Painter {
   eyes(): Graphics {
     const g = this.blank();
     const { eye } = SHAPE;
-    g.fillStyle(PERSON.face.eye);
-    g.fillCircle(eye.back, eye.y, eye.radius);
-    g.fillCircle(eye.front, eye.y, eye.radius);
+    g.fillStyle(this.look.eye ?? PERSON.face.eye);
+    if (this.look.extra === 'antenna') {
+      // A robot has square eyes
+      g.fillRect(eye.back - 2.2, eye.y - 2.2, 4.4, 4.4);
+      g.fillRect(eye.front - 2.2, eye.y - 2.2, 4.4, 4.4);
+    } else {
+      g.fillCircle(eye.back, eye.y, eye.radius);
+      g.fillCircle(eye.front, eye.y, eye.radius);
+    }
     return g;
   }
 

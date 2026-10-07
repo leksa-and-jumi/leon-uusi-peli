@@ -15,14 +15,25 @@ export function recentSamples(
 }
 
 /**
- * How fast and which way something was being dragged just before it was let go, in
- * pixels per second: from the oldest sample to the newest. Zero with fewer than two
- * samples, so a hand that has stopped moving just drops what it holds.
+ * How fast and which way something was being thrown, in pixels per second: the
+ * fastest stretch of the drag, measured across `span` samples at a time. A hand
+ * that slows down just before letting go still throws as hard as it swung. Zero
+ * with too few samples, so a hand that has stopped just drops what it holds.
  */
-export function throwSpeed(samples: readonly DragSample[]): { x: number; y: number } {
-  const first = samples[0];
-  const last = samples[samples.length - 1];
-  if (!first || !last || last.timeMs <= first.timeMs) return { x: 0, y: 0 };
-  const seconds = (last.timeMs - first.timeMs) / 1000;
-  return { x: (last.x - first.x) / seconds, y: (last.y - first.y) / seconds };
+export function throwSpeed(samples: readonly DragSample[], span = 2): { x: number; y: number } {
+  let best = { x: 0, y: 0 };
+  let bestSpeed = 0;
+  for (let i = 0; i + span < samples.length; i++) {
+    const from = samples[i];
+    const to = samples[i + span];
+    if (!from || !to || to.timeMs <= from.timeMs) continue;
+    const seconds = (to.timeMs - from.timeMs) / 1000;
+    const speed = { x: (to.x - from.x) / seconds, y: (to.y - from.y) / seconds };
+    const size = Math.hypot(speed.x, speed.y);
+    if (size > bestSpeed) {
+      best = speed;
+      bestSpeed = size;
+    }
+  }
+  return best;
 }

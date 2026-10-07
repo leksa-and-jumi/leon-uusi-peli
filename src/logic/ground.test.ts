@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockedX, boxAround, groundBelow, liftOut, overlaps } from './ground';
+import { blockedX, boxAround, groundBelow, liftOut, overlaps, tiltedBox } from './ground';
 
 const crate = { left: 100, right: 160, top: 440, bottom: 500 };
 
@@ -91,5 +91,31 @@ describe('blockedX', () => {
 
   it('does not block walking away from a solid', () => {
     expect(blockedX(80, 40, 20, 500, 120, [crate], 4)).toBe(40);
+  });
+});
+
+describe('tiltedBox', () => {
+  it('is the same as an upright box when not turned', () => {
+    expect(tiltedBox(100, 500, 0, 20, 120)).toEqual(boxAround(100, 500, 20, 120));
+  });
+
+  it('lies along the ground when turned flat to the right', () => {
+    const box = tiltedBox(100, 500, Math.PI / 2, 20, 120);
+    expect(box.left).toBeCloseTo(80);
+    expect(box.right).toBeCloseTo(240);
+    expect(box.top).toBeCloseTo(480);
+    expect(box.bottom).toBeCloseTo(520);
+  });
+
+  it('lies the other way when turned flat to the left', () => {
+    const box = tiltedBox(100, 500, -Math.PI / 2, 20, 120);
+    expect(box.left).toBeCloseTo(-40);
+    expect(box.right).toBeCloseTo(120);
+  });
+
+  it('hangs below the spot when turned upside down', () => {
+    const box = tiltedBox(100, 300, Math.PI, 20, 120);
+    expect(box.top).toBeCloseTo(300);
+    expect(box.bottom).toBeCloseTo(420);
   });
 });
