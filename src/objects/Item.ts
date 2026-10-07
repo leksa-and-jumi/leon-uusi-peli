@@ -3,24 +3,25 @@ import {
   BLAST,
   BOMB_ACTIONS,
   DEPTH,
+  GUN_ACTIONS,
   ITEM_COLORS,
   ITEMS,
+  PICKUP_WAIT_MS,
   THING_ACTIONS,
   type ActionId,
   type ItemDef,
   type ItemKind,
 } from '../config';
 import type { Box } from '../logic/ground';
+import type { Facing } from '../logic/walk';
 import { Body } from './Body';
+import { drawItem, FUSE_TIP } from './itemShapes';
 import type { Person } from './Person';
 import type { World } from './World';
 
-/** Where the lit end of a bomb's fuse is, from the middle of the bomb. */
-const FUSE_TIP = { x: 7, y: -21 };
-
 /**
- * An item: a pistol, a sword, a bat or a bomb. It lies around until it is dragged
- * onto a doll, who then holds it.
+ * An item: a gun, something to hit with, or a bomb. It lies around until a doll
+ * takes it. A gun can also be set to fire nonstop on its own.
  */
 export class Item extends Body {
   readonly size: ItemDef;
@@ -28,15 +29,24 @@ export class Item extends Body {
   readonly display: Phaser.GameObjects.Container;
   private readonly spark: Phaser.GameObjects.Graphics | null = null;
   private holder: Person | null = null;
+  /** Which way it points when it lies around. */
+  private facing: Facing = 1;
+  /** A gun set to fire nonstop, and the time left until its next shot. */
+  private firing = false;
+  private fireWaitMs = 0;
   /** Time left until a lit bomb goes off, or `null` when it isn't lit. */
   private fuseMs: number | null = null;
   private exploded = false;
+  /** Time left before a doll may grab it again after one has let go of it. */
+  private noPickupMs = 0;
+  /** The doll that let go of it. That doll doesn't take it back while it still lies by its feet. */
+  private dropper: Person | null = null;
   private clockMs = 0;
 
   constructor(scene: Phaser.Scene, kind: ItemKind, x: number, y: number) {
     super(x, y);
     this.size = ITEMS[kind];
-    this.actions = this.size.bomb ? BOMB_ACTIONS : THING_ACTIONS;
+    this.actions = this.size.bomb ? BOMB_ACTIONS : this.size.gun ? GUN_ACTIONS : THING_ACTIONS;
     const parts: Phaser.GameObjects.Graphics[] = [drawItem(scene.make.graphics({}, false), kind)];
     if (this.size.bomb) {
       this.spark = scene.make.graphics({}, false);
@@ -69,8 +79,30 @@ export class Item extends Body {
     return this.holder !== null;
   }
 
+  /** Lying or falling free, so a doll that touches it can take it. */
+  get canBeTaken(): boolean {
+    return this.canBePicked && !this.held && !this.exploded && this.noPickupMs <= 0;
+  }
+
+  /** The doll that let go of it and hasn't moved away from it since, if any. */
+  get droppedBy(): Person | null {
+    return this.dropper;
+  }
+
+  /** It was moved, or the doll that let go of it walked away: anyone may take it again. */
+  forgetDropper(): void {
+    this.dropper = null;
+  }
+
+  override grab(px: number, py: number): void {
+    super.grab(px, py);
+    this.dropper = null;
+  }
+
   isOn(action: ActionId): boolean {
-    return action === 'fuse' && this.fuseMs !== null;
+    if (action === 'fuse') return this.fuseMs !== null;
+    if (action === 'fire') return this.firing;
+    return false;
   }
 
   /** Light the fuse of a bomb, or put it out again. */
@@ -80,24 +112,46 @@ export class Item extends Body {
     this.spark?.setVisible(this.fuseMs !== null);
   }
 
+  /** Caught in another blast: a bomb goes off at most `ms` from now. */
+  setOff(ms: number): void {
+    if (!this.size.bomb || this.exploded) return;
+    this.fuseMs = Math.min(this.fuseMs ?? ms, ms);
+  }
+
+  /** Make a gun fire nonstop by itself, or stop it again. */
+  toggleFire(): void {
+    if (!this.size.gun) return;
+    this.firing = !this.firing;
+    this.fireWaitMs = 0;
+  }
+
+  /** Point the other way. */
+  turn(): void {
+    this.facing = this.facing === 1 ? -1 : 1;
+  }
+
   /** A doll takes it. From now on it moves with the doll's hand. */
   takenBy(person: Person): void {
     this.holder = person;
     this.held = false;
+    this.firing = false;
+    this.display.setScale(1);
   }
 
   /** The doll lets go: back into the area, and it drops from here. */
   droppedAt(x: number, y: number, solids: readonly Box[]): void {
+    this.dropper = this.holder;
     this.holder = null;
     this.x = x;
     this.y = y;
-    this.display.setScale(1);
+    this.noPickupMs = PICKUP_WAIT_MS;
     this.release(solids);
     this.lieAt(0);
   }
 
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
+    this.noPickupMs = Math.max(0, this.noPickupMs - deltaMs);
     if (this.holder) {
       const hand = this.holder.handSpot;
       this.x = hand.x;
@@ -105,14 +159,15 @@ export class Item extends Body {
     } else {
       const state = this.physics(deltaMs, world);
       this.lieAt(state === 'flying' ? this.spin : 0);
+      if (state !== 'flying') this.fire(deltaMs, world);
     }
 
     if (this.fuseMs === null) return;
     this.fuseMs -= deltaMs;
     this.spark?.setVisible(Math.floor(this.clockMs / BLAST.blinkMs) % 2 === 0);
-    if (this.fuseMs <= 0) {
+    if (this.fuseMs <= 0 && this.size.bomb) {
       this.exploded = true;
-      world.explode(this);
+      world.explode(this, this.size.bomb);
     }
   }
 
@@ -125,66 +180,20 @@ export class Item extends Body {
     this.display.destroy();
   }
 
+  /** A gun set to fire nonstop shoots the way it points, wherever it is. */
+  private fire(deltaMs: number, world: World): void {
+    const gun = this.size.gun;
+    if (!gun || !this.firing) return;
+    this.fireWaitMs -= deltaMs;
+    if (this.fireWaitMs > 0) return;
+    this.fireWaitMs = gun.autoMs;
+    const muzzleX = this.x + this.facing * (this.size.halfWidth + 2);
+    world.shoot(null, muzzleX, this.y - gun.barrelUp, this.facing, gun);
+  }
+
   private lieAt(rotation: number): void {
-    this.display.setPosition(this.x + this.size.lie.x, this.y + this.size.lie.y);
+    this.display.setPosition(this.x + this.facing * this.size.lie.x, this.y + this.size.lie.y);
+    this.display.setScale(this.facing, 1);
     this.display.rotation = rotation;
   }
-}
-
-/** Draws an item with code. The grip (where a hand holds it) is at (0, 0), pointing right. */
-export function drawItem(
-  g: Phaser.GameObjects.Graphics,
-  kind: ItemKind,
-): Phaser.GameObjects.Graphics {
-  switch (kind) {
-    case 'pistol': {
-      const c = ITEM_COLORS.pistol;
-      g.fillStyle(c.dark);
-      g.fillRoundedRect(-3, -1, 8, 13, 2);
-      g.fillStyle(c.body);
-      g.fillRoundedRect(-3, -5, 24, 8, 2);
-      g.fillStyle(c.shine);
-      g.fillRect(0, -4, 18, 1.5);
-      g.lineStyle(1.5, c.dark);
-      g.strokeRect(5, 3, 6, 4);
-      break;
-    }
-    case 'sword': {
-      const c = ITEM_COLORS.sword;
-      g.fillStyle(c.handle);
-      g.fillRoundedRect(-9, -2.5, 10, 5, 2);
-      g.fillStyle(c.edge);
-      g.fillTriangle(44, -4, 53, 0, 44, 4);
-      g.fillRect(3, -4, 41, 8);
-      g.fillStyle(c.blade);
-      g.fillRect(3, -3, 41, 4);
-      g.fillStyle(c.guard);
-      g.fillRoundedRect(0, -7, 4, 14, 2);
-      break;
-    }
-    case 'bat': {
-      const c = ITEM_COLORS.bat;
-      g.fillStyle(c.dark);
-      g.fillRoundedRect(8, -5, 43, 10, 5);
-      g.fillStyle(c.wood);
-      g.fillRoundedRect(9, -4, 41, 6, 3);
-      g.fillStyle(c.grip);
-      g.fillRoundedRect(-11, -2.5, 22, 5, 2);
-      g.fillCircle(-11, 0, 3.5);
-      break;
-    }
-    case 'bomb': {
-      const c = ITEM_COLORS.bomb;
-      g.lineStyle(2.5, c.fuse);
-      g.lineBetween(0, -14, FUSE_TIP.x, FUSE_TIP.y);
-      g.fillStyle(c.cap);
-      g.fillRect(-4, -16, 8, 5);
-      g.fillStyle(c.body);
-      g.fillCircle(0, 0, 12);
-      g.fillStyle(c.shine, 0.8);
-      g.fillCircle(-4, -5, 3.5);
-      break;
-    }
-  }
-  return g;
 }

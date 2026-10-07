@@ -14,37 +14,52 @@
 
 🇫🇮 Ylävalikossa on kolme sivua: 🧍 nuket, 🔫 aseet ja tavarat, 🧱 rakennuspalat. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois.
 
-🇬🇧 **Building 🧱:** crates, brick walls and planks stack on top of each other, and dolls can stand on them. Walls stop walking dolls and bullets.
+🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets; dolls step up onto low ones. The red barrel explodes when a bullet or a blast hits it!
 
-🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät ja lankut pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Seinät pysäyttävät kävelevät nuket ja luodit.
+🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys!
 
-🇬🇧 **Weapons 🔫:** drag a weapon onto a doll and it takes it in its hand. In 😡 angry mode the doll uses it. A lit 💣 bomb goes off after 4 seconds: it hurts dolls nearby and breaks crates and planks (but not brick walls).
+🇬🇧 **Weapons 🔫:** drop a weapon onto a doll, or drag it there, and the doll takes it in its hand. In 😡 angry mode the doll uses it. Double-click a gun and press 💥: it fires nonstop, also while you drag it around, so you can shoot the dolls yourself (🔄 turns it around). A lit 💣 bomb goes off after 4 seconds: it hurts the dolls nearby and blows up everything else in its blast: building pieces and loose weapons. Other bombs and barrels in the blast go off too!
 
-🇫🇮 **Aseet 🔫:** raahaa ase nuken päälle, niin nukke ottaa sen käteensä. 😡 Vihaisessa modissa nukke käyttää sitä. Sytytetty 💣 pommi räjähtää 4 sekunnin päästä: se satuttaa lähellä olevia nukkeja ja rikkoo laatikot ja lankut (mutta ei tiiliseiniä).
+🇫🇮 **Aseet 🔫:** pudota ase nuken päälle tai raahaa se siihen, niin nukke ottaa sen käteensä. 😡 Vihaisessa modissa nukke käyttää sitä. Tuplaklikkaa pyssyä ja paina 💥: se ampuu taukoamatta, myös kun raahaat sitä, joten voit itse ampua nukkeja (🔄 kääntää sen). Sytytetty 💣 pommi räjähtää 4 sekunnin päästä: se satuttaa lähellä olevia nukkeja ja räjäyttää kaiken muun räjähdyksen alueelta: rakennuspalat ja irtoaseet. Muut pommit ja tynnyrit räjähdyksen alueella räjähtävät myös!
 
-| Item / Tavara | 🇬🇧                                         | 🇫🇮                                            |
-| ------------- | ------------------------------------------ | --------------------------------------------- |
-| 🔫 pistol     | shoots from far away, takes 2 lives        | ampuu kaukaa, vie 2 elämää                    |
-| 🗡️ sword      | reaches further than a fist, takes 2 lives | yltää nyrkkiä pidemmälle, vie 2 elämää        |
-| 🏏 bat        | takes 1 life and sends the doll flying     | vie 1 elämän ja lennättää nuken kauas         |
-| 💣 bomb       | double-click it and press 🔥 to light it   | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
+🇬🇧 **Swing it yourself 🗡️:** grab a sword or a bat and drag it fast into a doll: the doll loses a life and falls over. Carrying it slowly doesn't hurt anybody.
+
+🇫🇮 **Huitaise itse 🗡️:** tartu miekkaan tai mailaan ja vedä se nopeasti nukkeen: nukke menettää elämän ja kaatuu. Hitaasti kantaminen ei satuta ketään.
+
+🇬🇧 **Teams 🎨:** dolls of the same color are on the same side. An angry doll only goes after dolls of another color, and its bullets fly past its own color.
+
+🇫🇮 **Joukkueet 🎨:** samanväriset nuket ovat samalla puolella. Vihainen nukke käy vain erivärisien kimppuun, ja sen luodit lentävät omanväristen ohi.
+
+🇬🇧 **Ragdolls 🪆:** a doll that is knocked over, lifted or thrown goes completely limp. Lift one and it hangs from your hand with arms, legs and head dangling; shake it and they swing (grab it by a foot and it hangs upside down!). On the ground it flops down flat: no arm or leg stays up in the air. A living doll gets back up after a moment; one with no lives left stays limp. Let go while moving the mouse and you throw it: the dolls it hits fall over and get back up, without losing lives.
+
+🇫🇮 **Räsynuket 🪆:** kaadettu, nostettu tai heitetty nukke menee täysin lötköksi. Nosta se, niin se roikkuu kädestäsi kädet, jalat ja pää roikkuen; heiluta sitä, niin ne heiluvat (tartu jalasta, niin se roikkuu pää alaspäin!). Maassa se lötkähtää litteäksi: yksikään käsi tai jalka ei jää pystyyn ilmaan. Elävä nukke nousee hetken päästä ylös; nukke, jolla ei ole elämiä, jää lötköksi. Päästä irti, kun hiiri liikkuu, niin heität sen: nuket, joihin se osuu, kaatuvat ja nousevat ylös menettämättä elämiä.
+
+| Item / Tavara  | 🇬🇧                                        | 🇫🇮                                            |
+| -------------- | ----------------------------------------- | --------------------------------------------- |
+| 🔫 pistol      | shoots from far away, takes 1 life        | ampuu kaukaa, vie 1 elämän                    |
+| 🔫 machine gun | shoots very fast, takes 1 life per bullet | ampuu tosi nopeasti, vie 1 elämän per luoti   |
+| 🗡️ sword       | reaches further than a fist, takes 1 life | yltää nyrkkiä pidemmälle, vie 1 elämän        |
+| 🪓 axe         | takes 2 lives                             | vie 2 elämää                                  |
+| 🔱 spear       | reaches very far, takes 1 life            | yltää tosi kauas, vie 1 elämän                |
+| 🏏 bat         | takes 1 life and sends the doll flying    | vie 1 elämän ja lennättää nuken kauas         |
+| 💣 bomb        | double-click it and press 🔥 to light it  | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
 
 🇬🇧 Double-click a doll to open its action bubbles. A pressed bubble glows, and pressing it again stops it.
 
 🇫🇮 Tuplaklikkaa nukkea, niin sen toimintopallot aukeavat. Painettu pallo hohtaa, ja toinen painallus lopettaa sen.
 
-| Bubble / Pallo | 🇬🇧                                          | 🇫🇮                                       |
-| -------------- | ------------------------------------------- | ---------------------------------------- |
-| 🚀             | throw this person away                      | heitä tämä tyyppi pois                   |
-| 🔄             | turn the other way                          | käänny toisin päin                       |
-| 🚶             | walk                                        | kävele                                   |
-| 💃             | dance                                       | tanssi                                   |
-| 😡             | angry mode: runs to others and punches them | vihainen modi: juoksee hakkaamaan toisia |
-| ✋             | drop the item in the hand                   | pudota kädessä oleva tavara              |
+| Bubble / Pallo | 🇬🇧                                                         | 🇫🇮                                                   |
+| -------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| 🚀             | throw this person away                                     | heitä tämä tyyppi pois                               |
+| 🔄             | turn the other way                                         | käänny toisin päin                                   |
+| 🚶             | walk                                                       | kävele                                               |
+| 💃             | dance                                                      | tanssi                                               |
+| 😡             | angry mode: runs to dolls of another color and fights them | vihainen modi: juoksee hakkaamaan erivärisiä nukkeja |
+| ✋             | drop the item in the hand                                  | pudota kädessä oleva tavara                          |
 
-🇬🇧 Every doll has 3 lives ❤️. A punch takes one, and after the third punch the doll is out 💀: it lies limp on the floor, but you can still drag it or throw it away.
+🇬🇧 Every doll has 3 lives ❤️. A punch, a sword hit or a bullet takes one, and after the third hit the doll is out 💀: it lies limp on the floor, but you can still drag it or throw it away.
 
-🇫🇮 Jokaisella nukella on 3 elämää ❤️. Lyönti vie yhden, ja kolmannen lyönnin jälkeen nukke on poissa pelistä 💀: se makaa velttona lattialla, mutta sitä voi yhä raahata tai sen voi heittää pois.
+🇫🇮 Jokaisella nukella on 3 elämää ❤️. Lyönti, miekanisku tai luoti vie yhden, ja kolmannen osuman jälkeen nukke on poissa pelistä 💀: se makaa velttona lattialla, mutta sitä voi yhä raahata tai sen voi heittää pois.
 
 _🇬🇧 The game is just starting. Leo decides what comes next!_
 _🇫🇮 Peli on vasta alussa. Leo päättää, mitä siihen tulee!_

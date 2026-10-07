@@ -14,15 +14,21 @@ import {
   ITEMS,
   MENU,
   PERSON,
+  SWING,
   THINGS_MAX,
+  TOSS,
   type ActionId,
+  type BlastDef,
   type GunDef,
 } from '../config';
 import { blastDirection, inBlast } from '../logic/blast';
-import type { Box } from '../logic/ground';
-import { boxAt, isDoubleClick, type Click } from '../logic/pick';
+import { overlaps, type Box } from '../logic/ground';
+import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
 import { sweepHit } from '../logic/shot';
+import { sameTeam } from '../logic/team';
+import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
+import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
 import type { Facing } from '../logic/walk';
 import { ActionBubbles } from '../objects/ActionBubbles';
 import { Block } from '../objects/Block';
@@ -45,7 +51,8 @@ interface Bullet {
   y: number;
   direction: Facing;
   gun: GunDef;
-  shooter: Person;
+  /** The doll that fired it, or `null` for a gun firing on its own. */
+  shooter: Person | null;
   picture: Phaser.GameObjects.Rectangle;
 }
 
@@ -62,6 +69,12 @@ export class MainScene extends Phaser.Scene {
   private bullets: Bullet[] = [];
   private dragged: Body | null = null;
   private lastClick: Click | null = null;
+  /** Where the dragged thing was a frame ago, to see how fast it is swung. */
+  private lastDragSpot: Spot | null = null;
+  /** Where the dragged thing has been in the last moments, to throw it when it is let go. */
+  private dragTrail: DragSample[] = [];
+  /** When each doll was last hit by a swung weapon. */
+  private lastSwingHit = new WeakMap<Person, number>();
   /** The boxes of everything solid, worked out once per frame. */
   private solids: { body: Body; box: Box }[] = [];
   private world!: World;
@@ -78,6 +91,7 @@ export class MainScene extends Phaser.Scene {
     this.solids = [];
     this.dragged = null;
     this.lastClick = null;
+    this.lastDragSpot = null;
     this.world = {
       area: AREA,
       bottom: GAME_HEIGHT,
@@ -89,8 +103,8 @@ export class MainScene extends Phaser.Scene {
       shoot: (shooter, x, y, direction, gun) => {
         this.shoot(shooter, x, y, direction, gun);
       },
-      explode: (bomb) => {
-        this.explode(bomb);
+      explode: (source, blast) => {
+        this.explode(source, blast);
       },
     };
 
@@ -130,6 +144,9 @@ export class MainScene extends Phaser.Scene {
       body.update(delta, this.world);
     }
     this.updateBullets(delta);
+    this.handOutItems();
+    this.swing(delta);
+    this.trackDrag();
     this.forget(this.everything().filter((body) => body.gone));
     this.bubbles.update(delta, AREA);
   }
@@ -185,7 +202,49 @@ export class MainScene extends Phaser.Scene {
 
     body.grab(px, py);
     this.dragged = body;
+    this.lastDragSpot = null;
+    this.dragTrail = [];
     this.bringToFront(body);
+  }
+
+  /** Remember where the dragged thing has just been, so letting go can throw it. */
+  private trackDrag(): void {
+    const body = this.dragged;
+    if (!body) {
+      this.lastDragSpot = null;
+      return;
+    }
+    const now = body.feet;
+    this.lastDragSpot = now;
+    const timeMs = this.time.now;
+    this.dragTrail = recentSamples(
+      [...this.dragTrail, { timeMs, x: now.x, y: now.y }],
+      timeMs,
+      TOSS.windowMs,
+    );
+  }
+
+  /**
+   * A sword or a bat that you drag fast into a doll hits it, just like when a doll
+   * swings it. Carrying it slowly doesn't hurt anybody.
+   */
+  private swing(delta: number): void {
+    const weapon = this.dragged;
+    const melee = weapon instanceof Item ? weapon.def.melee : undefined;
+    if (!weapon || !melee) return;
+    const now = weapon.feet;
+    const before = this.lastDragSpot ?? now;
+    const speed = swingSpeed(before, now, delta);
+
+    for (const person of this.people) {
+      if (!person.canBePicked || !overlaps(weapon.pickBox, person.box)) continue;
+      const sinceLastHit = this.time.now - (this.lastSwingHit.get(person) ?? -Infinity);
+      if (!swingLands(speed, SWING.minSpeed, sinceLastHit, SWING.cooldownMs)) continue;
+      this.lastSwingHit.set(person, this.time.now);
+      const direction = swingDirection(now.x - before.x, now.x, person.feet.x);
+      const deadly = person.hit(direction, this.solidBoxes(person), melee.damage, melee.pushSpeed);
+      this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly);
+    }
   }
 
   private letGo(): void {
@@ -193,10 +252,10 @@ export class MainScene extends Phaser.Scene {
     if (!body) return;
     this.dragged = null;
 
-    // An item let go on top of a doll goes into the doll's hand
+    // An item let go on top of a standing doll goes into the doll's hand
     if (body instanceof Item) {
       const { x, y } = body.feet;
-      const takers = this.people.filter((person) => !person.dead && person.canBePicked);
+      const takers = this.people.filter((person) => person.canBeHit);
       const index = boxAt(
         takers.map((person) => person.box),
         x,
@@ -208,7 +267,12 @@ export class MainScene extends Phaser.Scene {
         return;
       }
     }
-    body.release(this.solidBoxes(body));
+    if (body instanceof Person) {
+      const speed = throwSpeed(recentSamples(this.dragTrail, this.time.now, TOSS.windowMs));
+      body.throwWith(speed.x, speed.y, this.solidBoxes(body));
+    } else {
+      body.release(this.solidBoxes(body));
+    }
   }
 
   private doAction(action: ActionId, body: Body): void {
@@ -218,7 +282,7 @@ export class MainScene extends Phaser.Scene {
         this.bubbles.close();
         break;
       case 'turn':
-        if (body instanceof Person) body.turn();
+        if (body instanceof Person || body instanceof Item) body.turn();
         this.bubbles.flash('turn');
         break;
       case 'drop':
@@ -232,6 +296,9 @@ export class MainScene extends Phaser.Scene {
         break;
       case 'fuse':
         if (body instanceof Item) body.toggleFuse();
+        break;
+      case 'fire':
+        if (body instanceof Item) body.toggleFire();
         break;
     }
   }
@@ -307,13 +374,19 @@ export class MainScene extends Phaser.Scene {
     this.blocks = this.blocks.filter((body) => !all.has(body));
     this.items = this.items.filter((body) => !all.has(body));
     this.bullets = this.bullets.filter((bullet) => {
-      if (!all.has(bullet.shooter)) return true;
+      if (!bullet.shooter || !all.has(bullet.shooter)) return true;
       bullet.picture.destroy();
       return false;
     });
   }
 
-  private shoot(shooter: Person, x: number, y: number, direction: Facing, gun: GunDef): void {
+  private shoot(
+    shooter: Person | null,
+    x: number,
+    y: number,
+    direction: Facing,
+    gun: GunDef,
+  ): void {
     const picture = this.add
       .rectangle(x, y, BULLET.width, BULLET.height, BULLET.color)
       .setDepth(DEPTH.bullet);
@@ -327,13 +400,19 @@ export class MainScene extends Phaser.Scene {
       bullet.x += bullet.direction * bullet.gun.bulletSpeed * (delta / 1000);
       bullet.picture.x = bullet.x;
 
-      const targets = this.people.filter((person) => person !== bullet.shooter && person.canBeHit);
+      // A doll's bullets fly past dolls of its own color
+      const { shooter } = bullet;
+      const targets = this.people.filter(
+        (person) => person.canBeHit && !(shooter && sameTeam(person.look, shooter.look)),
+      );
       const boxes = [...this.solids.map((solid) => solid.box), ...targets.map((p) => p.box)];
       const hit = sweepHit(fromX, bullet.x, bullet.y, boxes);
       const flownOut = bullet.x < AREA.left || bullet.x > AREA.right;
       if (hit === null && !flownOut) return true;
 
+      const struck = hit === null ? undefined : this.solids[hit]?.body;
       const victim = hit === null ? undefined : targets[hit - this.solids.length];
+      if (struck instanceof Block) struck.setOff(0);
       if (victim) {
         const deadly = victim.hit(bullet.direction, this.solidBoxes(victim), bullet.gun.damage);
         this.showHit(victim.feet.x, bullet.y, deadly);
@@ -343,28 +422,58 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * An item that falls on a standing, empty-handed doll, or lies against one, goes
+   * into the doll's hand.
+   */
+  private handOutItems(): void {
+    for (const item of this.items) {
+      if (!item.canBeTaken) continue;
+      const dropper = item.droppedBy;
+      if (dropper && !overlaps(item.box, dropper.box)) item.forgetDropper();
+      const taker = this.people.find(
+        (person) =>
+          person !== item.droppedBy &&
+          person.canBeHit &&
+          !person.holding &&
+          overlaps(item.box, person.box),
+      );
+      taker?.hold(item, this.solidBoxes(item));
+    }
+  }
+
   private clearBullets(): void {
     this.bullets.forEach((bullet) => bullet.picture.destroy());
     this.bullets = [];
   }
 
-  /** A bomb goes off: dolls nearby are hurt and thrown back, breakable pieces are gone. */
-  private explode(bomb: Item): void {
-    const blast = bomb.def.bomb;
-    if (!blast) return;
-    const { x, y } = bomb.feet;
-    const middleY = y - bomb.size.height / 2;
+  /**
+   * Something goes off with a blast: a bomb or a barrel. Dolls in the blast are hurt
+   * and thrown back. Building pieces and loose items in the blast are gone, and
+   * other bombs and barrels go off right after.
+   */
+  private explode(source: Body, blast: BlastDef): void {
+    const { x, y } = source.feet;
+    const middleY = y - source.size.height / 2;
+    const caught = (body: Body): boolean =>
+      body !== source && inBlast(x, middleY, body.box, blast.radius);
 
     for (const person of this.people) {
-      if (!person.canBePicked || !inBlast(x, middleY, person.box, blast.radius)) continue;
+      if (!person.canBePicked || !caught(person)) continue;
       const direction = blastDirection(x, person.feet.x);
       person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed);
     }
-    this.forget(
-      this.blocks.filter(
-        (block) => block.breakable && inBlast(x, middleY, block.box, blast.radius),
-      ),
-    );
+
+    const blocks = this.blocks.filter(caught);
+    const items = this.items.filter((item) => !item.isHeld && caught(item));
+    for (const next of [...blocks, ...items]) {
+      next.setOff(BLAST.chainMs);
+    }
+    this.forget([
+      ...blocks.filter((block) => !block.explosive),
+      ...items.filter((item) => !item.def.bomb),
+    ]);
+
     this.popUp(x, middleY, BLAST.emoji, BLAST.fontSize, BLAST.ms, BLAST.grow);
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
   }

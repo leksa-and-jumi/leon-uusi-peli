@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { limpPose, MOVES, poseFor, STAND } from './pose';
+import { blendPose, limpPose, MOVES, poseFor, STAND } from './pose';
 
 describe('poseFor', () => {
   it('stands still with arms and legs straight down', () => {
@@ -83,5 +83,25 @@ describe('limpPose', () => {
       expect(pose.backKnee).toBeGreaterThanOrEqual(0);
       expect(pose.lift).toBe(0);
     }
+  });
+});
+
+describe('blendPose', () => {
+  const limp = limpPose(() => 1);
+
+  it('is the first pose at 0 and the second at 1', () => {
+    expect(blendPose(STAND, limp, 0)).toEqual(STAND);
+    expect(blendPose(STAND, limp, 1)).toEqual(limp);
+  });
+
+  it('is half way between at 0.5', () => {
+    const half = blendPose(STAND, limp, 0.5);
+    expect(half.frontArm).toBeCloseTo((STAND.frontArm + limp.frontArm) / 2);
+    expect(half.waist).toBeCloseTo(limp.waist / 2);
+  });
+
+  it('does not go past either pose', () => {
+    expect(blendPose(STAND, limp, 7)).toEqual(limp);
+    expect(blendPose(STAND, limp, -3)).toEqual(STAND);
   });
 });

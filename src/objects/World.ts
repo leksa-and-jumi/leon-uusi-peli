@@ -1,9 +1,8 @@
-import type { GunDef } from '../config';
+import type { BlastDef, GunDef } from '../config';
 import type { Box } from '../logic/ground';
 import type { PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import type { Body } from './Body';
-import type { Item } from './Item';
 import type { Person } from './Person';
 
 /** What everything in the area needs to know about the world around it each frame. */
@@ -15,8 +14,8 @@ export interface World {
   solidBoxes: (body: Body) => Box[];
   /** Show a hit at this spot. `deadly` when it was the last one. */
   hitEffect: (x: number, y: number, deadly: boolean) => void;
-  /** Fire a bullet from this spot. */
-  shoot: (shooter: Person, x: number, y: number, direction: Facing, gun: GunDef) => void;
-  /** A bomb goes off. */
-  explode: (bomb: Item) => void;
+  /** Fire a bullet from this spot. With no shooter, it hits dolls of any color. */
+  shoot: (shooter: Person | null, x: number, y: number, direction: Facing, gun: GunDef) => void;
+  /** Something goes off with a blast: a bomb or a barrel. */
+  explode: (source: Body, blast: BlastDef) => void;
 }

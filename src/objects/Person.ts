@@ -3,10 +3,13 @@ import {
   ANGRY,
   DEPTH,
   KNOCK,
+  LIMP,
   PERSON,
   PERSON_ACTIONS,
   PHYSICS,
+  PICK_PADDING,
   PUNCH_DAMAGE,
+  TOSS,
   WALK,
   type ActionId,
   type GunDef,
@@ -14,38 +17,83 @@ import {
 } from '../config';
 import { clamp } from '../logic/bounds';
 import { chaseStep, nearestIndex } from '../logic/chase';
-import { blockedX, type Box } from '../logic/ground';
+import {
+  dangleStep,
+  hangingRest,
+  kickJoints,
+  lyingRest,
+  randomSag,
+  swingPose,
+  trail,
+  wrapAngle,
+  type Joint,
+  type JointKey,
+  type Swinger,
+} from '../logic/dangle';
+import { blockedX, overlaps, type Box } from '../logic/ground';
 import { isDead, takeHit } from '../logic/health';
-import { knockDone, knockTilt } from '../logic/knock';
 import type { Spot } from '../logic/pick';
 import type { PlaceArea } from '../logic/place';
-import { limpPose, poseFor, type Pose, type PoseKind } from '../logic/pose';
+import {
+  blendPose,
+  limpPose,
+  poseFor,
+  STAND,
+  STILL,
+  type Pose,
+  type PoseKind,
+} from '../logic/pose';
 import { canSee } from '../logic/shot';
+import { sameTeam } from '../logic/team';
 import { walkStep, type Facing } from '../logic/walk';
-import { Body } from './Body';
+import { Body, type BodyState } from './Body';
 import type { Item } from './Item';
 import { PersonFigure } from './personShape';
 import type { World } from './World';
 
+/** How loosely each joint of a limp doll swings. */
+const LIMP_JOINTS: Record<JointKey, Joint> = {
+  frontArm: LIMP.loose,
+  backArm: LIMP.loose,
+  frontElbow: LIMP.loose,
+  backElbow: LIMP.loose,
+  head: LIMP.loose,
+  frontLeg: LIMP.heavy,
+  backLeg: LIMP.heavy,
+  frontKnee: LIMP.heavy,
+  backKnee: LIMP.heavy,
+  waist: LIMP.heavy,
+};
+
+/** On the ground every joint drops flat and settles quickly. */
+const GROUND_JOINTS = Object.fromEntries(
+  Object.keys(LIMP_JOINTS).map((key) => [key, LIMP.ground]),
+) as Record<JointKey, Joint>;
+
 /** What a doll keeps doing until it is switched off. */
 export type Activity = 'idle' | 'walk' | 'dance' | 'angry';
 
+/** Getting back up from the ground: from how it lay, to standing. */
+interface Rise {
+  fromPose: Pose;
+  fromAngle: number;
+  ms: number;
+  totalMs: number;
+}
+
 /**
- * A doll in the area. It drops from where you put it, can be dragged, can walk,
- * dance or get angry, can hold an item, and is out when its lives run out.
+ * A doll in the area. It drops from where you put it, can walk, dance or get angry,
+ * and can hold an item. Whenever it is knocked over, lifted or thrown it goes limp
+ * like a ragdoll; a living doll then gets back up, one with no lives left stays limp.
  */
 export class Person extends Body {
   readonly size = PERSON;
   readonly actions = PERSON_ACTIONS;
+  /** Its colors. Dolls of the same color are on the same side. */
+  readonly look: PersonLook;
   activity: Activity = 'idle';
   private readonly figure: PersonFigure;
   private facing: Facing = 1;
-  /** Time since being knocked over, or `null` when not knocked. */
-  private knockMs: number | null = null;
-  /** Slide away while tipping over (after a hit, but not after being dropped). */
-  private slide = false;
-  private knockDir: Facing = 1;
-  private knockSpeed: number = KNOCK.pushSpeed;
   private punchMs = 0;
   /** Time left before the next punch or shot. */
   private waitMs = 0;
@@ -53,25 +101,62 @@ export class Person extends Body {
   /** Keeps counting, so the moves keep going. */
   private clockMs = 0;
   private lives: number = PERSON.lives;
-  /** How the limbs flop once there are no lives left, or `null` while alive. */
-  private limp: Pose | null = null;
+  /** No lives left. */
+  private out = false;
+
+  /** Limp like a ragdoll right now: every joint swings loosely. */
+  private ragdoll = false;
+  /** Knocked or thrown down, so it has to lie on the ground for a while. */
+  private floored = false;
+  /** How long a living doll has been lying on the ground. */
+  private downMs = 0;
+  private rise: Rise | null = null;
+  /** The way it was last knocked: it falls over that way. */
+  private knockDir: Facing = 1;
+  /** A loose pose that makes its limbs hang a little apart. A new one every time. */
+  private flop: Pose = limpPose();
+  /** How much each limb sags toward the floor when it lies down. A new one every time. */
+  private sag: Pose = randomSag(LIMP.sag);
+  /** How far it tips over when it lies down: a bit different every time. */
+  private lieAngle = Math.PI / 2;
+  /** Its whole body: how far it has turned over, and how fast it is turning. */
+  private tumble: Swinger = { angle: 0, speed: 0 };
+  /** Its joints, and how fast each one is turning. */
+  private limbs: Pose = STAND;
+  private limbSpeeds: Pose = STILL;
+  /** Where on its body it is held, seen from its feet before turning. */
+  private grabSpot = { x: 0, y: 0 };
+  /** Which way up it hangs while held: 0 is head up, π is head down. */
+  private hangAngle = 0;
+
+  /** Sideways speed from being thrown or knocked, until it slides to a stop. */
+  private vx = 0;
+  /** Thrown, and still on its way: it knocks over the dolls it hits. */
+  private tossed = false;
+  /** How fast it is really moving right now, smoothed (pixels per second). */
+  private speed = { x: 0, y: 0 };
+  private last: Spot;
+  /** Where it was last drawn: its feet, and how far it was turned. */
+  private drawn = { x: 0, y: 0, rotation: 0 };
   private item: Item | null = null;
 
   constructor(scene: Phaser.Scene, look: PersonLook, x: number, feetY: number) {
     super(x, feetY);
+    this.look = look;
+    this.last = { x, y: feetY };
     this.figure = new PersonFigure(scene, look);
     this.figure.container.setDepth(DEPTH.person);
     this.draw('held', 0);
   }
 
-  /** No lives left: lies limp and does nothing any more. */
+  /** No lives left: stays limp and does nothing any more. */
   get dead(): boolean {
-    return this.limp !== null;
+    return this.out;
   }
 
   /** Standing on the ground, so it can be punched or shot. */
   get canBeHit(): boolean {
-    return !this.dead && this.state === 'resting' && this.knockMs === null;
+    return !this.dead && this.state === 'resting' && !this.ragdoll;
   }
 
   /** Roughly where the front hand is: a held item counts as being here. */
@@ -82,6 +167,19 @@ export class Person extends Body {
   /** The item in the hand, or `null` when empty-handed. */
   get holding(): Item | null {
     return this.item;
+  }
+
+  /** A doll lying on the ground is grabbed along its whole body, not just at its feet. */
+  override get pickBox(): Box {
+    const tipped = Math.sin(this.drawn.rotation);
+    if (Math.abs(tipped) < 0.5) return super.pickBox;
+    const headX = this.drawn.x + tipped * PERSON.height;
+    return {
+      left: Math.min(this.drawn.x, headX) - PICK_PADDING,
+      right: Math.max(this.drawn.x, headX) + PICK_PADDING,
+      top: this.drawn.y - PERSON.halfWidth * 2 - PICK_PADDING,
+      bottom: this.drawn.y + PERSON.halfWidth,
+    };
   }
 
   isOn(action: ActionId): boolean {
@@ -118,20 +216,50 @@ export class Person extends Body {
     item.droppedAt(hand.x, hand.y, solids);
   }
 
+  /** Picked up: the doll goes limp and hangs from the spot it is held by. */
   override grab(px: number, py: number): void {
+    const { x, y, rotation } = this.drawn;
+    const cos = Math.cos(-rotation);
+    const sin = Math.sin(-rotation);
+    this.grabSpot = {
+      x: (px - x) * cos - (py - y) * sin,
+      y: (px - x) * sin + (py - y) * cos,
+    };
+    this.hangAngle = -this.grabSpot.y < PERSON.height * LIMP.upsideDownBelow ? Math.PI : 0;
+    this.goLimp();
+    this.tumble = { angle: wrapAngle(this.tumble.angle), speed: this.tumble.speed };
     super.grab(px, py);
-    this.knockMs = null;
-    this.slide = false;
-  }
-
-  override throwAway(area: PlaceArea): void {
-    super.throwAway(area);
-    this.knockMs = null;
+    this.floored = false;
+    this.downMs = 0;
+    this.vx = 0;
+    this.tossed = false;
   }
 
   /**
-   * Hit: lose lives, slide away from the hit and fall over. With no lives left the
-   * doll stays down. Says whether this hit was the last one.
+   * Let go. While the mouse is moving, the doll is thrown the way the mouse was
+   * going (speeds in pixels per second); a slow let-go is just a drop.
+   */
+  throwWith(speedX: number, speedY: number, solids: readonly Box[]): void {
+    // It falls from where it was hanging, not from under the hand
+    this.x = this.drawn.x;
+    this.y = this.drawn.y;
+    const speed = Math.hypot(speedX, speedY);
+    if (speed < TOSS.minSpeed) {
+      this.release(solids);
+      return;
+    }
+    const scale = Math.min(TOSS.power, TOSS.maxSpeed / speed);
+    this.release(solids, speedY * scale);
+    this.vx = speedX * scale;
+    this.tossed = true;
+    this.floored = true;
+    this.knockDir = this.vx < 0 ? -1 : 1;
+    this.tumble = { angle: this.tumble.angle, speed: this.tumble.speed + this.vx * TOSS.spin };
+  }
+
+  /**
+   * Hit: lose lives, go limp, get shoved away and fall over. With no lives left the
+   * doll never gets up again. Says whether this hit was the last one.
    */
   hit(
     direction: Facing,
@@ -139,15 +267,25 @@ export class Person extends Body {
     damage: number = PUNCH_DAMAGE,
     pushSpeed: number = KNOCK.pushSpeed,
   ): boolean {
-    this.knockMs = 0;
-    this.slide = true;
-    this.knockDir = direction;
-    this.knockSpeed = pushSpeed;
+    this.goLimp();
+    this.floored = true;
+    this.downMs = 0;
     this.punchMs = 0;
+    this.knockDir = direction;
+    this.flop = limpPose();
+    this.sag = randomSag(LIMP.sag);
+    this.lieAngle = Math.PI / 2 - randomBetween(0, LIMP.lieSpread);
+    this.limbSpeeds = kickJoints(this.limbSpeeds, LIMP.hitKick);
+    this.tumble = {
+      angle: this.tumble.angle,
+      speed: this.tumble.speed + direction * LIMP.knockSpin,
+    };
+    this.vx = direction * pushSpeed * (this.dead ? LIMP.corpsePush : 1);
     if (this.dead) return false;
+
     this.lives = takeHit(this.lives, damage);
     if (!isDead(this.lives)) return false;
-    this.limp = limpPose();
+    this.out = true;
     this.activity = 'idle';
     this.figure.setAngry(false);
     this.figure.setDead(true);
@@ -157,13 +295,22 @@ export class Person extends Body {
 
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
+    const wasFalling = this.state === 'falling';
+    const fallSpeed = this.speed.y;
+    this.glide(deltaMs, world);
     const state = this.physics(deltaMs, world);
+    this.measureSpeed(deltaMs);
+
     if (state === 'flying') {
       this.draw('held', this.spin);
+    } else if (this.rise) {
+      this.getUp(this.rise, deltaMs);
+    } else if (this.ragdoll) {
+      if (wasFalling && state === 'resting') this.land(fallSpeed);
+      this.flopAbout(deltaMs, state, world.area);
+      this.maybeGetUp(deltaMs, state);
     } else if (state !== 'resting') {
       this.draw('held', 0);
-    } else if (this.knockMs !== null || this.dead) {
-      this.updateKnocked(deltaMs, world);
     } else {
       this.draw(this.act(deltaMs, world), 0);
     }
@@ -178,17 +325,156 @@ export class Person extends Body {
     this.figure.destroy();
   }
 
-  private updateKnocked(deltaMs: number, world: World): void {
-    const elapsed = (this.knockMs ?? 0) + deltaMs;
-    if (this.slide && elapsed < KNOCK.fallMs) {
-      const pushed = this.x + this.knockDir * this.knockSpeed * (deltaMs / 1000);
-      this.walkTo(pushed, world);
+  /** Go limp, starting from exactly how the doll is standing or moving right now. */
+  private goLimp(): void {
+    this.rise = null;
+    if (this.ragdoll) return;
+    this.ragdoll = true;
+    this.limbs = this.figure.pose;
+    this.limbSpeeds = STILL;
+    this.tumble = { angle: this.drawn.rotation, speed: 0 };
+  }
+
+  /** Hitting the ground makes every joint flop, harder after a longer fall. */
+  private land(fallSpeed: number): void {
+    const kick = Math.min(Math.max(fallSpeed, 0) * LIMP.landKick, LIMP.landKickMax);
+    this.limbSpeeds = kickJoints(this.limbSpeeds, kick);
+  }
+
+  /**
+   * A living doll on the ground gets back up: at once when it was put down gently
+   * and nearly upright, otherwise after lying there for a while.
+   */
+  private maybeGetUp(deltaMs: number, state: BodyState): void {
+    if (this.dead || state !== 'resting') {
+      this.downMs = 0;
+      return;
     }
-    // A doll with no lives left tips over like the others, but never gets back up
-    const stayDown = this.dead && elapsed >= KNOCK.fallMs;
-    this.knockMs = stayDown ? KNOCK.fallMs : knockDone(elapsed, KNOCK) ? null : elapsed;
-    const tilt = stayDown ? 1 : knockTilt(elapsed, KNOCK);
-    this.draw('stand', this.knockDir * tilt * (Math.PI / 2), tilt * PERSON.lyingLift);
+    const upright = Math.abs(wrapAngle(this.tumble.angle)) < LIMP.standWithin;
+    const gently = !this.floored && this.downMs === 0 && upright;
+    this.downMs += deltaMs;
+    if (!gently && this.downMs < KNOCK.lieMs) return;
+    this.rise = {
+      fromPose: this.limbs,
+      fromAngle: wrapAngle(this.tumble.angle),
+      ms: 0,
+      totalMs: gently ? LIMP.quickRiseMs : KNOCK.riseMs,
+    };
+  }
+
+  private getUp(rise: Rise, deltaMs: number): void {
+    rise.ms += deltaMs;
+    const part = Math.min(rise.ms / rise.totalMs, 1);
+    // Start and end softly
+    const eased = part * part * (3 - 2 * part);
+    const rotation = rise.fromAngle * (1 - eased);
+    this.figure.setPose(blendPose(rise.fromPose, STAND, eased));
+    this.place(this.x, this.y - Math.abs(Math.sin(rotation)) * PERSON.lyingLift, rotation);
+    if (part < 1) return;
+    this.rise = null;
+    this.ragdoll = false;
+    this.floored = false;
+    this.downMs = 0;
+    this.tumble = { angle: 0, speed: 0 };
+  }
+
+  /**
+   * Fly or slide sideways after a throw or a hit. A doll that is thrown fast enough
+   * knocks over the standing dolls it runs into, without hurting them.
+   */
+  private glide(deltaMs: number, world: World): void {
+    if (this.state === 'held' || this.state === 'flying') return;
+    if (this.vx === 0) {
+      if (this.state === 'resting') this.tossed = false;
+      return;
+    }
+    const wanted = this.x + this.vx * (deltaMs / 1000);
+    this.walkTo(wanted, world);
+    if (this.x !== wanted) this.vx *= -TOSS.bounce;
+    if (this.state === 'resting') this.vx *= Math.exp(-deltaMs / TOSS.slideMs);
+    if (Math.abs(this.vx) < TOSS.stopSpeed) this.vx = 0;
+    if (!this.tossed || Math.abs(this.vx) < TOSS.knockSpeed) return;
+
+    const direction: Facing = this.vx < 0 ? -1 : 1;
+    for (const other of world.people) {
+      if (other === this || !other.canBeHit || !overlaps(this.box, other.box)) continue;
+      const push = Math.max(TOSS.pushSpeed, Math.abs(this.vx) * TOSS.pushShare);
+      other.hit(direction, world.solidBoxes(other), 0, push);
+      world.hitEffect(other.x, other.y - PERSON.height * 0.6, false);
+      this.vx *= TOSS.keep;
+    }
+  }
+
+  private measureSpeed(deltaMs: number): void {
+    if (deltaMs <= 0) return;
+    const seconds = deltaMs / 1000;
+    this.speed.x += ((this.x - this.last.x) / seconds - this.speed.x) * TOSS.smoothing;
+    this.speed.y += ((this.y - this.last.y) / seconds - this.speed.y) * TOSS.smoothing;
+    this.last = { x: this.x, y: this.y };
+  }
+
+  /**
+   * One frame of being a ragdoll. Held, the body swings from the hand; in the air it
+   * spins freely; on the ground it flops down flat, on whichever side it was falling
+   * toward. All the while the arms, legs and head swing loosely behind the way it moves.
+   */
+  private flopAbout(deltaMs: number, state: BodyState, area: PlaceArea): void {
+    const held = state === 'held';
+    const { angle, speed } = this.tumble;
+    if (held) {
+      const upright = this.hangAngle === 0 ? 0 : angle < 0 ? -Math.PI : Math.PI;
+      const rest = upright + trail(this.speed.x, LIMP.bodyTrail, LIMP.bodyTrailMax);
+      this.tumble = dangleStep(this.tumble, rest, LIMP.hangBody, deltaMs);
+    } else if (state === 'falling') {
+      this.tumble = { angle: angle + speed * (deltaMs / 1000), speed };
+    } else {
+      const turned = wrapAngle(angle);
+      const tipped = Math.sin(turned);
+      const side = Math.abs(tipped) > 0.05 ? Math.sign(tipped) : this.knockDir;
+      const flat = side * this.lieAngle;
+      this.tumble = dangleStep({ angle: turned, speed }, flat, LIMP.settle, deltaMs);
+      this.scootInside(side, area, deltaMs);
+    }
+
+    const rotation = this.tumble.angle;
+    const pulled = trail(this.speed.x, LIMP.limbTrail, LIMP.limbTrailMax);
+    const down = this.facing * wrapAngle(pulled - rotation);
+    const float = Math.max(0, trail(this.speed.y, LIMP.floatTrail, 1));
+    const hanging = hangingRest(this.flop, down, LIMP.hang, float);
+    // The further it has tipped over on the ground, the more its limbs lie down flat
+    const flatness =
+      state === 'resting' ? clamp((Math.abs(Math.sin(rotation)) - 0.4) / 0.4, 0, 1) : 0;
+    const lying = lyingRest(this.limbs, rotation, this.facing, this.sag, LIMP.hang);
+    const limbRest = flatness > 0 ? blendPose(hanging, lying, flatness) : hanging;
+    const joints = flatness > 0.5 ? GROUND_JOINTS : LIMP_JOINTS;
+    const swung = swingPose(this.limbs, this.limbSpeeds, limbRest, joints, deltaMs);
+    this.limbs = swung.pose;
+    this.limbSpeeds = swung.speeds;
+    this.figure.setPose(this.limbs);
+
+    let x = this.x;
+    let y = this.y - Math.abs(Math.sin(rotation)) * PERSON.lyingLift;
+    if (held) {
+      // Hang from the spot it is held by: that spot stays under the hand
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      x = this.x - this.grabOffset.x - (this.grabSpot.x * cos - this.grabSpot.y * sin);
+      y = this.y - this.grabOffset.y - (this.grabSpot.x * sin + this.grabSpot.y * cos);
+    }
+    this.place(x, y, rotation);
+  }
+
+  /**
+   * A limp doll lying by the edge of the area scoots in a little, so its whole body
+   * stays where you can see it and grab it. `side` is the way its head points.
+   */
+  private scootInside(side: number, area: PlaceArea, deltaMs: number): void {
+    const { halfWidth, height } = PERSON;
+    const least = area.left + (side < 0 ? height : halfWidth);
+    const most = area.right - (side > 0 ? height : halfWidth);
+    const wanted = clamp(this.x, least, most);
+    const step = LIMP.scootSpeed * (deltaMs / 1000);
+    this.x += clamp(wanted - this.x, -step, step);
   }
 
   /** Do the thing that's switched on, and say which pose it needs. */
@@ -213,7 +499,7 @@ export class Person extends Body {
   }
 
   /**
-   * Angry mode: go for the closest doll that is standing. Punch it, hit it with the
+   * Angry mode: go for the closest standing doll of another color. Punch it, hit it with the
    * sword or bat in the hand, or shoot it with the pistol from far away.
    */
   private rage(deltaMs: number, world: World): PoseKind {
@@ -272,9 +558,11 @@ export class Person extends Body {
     return 'punch';
   }
 
-  /** The closest standing doll, first of all one on the same level. */
+  /** The closest standing doll of another color, first of all one on the same level. */
   private pickTarget(world: World): Person | undefined {
-    const standing = world.people.filter((other) => other !== this && other.canBeHit);
+    const standing = world.people.filter(
+      (other) => other !== this && other.canBeHit && !sameTeam(other.look, this.look),
+    );
     const level = standing.filter((other) => Math.abs(other.y - this.y) <= ANGRY.levelSlack);
     const targets = level.length > 0 ? level : standing;
     const nearest = nearestIndex(
@@ -305,13 +593,19 @@ export class Person extends Body {
     return this.x !== wanted;
   }
 
-  private draw(kind: PoseKind, rotation: number, extraLift = 0): void {
-    const pose = this.limp ?? poseFor(kind, this.clockMs);
+  /** Draw the doll in a pose (a limp doll keeps the pose its joints are in). */
+  private draw(kind: PoseKind, rotation: number): void {
+    const pose = this.ragdoll ? this.limbs : poseFor(kind, this.clockMs);
     this.figure.setPose(pose);
+    this.place(this.x, this.y - pose.lift, rotation + this.facing * pose.lean);
+  }
+
+  private place(x: number, y: number, rotation: number): void {
     const { container } = this.figure;
-    container.setPosition(this.x, this.y - pose.lift - extraLift);
+    container.setPosition(x, y);
     container.setScale(this.facing, 1);
-    container.rotation = rotation + this.facing * pose.lean;
+    container.rotation = rotation;
+    this.drawn = { x, y, rotation };
   }
 }
 
