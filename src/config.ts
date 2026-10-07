@@ -52,6 +52,17 @@ export const DEPTH = {
   bullet: 40,
 } as const;
 
+/** A weapon stuck in a doll. */
+export const STUCK = {
+  /** It can sit this far up the doll's body, from the feet, at the lowest and the highest. */
+  lowest: 34,
+  highest: 100,
+  /** It doesn't sit perfectly straight: up to this much either way (radians). */
+  tilt: 0.3,
+  /** How many drops spray out when it goes in, and when it is pulled out. */
+  spray: 20,
+} as const;
+
 /** Something solid landing on a doll squashes it down. */
 export const CRUSH = {
   /**
@@ -612,6 +623,11 @@ export interface ItemDef {
   bomb?: BombDef;
   /** It smashes to pieces when it hits something at least this fast (pixels per second). */
   breaksAt?: number;
+  /**
+   * Thrown or swung into a doll, it sinks in and stays there. `out` is how much of
+   * it, measured from the grip, is left sticking out of the doll.
+   */
+  stick?: { out: number };
   /** Dragged along the floor, it wipes stains away. */
   wipes?: boolean;
   /** The colors of the pieces it breaks into. */
@@ -667,6 +683,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: -22.5, y: -9 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 84, damage: 1, wound: 'slash', pushSpeed: 300 },
+    stick: { out: 38 },
   },
   axe: {
     crumbs: [0xb4c0c8, 0xc9a46a, 0x7a5a2e],
@@ -676,6 +693,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: -15.5, y: -3 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 76, damage: 2, wound: 'slash', pushSpeed: 380 },
+    stick: { out: 24 },
   },
   spear: {
     crumbs: [0xc9a46a, 0x7a5a2e, 0xb4c0c8],
@@ -685,6 +703,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: -19, y: -5 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 128, damage: 1, wound: 'stab', pushSpeed: 240 },
+    stick: { out: 48 },
   },
   bat: {
     crumbs: [0xc9a46a, 0x7a5a2e, 0xecd2a0],

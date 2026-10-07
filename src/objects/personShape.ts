@@ -206,6 +206,23 @@ export class PersonFigure {
     }
   }
 
+  /**
+   * Stick something into the body. It goes behind the body's parts, so the end that
+   * is in the doll is hidden, and it moves with the doll from now on.
+   */
+  embed(thing: Container, x: number, y: number, pointing: number, tilt: number): void {
+    this.container.addAt(thing, 0);
+    thing.setPosition(x, y);
+    thing.setScale(pointing, 1);
+    thing.rotation = tilt;
+  }
+
+  /** Pull it out again and put it back into the area. */
+  pullOut(thing: Container): void {
+    this.container.remove(thing);
+    thing.addToDisplayList();
+  }
+
   /** Put something into the front hand. It moves with the arm from now on. */
   holdInHand(thing: Container, rotation: number, along: number): void {
     this.frontArm.lower.add(thing);

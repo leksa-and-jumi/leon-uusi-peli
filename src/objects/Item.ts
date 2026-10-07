@@ -16,6 +16,7 @@ import {
 } from '../config';
 import { clamp } from '../logic/bounds';
 import { blockedX, overlaps, type Box } from '../logic/ground';
+import type { PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body } from './Body';
 import { drawItem, FUSE_TIP } from './itemShapes';
@@ -33,6 +34,8 @@ export class Item extends Body {
   readonly display: Phaser.GameObjects.Container;
   private readonly spark: Phaser.GameObjects.Graphics | null = null;
   private holder: Person | null = null;
+  /** The doll it is stuck in, after being thrown or swung into it. */
+  private stuckIn: Person | null = null;
   /** Which way it points when it lies around. */
   private facing: Facing = 1;
   /** A gun set to fire nonstop, and the time left until its next shot. */
@@ -84,18 +87,20 @@ export class Item extends Body {
   }
 
   override get gone(): boolean {
-    return super.gone || this.exploded || this.broken || (this.holder?.gone ?? false);
+    const owner = this.holder ?? this.stuckIn;
+    return super.gone || this.exploded || this.broken || (owner?.gone ?? false);
   }
 
-  /** In a doll's hand right now? */
+  /** In a doll's hand, or stuck in a doll, right now? */
   get isHeld(): boolean {
-    return this.holder !== null;
+    return this.holder !== null || this.stuckIn !== null;
   }
 
   /** Lying or falling free, so a doll that touches it can take it. */
   get canBeTaken(): boolean {
     return (
       this.canBePicked &&
+      this.stuckIn === null &&
       !this.held &&
       !this.tossed &&
       !this.exploded &&
@@ -119,7 +124,9 @@ export class Item extends Body {
     this.dropper = null;
   }
 
+  /** Grabbing a weapon that is stuck in a doll pulls it out. */
   override grab(px: number, py: number): void {
+    this.unstick();
     super.grab(px, py);
     this.dropper = null;
     this.vx = 0;
@@ -175,6 +182,34 @@ export class Item extends Body {
     this.facing = this.facing === 1 ? -1 : 1;
   }
 
+  override throwAway(area: PlaceArea): void {
+    this.unstick();
+    super.throwAway(area);
+  }
+
+  /**
+   * Sink into a doll and stay there. `direction` is the way it was moving. From now
+   * on it moves with the doll, until it is grabbed and pulled out.
+   */
+  stickInto(person: Person, direction: Facing): void {
+    const stick = this.size.stick;
+    if (!stick) return;
+    this.stuckIn = person;
+    this.held = false;
+    this.vx = 0;
+    this.tossed = false;
+    this.thrown = false;
+    person.impale(this, direction, this.y - this.size.height / 2, stick.out);
+  }
+
+  private unstick(): void {
+    const person = this.stuckIn;
+    if (!person) return;
+    this.stuckIn = null;
+    person.pullOut(this);
+    this.lieAt(0);
+  }
+
   /** A doll takes it. From now on it moves with the doll's hand. */
   takenBy(person: Person): void {
     this.holder = person;
@@ -201,6 +236,11 @@ export class Item extends Body {
       const hand = this.holder.handSpot;
       this.x = hand.x;
       this.y = hand.y;
+    } else if (this.stuckIn) {
+      // Its grip is where the doll's body carries it
+      const grip = this.stuckIn.stuckSpot(this);
+      this.x = grip.x;
+      this.y = grip.y + this.size.height / 2;
     } else {
       const wasFalling = this.state === 'falling';
       this.glide(deltaMs, world);
@@ -255,7 +295,11 @@ export class Item extends Body {
     const deadly = victim.hit(direction, solids, melee.damage, melee.pushSpeed, melee.wound);
     world.hitEffect(victim.feet.x, this.y - height / 2, deadly, 'clang');
     this.tossed = false;
-    this.bounceBack(world);
+    if (this.size.stick) {
+      this.stickInto(victim, direction);
+    } else {
+      this.bounceBack(world);
+    }
   }
 
   /** Bounce back off whatever it ran into, and maybe break on it. */

@@ -325,6 +325,13 @@ export class MainScene extends Phaser.Scene {
         melee.wound,
       );
       this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly, 'clang');
+      if (weapon instanceof Item && weapon.def.stick) {
+        // It sinks in and stays there: the hand lets go of it
+        weapon.stickInto(person, direction);
+        this.dragged = null;
+        this.lastDragSpot = null;
+        return;
+      }
     }
   }
 
@@ -444,7 +451,9 @@ export class MainScene extends Phaser.Scene {
     if (leaving.length === 0) return;
     const all = new Set<Body>(leaving);
     for (const body of leaving) {
-      if (body instanceof Person && body.holding) all.add(body.holding);
+      if (!(body instanceof Person)) continue;
+      if (body.holding) all.add(body.holding);
+      body.stuckItems.forEach((item) => all.add(item));
     }
     for (const body of all) {
       if (this.dragged === body) this.dragged = null;
