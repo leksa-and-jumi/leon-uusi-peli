@@ -390,7 +390,11 @@ export class Block extends Body {
     const wanted = victim ? 1 : awake ? peeking : 0;
     this.headOut += (wanted - this.headOut) * Math.min(1, deltaMs / head.popMs);
     this.head.y = -(head.inUp + (head.outUp - head.inUp) * this.headOut);
-    if (!victim) return;
+    this.head.rotation = SKIBIDI.sway * Math.sin(this.clockMs / SKIBIDI.swayMs);
+    if (!victim) {
+      if (awake) this.smash(monster.range, eyesY, world);
+      return;
+    }
 
     // Face the doll and scoot toward it
     const target = victim.feet;
@@ -406,6 +410,30 @@ export class Block extends Body {
     this.zapWaitMs = monster.everyMs;
     const eyesX = this.x + this.facing * SKIBIDI.eyes.x;
     world.zap(eyesX, eyesY, victim, monster.damage, monster.pushSpeed);
+  }
+
+  /**
+   * With no doll in sight, a monster zaps whatever else is closest: building pieces,
+   * junk, vehicles and loose items. Not other monsters.
+   */
+  private smash(range: number, eyesY: number, world: World): void {
+    if (this.zapWaitMs > 0) return;
+    let thing: Body | null = null;
+    let closest = range;
+    for (const other of world.things(this)) {
+      if (other instanceof Block && other.def.monster) continue;
+      const box = other.box;
+      const atX = (box.left + box.right) / 2;
+      const atY = (box.top + box.bottom) / 2;
+      const distance = Math.hypot(atX - this.x, atY - eyesY);
+      if (distance >= closest) continue;
+      thing = other;
+      closest = distance;
+    }
+    if (!thing) return;
+    this.zapWaitMs = this.def.monster?.everyMs ?? 0;
+    this.facing = thing.feet.x < this.x ? -1 : 1;
+    world.zapThing(this.x + this.facing * SKIBIDI.eyes.x, eyesY, thing);
   }
 
   /**

@@ -44,6 +44,10 @@ export interface World {
   ) => void;
   /** A laser from this spot hits this doll: a beam flashes, and the doll takes the hit. */
   zap: (fromX: number, fromY: number, victim: Person, damage: number, pushSpeed: number) => void;
+  /** Everything a monster can smash, except itself: building pieces, vehicles and loose items. */
+  things: (self: Body) => Body[];
+  /** A laser from this spot hits this thing: a beam flashes, and the thing is destroyed. */
+  zapThing: (fromX: number, fromY: number, thing: Body) => void;
   /** Something smashes to pieces, which fly off with this push (pixels per second). */
   breakApart: (body: Body, pushX: number, pushY: number) => void;
   /** Blood sprays or drips from this spot: this many drops of this color. */

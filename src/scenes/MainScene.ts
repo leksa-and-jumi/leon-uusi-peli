@@ -107,6 +107,8 @@ export class MainScene extends Phaser.Scene {
   private solids: { body: Body; box: Box }[] = [];
   /** The boxes of the dolls lying on the ground, worked out once per frame. */
   private downDolls: Box[] = [];
+  /** Things destroyed during this frame, waiting to be taken out of the game. */
+  private doomed: Body[] = [];
   private world!: World;
 
   constructor() {
@@ -153,6 +155,13 @@ export class MainScene extends Phaser.Scene {
       },
       zap: (fromX, fromY, victim, damage, pushSpeed) => {
         this.zap(fromX, fromY, victim, damage, pushSpeed);
+      },
+      things: (self) => [
+        ...this.blocks.filter((block) => block !== self && block.canBePicked),
+        ...this.items.filter((item) => item.canBePicked && !item.isHeld),
+      ],
+      zapThing: (fromX, fromY, thing) => {
+        this.zapThing(fromX, fromY, thing);
       },
       breakApart: (body, pushX, pushY) => {
         this.crumble(body, pushX, pushY);
@@ -204,6 +213,8 @@ export class MainScene extends Phaser.Scene {
     for (const body of this.everything()) {
       body.update(delta, this.world);
     }
+    this.forget(this.doomed);
+    this.doomed = [];
     this.updateBullets(delta);
     this.updatePieces(delta);
     this.sweep();
@@ -659,7 +670,25 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
   }
 
-  /** A laser hits a doll: a beam flashes from the eyes to the doll, and the doll takes the hit. */
+  /** A laser beam flashes from one spot to another and fades, with its sound. */
+  private beam(fromX: number, fromY: number, toX: number, toY: number): void {
+    const beam = this.add.graphics().setDepth(LASER.depth);
+    beam.lineStyle(LASER.width, LASER.color, 0.9);
+    beam.lineBetween(fromX, fromY, toX, toY);
+    beam.lineStyle(LASER.coreWidth, LASER.core);
+    beam.lineBetween(fromX, fromY, toX, toY);
+    this.tweens.add({
+      targets: beam,
+      alpha: 0,
+      duration: LASER.ms,
+      onComplete: () => {
+        beam.destroy();
+      },
+    });
+    this.sfx.zap();
+  }
+
+  /** A laser hits a doll: the doll takes the hit. */
   private zap(
     fromX: number,
     fromY: number,
@@ -670,23 +699,33 @@ export class MainScene extends Phaser.Scene {
     const body = victim.hitBox;
     const atX = (body.left + body.right) / 2;
     const atY = (body.top + body.bottom) / 2;
-    const beam = this.add.graphics().setDepth(LASER.depth);
-    beam.lineStyle(LASER.width, LASER.color, 0.9);
-    beam.lineBetween(fromX, fromY, atX, atY);
-    beam.lineStyle(LASER.coreWidth, LASER.core);
-    beam.lineBetween(fromX, fromY, atX, atY);
-    this.tweens.add({
-      targets: beam,
-      alpha: 0,
-      duration: LASER.ms,
-      onComplete: () => {
-        beam.destroy();
-      },
-    });
-    this.sfx.zap();
+    this.beam(fromX, fromY, atX, atY);
     const direction: Facing = atX < fromX ? -1 : 1;
     const deadly = victim.hit(direction, this.solidBoxes(victim), damage, pushSpeed, 'burn');
     this.showHit(atX, atY, deadly, 'none');
+  }
+
+  /**
+   * A laser hits a thing and destroys it. A bomb, a barrel or a vehicle goes off with
+   * its own blast; everything else bursts into pieces that fly away from the laser.
+   */
+  private zapThing(fromX: number, fromY: number, thing: Body): void {
+    const box = thing.box;
+    const atX = (box.left + box.right) / 2;
+    this.beam(fromX, fromY, atX, (box.top + box.bottom) / 2);
+    if (thing instanceof Block && thing.explosive) {
+      thing.setOff(0);
+      return;
+    }
+    if (thing instanceof Item && thing.def.bomb) {
+      thing.setOff(0);
+      return;
+    }
+    const away = (atX < fromX ? -1 : 1) * DEBRIS.blastPush;
+    this.crumble(thing, away, -DEBRIS.blastLift);
+    this.sfx.crumble();
+    // It is taken out of the game once everything has had its turn this frame
+    this.doomed.push(thing);
   }
 
   /** Break something into small pieces of its own colors. They fly off with this push. */

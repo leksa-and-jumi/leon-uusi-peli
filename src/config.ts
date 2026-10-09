@@ -579,6 +579,9 @@ export const SKIBIDI = {
   teeth: 0xfffbe6,
   /** Where its eyes are from the middle of the head, looking the way it faces. */
   eyes: { x: 5, up: 3 },
+  /** Its head sways from side to side: this far (radians), one sway in this long. */
+  sway: 0.24,
+  swayMs: 300,
 } as const;
 
 /** The laser a monster shoots from its eyes. */
