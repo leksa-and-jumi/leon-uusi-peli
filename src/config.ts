@@ -46,7 +46,11 @@ export const PHYSICS = {
 export const DEPTH = {
   /** A doll lying on the ground is behind the building pieces: it lies under them. */
   downDoll: 8,
+  /** A doll sitting inside a vehicle is behind it, and shows through its windows. */
+  driver: 9,
   block: 10,
+  /** A doll sitting on a motorbike is in front of it. */
+  rider: 11,
   person: 20,
   item: 30,
   bullet: 40,
@@ -224,6 +228,8 @@ export const PERSON = {
   lives: 3,
   /** A lying person is lifted this much, so they lie on the floor and not in it. */
   lyingLift: 16,
+  /** How far the hips are above the feet of a standing doll. */
+  hipHeight: 54,
   /** Roughly where the front hand is: this far in front of the middle and above the feet. */
   hand: { x: 22, y: 48 },
 } as const;
@@ -515,9 +521,26 @@ export interface DriveDef {
   /** How many lives a doll loses when the vehicle drives into it, and how hard it is flung. */
   damage: number;
   pushSpeed: number;
+  /**
+   * How many times bigger than its drawing the vehicle is. The wheels and the seat
+   * below are measured on the drawing, before it is made bigger.
+   */
+  scale: number;
   /** The wheels: how far each one is from the middle, how high their middle is, and how big they are. */
   wheels: { xs: readonly number[]; up: number; radius: number };
+  /**
+   * Where a doll's hips go when it sits in: this far in front of the middle and above
+   * the bottom. `inFront` when the doll sits on the vehicle and not inside it.
+   */
+  seat?: { x: number; up: number; inFront: boolean };
+  /** The blast when it is shot to bits. Without one it just breaks into pieces. */
+  blast?: BlastDef;
 }
+
+/** A vehicle takes this many bullets. The last one blows it up. */
+export const VEHICLE_HULL = 3;
+/** The hole a bullet leaves in a vehicle. */
+export const BULLET_HOLE = { color: 0x111114, rim: 0x6b6f75, radius: 2.4 } as const;
 
 export const BLOCKS: Record<BlockKind, BlockDef> = {
   crate: {
@@ -600,37 +623,62 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xf57c00, dark: 0x9a4a00, light: 0xffb056, detail: 0xfafafa },
   },
   car: {
-    halfWidth: 52,
-    height: 40,
-    menuScale: 0.6,
+    halfWidth: 114,
+    height: 88,
+    menuScale: 1,
     colors: { fill: 0xd32f2f, dark: 0x6d1414, light: 0xff8a80, detail: 0x9fd6f2 },
-    drive: { speed: 260, damage: 1, pushSpeed: 520, wheels: { xs: [-30, 30], up: 9, radius: 9 } },
+    drive: {
+      speed: 330,
+      damage: 1,
+      pushSpeed: 520,
+      scale: 2.2,
+      wheels: { xs: [-30, 30], up: 9, radius: 9 },
+      seat: { x: 9, up: 11, inFront: false },
+      blast: { radius: 190, damage: 3, pushSpeed: 720 },
+    },
   },
   truck: {
-    halfWidth: 78,
-    height: 62,
-    menuScale: 0.4,
+    halfWidth: 156,
+    height: 124,
+    menuScale: 1,
     colors: { fill: 0x1976d2, dark: 0x0d3c73, light: 0x7fb8f0, detail: 0xe6ebee },
     drive: {
-      speed: 180,
+      speed: 230,
       damage: 2,
       pushSpeed: 640,
+      scale: 2,
       wheels: { xs: [-52, -26, 48], up: 11, radius: 11 },
+      seat: { x: 52, up: 16, inFront: false },
+      blast: { radius: 230, damage: 3, pushSpeed: 780 },
     },
   },
   bike: {
-    halfWidth: 34,
-    height: 40,
-    menuScale: 0.9,
+    halfWidth: 58,
+    height: 68,
+    menuScale: 1,
     colors: { fill: 0xf9a825, dark: 0x2a2a2e, light: 0xffe082, detail: 0x9aa3ad },
-    drive: { speed: 360, damage: 1, pushSpeed: 420, wheels: { xs: [-22, 22], up: 11, radius: 11 } },
+    drive: {
+      speed: 430,
+      damage: 1,
+      pushSpeed: 420,
+      scale: 1.7,
+      wheels: { xs: [-22, 22], up: 11, radius: 11 },
+      seat: { x: -13, up: 30, inFront: true },
+      blast: { radius: 140, damage: 2, pushSpeed: 600 },
+    },
   },
   skateboard: {
     halfWidth: 27,
     height: 10,
     menuScale: 1.1,
     colors: { fill: 0x7e57c2, dark: 0x3b2470, light: 0xb39ddb, detail: 0xe0e0e0 },
-    drive: { speed: 210, damage: 0, pushSpeed: 260, wheels: { xs: [-17, 17], up: 3, radius: 3 } },
+    drive: {
+      speed: 210,
+      damage: 0,
+      pushSpeed: 260,
+      scale: 1,
+      wheels: { xs: [-17, 17], up: 3, radius: 3 },
+    },
   },
   tire: {
     halfWidth: 24,

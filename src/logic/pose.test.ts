@@ -47,6 +47,22 @@ describe('poseFor', () => {
     expect(pose.backArm).toBeGreaterThan(Math.PI / 2);
   });
 
+  it('sits with both thighs out in front, knees bent and arms forward', () => {
+    const pose = poseFor('sit', 999);
+    expect(pose.frontLeg).toBeLessThan(-1);
+    expect(pose.backLeg).toBe(pose.frontLeg);
+    expect(pose.frontKnee).toBeGreaterThan(1);
+    expect(pose.frontArm).toBeLessThan(0);
+    expect(pose.lift).toBe(0);
+  });
+
+  it('drives with the legs stretched out in front instead of hanging down', () => {
+    const pose = poseFor('drive', 0);
+    expect(pose.frontLeg).toBeLessThan(-1);
+    expect(pose.frontKnee).toBeLessThan(0.5);
+    expect(pose.frontArm).toBeLessThan(0);
+  });
+
   it('punches with the front arm straight forward', () => {
     expect(poseFor('punch', 0).frontArm).toBeCloseTo(-Math.PI / 2);
   });

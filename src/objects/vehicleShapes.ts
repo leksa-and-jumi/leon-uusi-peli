@@ -80,6 +80,20 @@ function shape(g: Graphics, fill: number, outline: number, points: readonly Poin
   g.strokePath();
 }
 
+/** A pane of glass: you can see through it. */
+function glass(g: Graphics, color: number, points: readonly Point[]): void {
+  const [first, ...rest] = points;
+  if (!first) return;
+  g.beginPath();
+  g.moveTo(first[0], first[1]);
+  for (const [x, y] of rest) {
+    g.lineTo(x, y);
+  }
+  g.closePath();
+  g.fillStyle(color, 0.38);
+  g.fillPath();
+}
+
 function box(
   g: Graphics,
   fill: number,
@@ -100,26 +114,45 @@ function box(
 function drawCar(g: Graphics, def: BlockDef): Graphics {
   const { fill, dark, light, detail } = def.colors;
   const wheels = def.drive?.wheels;
-  // Cabin and its windows
+  // Cabin: a roof on three pillars, with nothing in between, so that whoever sits
+  // inside shows through the glass
   shape(g, fill, dark, [
     [-30, -24],
     [-20, -40],
+    [-17, -37],
+    [-24, -25],
+  ]);
+  shape(g, fill, dark, [
+    [-3, -37],
+    [1, -37],
+    [1, -25],
+    [-3, -25],
+  ]);
+  shape(g, fill, dark, [
+    [14, -37],
     [16, -40],
     [30, -24],
+    [24, -25],
   ]);
-  shape(g, detail, dark, [
+  shape(g, fill, dark, [
+    [-20, -40],
+    [16, -40],
+    [14, -37],
+    [-17, -37],
+  ]);
+  glass(g, detail, [
     [-24, -25],
     [-17, -37],
     [-3, -37],
     [-3, -25],
   ]);
-  shape(g, detail, dark, [
+  glass(g, detail, [
     [1, -25],
     [1, -37],
     [14, -37],
     [24, -25],
   ]);
-  g.fillStyle(0xffffff, 0.5);
+  g.fillStyle(0xffffff, 0.45);
   g.fillTriangle(-21, -27, -16, -35, -12, -35);
   // Body
   box(g, fill, dark, -52, -27, 104, 19, 7);
@@ -164,23 +197,42 @@ function drawTruck(g: Graphics, def: BlockDef): Graphics {
   }
   g.fillStyle(0xffffff, 0.6);
   g.fillRect(-75, -60, 98, 3);
-  // Cab
+  // Cab: built around an empty window, so that the driver shows through the glass
   shape(g, fill, dark, [
     [28, -18],
     [28, -52],
+    [42, -52],
+    [42, -18],
+  ]);
+  shape(g, fill, dark, [
+    [42, -52],
+    [56, -52],
+    [55, -48],
+    [42, -48],
+  ]);
+  shape(g, fill, dark, [
+    [55, -48],
     [56, -52],
     [72, -36],
     [78, -30],
-    [78, -18],
+    [67, -34],
+    [67, -35],
   ]);
-  shape(g, 0x9fd6f2, dark, [
+  shape(g, fill, dark, [
+    [42, -34],
+    [67, -34],
+    [78, -30],
+    [78, -18],
+    [42, -18],
+  ]);
+  glass(g, 0x9fd6f2, [
     [42, -34],
     [42, -48],
     [55, -48],
     [67, -35],
     [67, -34],
   ]);
-  g.fillStyle(0xffffff, 0.5);
+  g.fillStyle(0xffffff, 0.45);
   g.fillTriangle(45, -36, 45, -46, 52, -46);
   g.fillStyle(light, 0.7);
   g.fillRect(31, -50, 22, 2.5);

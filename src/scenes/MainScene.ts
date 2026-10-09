@@ -387,6 +387,21 @@ export class MainScene extends Phaser.Scene {
         return;
       }
     }
+    // A living doll let go over a vehicle with an empty seat gets in and drives
+    if (body instanceof Person && !body.dead) {
+      const middle = body.hitBox;
+      const free = this.blocks.filter((block) => block.seatFree);
+      const index = boxAt(
+        free.map((block) => block.box),
+        (middle.left + middle.right) / 2,
+        (middle.top + middle.bottom) / 2,
+      );
+      const vehicle = index === null ? undefined : free[index];
+      if (vehicle) {
+        body.sitIn(vehicle);
+        return;
+      }
+    }
     if (body instanceof Person || body instanceof Item) {
       const speed = throwSpeed(recentSamples(this.dragTrail, this.time.now, TOSS.windowMs));
       body.throwWith(speed.x, speed.y, this.solidBoxes(body));
@@ -486,7 +501,10 @@ export class MainScene extends Phaser.Scene {
     if (leaving.length === 0) return;
     const all = new Set<Body>(leaving);
     for (const body of leaving) {
+      // A vehicle that leaves lets its driver out first
+      if (body instanceof Block) body.ejectDriver();
       if (!(body instanceof Person)) continue;
+      body.leaveSeat();
       if (body.holding) all.add(body.holding);
       body.stuckItems.forEach((item) => all.add(item));
     }
@@ -541,7 +559,10 @@ export class MainScene extends Phaser.Scene {
 
       const struck = hit === null ? undefined : this.solids[hit]?.body;
       const victim = hit === null ? undefined : targets[hit - this.solids.length];
-      if (struck instanceof Block) struck.setOff(0);
+      if (struck instanceof Block) {
+        if (struck.def.drive) this.sfx.clang();
+        struck.shot(bullet.x, bullet.y, this.world);
+      }
       if (victim) {
         const deadly = victim.shot(bullet.direction, this.solidBoxes(victim), bullet.gun.damage);
         this.showHit(bullet.x, bullet.y, deadly, 'none');

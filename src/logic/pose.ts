@@ -23,7 +23,7 @@ export interface Pose {
   lean: number;
 }
 
-export type PoseKind = 'stand' | 'walk' | 'run' | 'dance' | 'held' | 'punch';
+export type PoseKind = 'stand' | 'walk' | 'run' | 'dance' | 'held' | 'punch' | 'sit' | 'drive';
 
 export const STAND: Pose = {
   frontArm: 0,
@@ -73,6 +73,10 @@ export const MOVES = {
   },
   held: { armsUp: 2.9, swingMs: 900, leg: 0.18, elbow: -0.2, knee: 0.35 },
   punch: { arm: -Math.PI / 2, backArm: 0.5, backElbow: -1.5, lean: 0.12 },
+  /** Sitting on a motorbike: thighs out in front, shins down, hands on the handlebar. */
+  sit: { leg: -1.4, knee: 1.35, arm: -0.95, elbow: -0.5, waist: 0.08 },
+  /** Sitting inside a car: legs stretched out in front, hands on the wheel. */
+  drive: { leg: -1.5, knee: 0.15, arm: -0.7, elbow: -1.1, waist: 0.05 },
   /** A limp doll: how far each joint can flop, at most. */
   limp: { arm: 2.9, leg: 1.2, elbow: 2.2, knee: 2, waist: 1, head: 1 },
 } as const;
@@ -136,6 +140,24 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         frontKnee: move.knee,
         backKnee: move.knee,
         waist: 0,
+        head: 0,
+        lift: 0,
+        lean: 0,
+      };
+    }
+    case 'sit':
+    case 'drive': {
+      const move = MOVES[kind];
+      return {
+        frontArm: move.arm,
+        backArm: move.arm,
+        frontLeg: move.leg,
+        backLeg: move.leg,
+        frontElbow: move.elbow,
+        backElbow: move.elbow,
+        frontKnee: move.knee,
+        backKnee: move.knee,
+        waist: move.waist,
         head: 0,
         lift: 0,
         lean: 0,

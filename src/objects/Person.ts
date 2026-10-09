@@ -59,6 +59,7 @@ import {
 import { canSee } from '../logic/shot';
 import { sameTeam } from '../logic/team';
 import { walkStep, type Facing } from '../logic/walk';
+import type { Block } from './Block';
 import { Body, type BodyState } from './Body';
 import type { Item } from './Item';
 import { PersonFigure } from './personShape';
@@ -164,6 +165,8 @@ export class Person extends Body {
   /** Where it was last drawn: its feet, and how far it was turned. */
   private drawn = { x: 0, y: 0, rotation: 0 };
   private item: Item | null = null;
+  /** The vehicle it sits in, driving it. */
+  private seat: Block | null = null;
   /** The weapons stuck in its body, and where each one sits (from its feet, before turning). */
   private readonly stuck = new Map<Item, Spot>();
 
@@ -193,7 +196,43 @@ export class Person extends Body {
 
   /** Standing on the ground, so it can be punched or shot. */
   get canBeHit(): boolean {
-    return !this.dead && this.state === 'resting' && !this.ragdoll;
+    return !this.dead && this.state === 'resting' && !this.ragdoll && this.seat === null;
+  }
+
+  /** Sitting in a vehicle right now? */
+  get seated(): boolean {
+    return this.seat !== null;
+  }
+
+  /** A doll sitting in a vehicle moves with its seat, not as something standing on the roof. */
+  override get riding(): boolean {
+    return this.seat === null && super.riding;
+  }
+
+  /** Get into a vehicle and sit down. The vehicle drives off. */
+  sitIn(vehicle: Block): void {
+    this.seat = vehicle;
+    // Inside a car or a truck the legs are down in the footwell, out of sight
+    this.figure.showLegs(vehicle.seatInFront);
+    this.held = false;
+    this.ragdoll = false;
+    this.rise = null;
+    this.floored = false;
+    this.downMs = 0;
+    this.vx = 0;
+    this.endToss();
+    this.tumble = { angle: 0, speed: 0 };
+    vehicle.takeDriver(this);
+  }
+
+  /** Get out of the vehicle (or get thrown out of it): the vehicle stops. */
+  leaveSeat(): void {
+    const vehicle = this.seat;
+    if (!vehicle) return;
+    this.seat = null;
+    this.figure.showLegs(true);
+    vehicle.dropDriver();
+    this.release([]);
   }
 
   /** Roughly where the front hand is: a held item counts as being here. */
@@ -265,6 +304,8 @@ export class Person extends Body {
 
   /** Picked up: the doll goes limp and hangs from the spot it is held by. */
   override grab(px: number, py: number): void {
+    // Grabbing a doll that sits in a vehicle pulls it out
+    this.leaveSeat();
     const { x, y, rotation } = this.drawn;
     const cos = Math.cos(-rotation);
     const sin = Math.sin(-rotation);
@@ -413,6 +454,11 @@ export class Person extends Body {
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
     this.flinchMs = Math.max(0, this.flinchMs - deltaMs);
+    if (this.seat) {
+      this.sitStill(this.seat);
+      this.bleed(deltaMs, world);
+      return;
+    }
     const wasFalling = this.state === 'falling';
     const fallSpeed = this.speed.y;
     this.glide(deltaMs, world);
@@ -471,6 +517,20 @@ export class Person extends Body {
       waist: this.limbSpeeds.waist + CRUSH.waistKick,
     };
     world.hitEffect(this.x, this.y - height, false, 'punch');
+  }
+
+  /** Sitting in a vehicle: stay in the seat, facing the way the vehicle points. */
+  private sitStill(vehicle: Block): void {
+    const hips = vehicle.seatSpot();
+    this.facing = vehicle.pointing;
+    this.x = hips.x;
+    // The figure is placed by its feet, which are this far below its hips when standing
+    this.y = hips.y + PERSON.hipHeight;
+    this.last = { x: this.x, y: this.y };
+    this.speed = { x: 0, y: 0 };
+    // On a motorbike the legs hang down; inside a car they are stretched out, out of sight
+    this.figure.setPose(poseFor(vehicle.seatInFront ? 'sit' : 'drive', this.clockMs));
+    this.place(this.x, this.y, 0);
   }
 
   /** Go limp, starting from exactly how the doll is standing or moving right now. */
@@ -837,7 +897,10 @@ export class Person extends Body {
     container.rotation = rotation;
     // Lying flat on the ground, it is drawn behind the building pieces: it lies under them
     const flat = this.isDown && Math.abs(Math.sin(rotation)) > 0.7;
-    container.setDepth(flat ? DEPTH.downDoll : DEPTH.person);
+    // Sitting inside a vehicle it is behind it and shows through the windows;
+    // sitting on a motorbike it is in front
+    const sitting = this.seat?.seatInFront ? DEPTH.rider : DEPTH.driver;
+    container.setDepth(this.seat ? sitting : flat ? DEPTH.downDoll : DEPTH.person);
     this.drawn = { x, y, rotation };
   }
 }
