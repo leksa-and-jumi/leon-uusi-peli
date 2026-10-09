@@ -62,6 +62,13 @@ export class Sfx {
     this.tone(SOUND.out.tone);
   }
 
+  /** A laser going off. */
+  zap(): void {
+    if (!this.ready('zap')) return;
+    this.tone(SOUND.zap.tone);
+    this.burst(SOUND.zap.hiss);
+  }
+
   /** Glass breaking. */
   shatter(): void {
     if (!this.ready('shatter')) return;

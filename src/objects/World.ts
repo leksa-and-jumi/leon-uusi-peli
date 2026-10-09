@@ -42,6 +42,8 @@ export interface World {
     aim?: Spot,
     from?: Body,
   ) => void;
+  /** A laser from this spot hits this doll: a beam flashes, and the doll takes the hit. */
+  zap: (fromX: number, fromY: number, victim: Person, damage: number, pushSpeed: number) => void;
   /** Something smashes to pieces, which fly off with this push (pixels per second). */
   breakApart: (body: Body, pushX: number, pushY: number) => void;
   /** Blood sprays or drips from this spot: this many drops of this color. */

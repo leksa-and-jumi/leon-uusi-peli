@@ -503,6 +503,8 @@ export interface BlockDef {
   blast?: BombDef;
   /** It is a vehicle: it can drive. */
   drive?: DriveDef;
+  /** It is a monster: it hunts the dolls. */
+  monster?: MonsterDef;
 }
 
 /** The pieces on the building page. */
@@ -512,7 +514,25 @@ export type JunkBlockKind =
   'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
-export type BlockKind = BuildKind | JunkBlockKind | VehicleKind;
+/** Things that are alive in their own way and go after the dolls. */
+export type MonsterKind = 'skibidi';
+export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind;
+
+/** A monster: always angry. It scoots toward the dolls and zaps them with a laser from its eyes. */
+export interface MonsterDef {
+  /** How far it sees and shoots, and how long it waits between shots. */
+  range: number;
+  everyMs: number;
+  /** How many lives the laser takes (more than any doll has), and how hard it flings the doll. */
+  damage: number;
+  pushSpeed: number;
+  /** How fast it scoots along the ground toward the doll it is after (pixels per second). */
+  speed: number;
+  /** The head that pops out of its top: how big it is, and how high its middle is when in and out. */
+  head: { radius: number; inUp: number; outUp: number; popMs: number };
+  /** The blast when it is shot to bits. */
+  blast: BlastDef;
+}
 
 /** How a vehicle drives, and where its wheels are. */
 export interface DriveDef {
@@ -547,6 +567,29 @@ export interface DriveDef {
    */
   rotor?: { x: number; up: number; length: number; thickness: number; flat: boolean };
 }
+
+/** The head of a skibidi fridge. */
+export const SKIBIDI = {
+  skin: 0xe9bd8f,
+  dark: 0x7a4f2e,
+  hair: 0x3a2a1c,
+  eye: 0xffffff,
+  pupil: 0xff1744,
+  mouth: 0x5a1010,
+  teeth: 0xfffbe6,
+  /** Where its eyes are from the middle of the head, looking the way it faces. */
+  eyes: { x: 5, up: 3 },
+} as const;
+
+/** The laser a monster shoots from its eyes. */
+export const LASER = {
+  color: 0xff1744,
+  core: 0xffffff,
+  width: 7,
+  coreWidth: 2.5,
+  ms: 170,
+  depth: 60,
+} as const;
 
 /** How the rotors and propellers are drawn, and how fast they flicker around. */
 export const ROTOR = { color: 0x24272b, hub: 0x8b949c, turnMs: 70 } as const;
@@ -688,6 +731,22 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       wheels: { xs: [-22, 22], up: 11, radius: 11 },
       seat: { x: -13, up: 30, inFront: true },
       blast: { radius: 140, damage: 2, pushSpeed: 600 },
+    },
+  },
+  skibidi: {
+    halfWidth: 27,
+    height: 112,
+    // Small enough in the menu for the head to fit in the slot too
+    menuScale: 0.44,
+    colors: { fill: 0xdfe7ec, dark: 0x66747d, light: 0xffffff, detail: 0x4d5960 },
+    monster: {
+      range: 560,
+      everyMs: 1300,
+      damage: 99,
+      pushSpeed: 340,
+      speed: 55,
+      head: { radius: 17, inUp: 92, outUp: 131, popMs: 140 },
+      blast: { radius: 150, damage: 3, pushSpeed: 650 },
     },
   },
   helicopter: {
@@ -1137,6 +1196,11 @@ export const SOUND = {
   },
   out: {
     tone: { wave: 'triangle', from: 330, to: 70, seconds: 0.4, volume: 0.4 },
+  },
+  /** A laser: a bright tone that drops fast. */
+  zap: {
+    tone: { wave: 'sawtooth', from: 2200, to: 260, seconds: 0.2, volume: 0.3 },
+    hiss: { from: 8000, to: 1200, seconds: 0.12, volume: 0.25 },
   },
   /** Glass breaking: a sharp crack and a bright tinkle. */
   shatter: {

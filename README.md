@@ -54,6 +54,10 @@
 
 🇫🇮 **Äänet 🔊:** lyönneistä, aseista, laukauksista, räjähdyksistä ja kaatumisista kuuluu ääni. Valikon 🔊-napista ne saa pois ja päälle.
 
+🇬🇧 **Skibidi fridges 🧊:** the last thing on the dolls page is a fridge with a head that pops out of its top. It is always angry. It scoots toward the closest living doll it can see and zaps it with a laser from its eyes, and the doll is out on the first hit, however many lives it had. A wall between them blocks the laser, so dolls can hide. Three bullets blow a skibidi fridge up, and a thrown doll can knock it over.
+
+🇫🇮 **Skibidi-jääkaapit 🧊:** nukkesivun viimeinen on jääkaappi, jonka päältä ponnahtaa pää. Se on aina vihainen. Se hivuttautuu kohti lähintä elävää nukkea, jonka se näkee, ja ampuu sitä laserilla silmistään, ja nukke on poissa pelistä ekasta osumasta, oli sillä kuinka monta elämää tahansa. Välissä oleva seinä pysäyttää laserin, joten nuket voivat piiloutua. Kolme luotia räjäyttää skibidi-jääkaapin, ja heitetty nukke voi kaataa sen.
+
 🇬🇧 **Teams 🎨:** dolls of the same color are on the same side. An angry doll only goes after dolls of another color, and its bullets fly past its own color.
 
 🇫🇮 **Joukkueet 🎨:** samanväriset nuket ovat samalla puolella. Vihainen nukke käy vain erivärisien kimppuun, ja sen luodit lentävät omanväristen ohi.

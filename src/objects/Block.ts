@@ -9,6 +9,7 @@ import {
   PERSON,
   ROTOR,
   PHYSICS,
+  SKIBIDI,
   THING_ACTIONS,
   TOPPLE,
   VEHICLE_ACTIONS,
@@ -23,12 +24,13 @@ import { isTall, leaning, supportSpan, toppled, topplePose } from '../logic/bala
 import { clamp } from '../logic/bounds';
 import { shade } from '../logic/color';
 import { blockedX, liftOut, overlaps } from '../logic/ground';
+import { segmentHit } from '../logic/shot';
 import type { Spot } from '../logic/pick';
 import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
-import { drawJunk } from './junkShapes';
+import { drawJunk, drawSkibidiHead } from './junkShapes';
 import { drawTvProgram } from './tvScreen';
 import { drawParkedVehicle, drawRotor, drawVehicle, drawWheel } from './vehicleShapes';
 import type { World } from './World';
@@ -72,6 +74,10 @@ export class Block extends Body {
   private readonly holes: Phaser.GameObjects.Graphics | null = null;
   /** The doll sitting in a vehicle, driving it. */
   private driver: Person | null = null;
+  /** A monster: its head, how far out it is (0 to 1), and the time left until its next laser. */
+  private readonly head: Phaser.GameObjects.Graphics | null = null;
+  private headOut = 0;
+  private zapWaitMs = 0;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
@@ -82,7 +88,16 @@ export class Block extends Body {
     const { fill, dark, light } = this.def.colors;
     this.crumbs = [fill, dark, light];
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
-    const parts = [isVehicle(kind) ? drawVehicle(blank(), kind) : drawBlock(blank(), kind)];
+    const { monster } = this.def;
+    const parts = [isVehicle(kind) ? drawVehicle(blank(), kind) : drawJunkOrPiece(blank(), kind)];
+    if (monster) {
+      // The head goes behind the fridge, so that it comes up out of its top
+      this.head = drawSkibidiHead(blank(), monster.head.radius);
+      this.head.setPosition(0, -monster.head.inUp);
+      parts.unshift(this.head);
+      this.holes = blank();
+      parts.push(this.holes);
+    }
     if (drive) {
       // The wheels are their own pictures, so that they can turn
       for (const x of drive.wheels.xs) {
@@ -175,18 +190,19 @@ export class Block extends Body {
    * and the last bullet it can take blows it up.
    */
   shot(px: number, py: number, world: World): void {
-    const drive = this.def.drive;
-    if (!drive) {
+    const { drive, monster } = this.def;
+    if (!drive && !monster) {
       this.setOff(0);
       return;
     }
     if (this.exploded) return;
     this.hull -= 1;
-    // The hole goes where the bullet hit, measured on the vehicle's own drawing
-    const across = this.shape.halfWidth / drive.scale;
-    const tall = this.shape.height / drive.scale;
-    const x = clamp(((px - this.x) * this.facing) / drive.scale, -across, across);
-    const y = clamp((py - this.y) / drive.scale, -tall, 0);
+    // The hole goes where the bullet hit, measured on its own drawing
+    const scale = drive?.scale ?? 1;
+    const across = this.def.halfWidth / scale;
+    const tall = this.def.height / scale;
+    const x = clamp(((px - this.x) * this.facing) / scale, -across, across);
+    const y = clamp((py - this.y) / scale, -tall, 0);
     this.holes?.fillStyle(BULLET_HOLE.rim).fillCircle(x, y, BULLET_HOLE.radius + 1);
     this.holes?.fillStyle(BULLET_HOLE.color).fillCircle(x, y, BULLET_HOLE.radius);
     if (this.hull > 0) return;
@@ -229,7 +245,7 @@ export class Block extends Body {
 
   /** The blast it goes off with: a barrel's own, or a vehicle's when it is shot to bits. */
   private get blast(): BlastDef | undefined {
-    return this.def.blast ?? this.def.drive?.blast;
+    return this.def.blast ?? this.def.drive?.blast ?? this.def.monster?.blast;
   }
 
   /** Set a barrel off, or stop it again while its fuse still burns. */
@@ -277,6 +293,7 @@ export class Block extends Body {
       this.drive(deltaMs, world);
     }
     this.spinRotor();
+    this.hunt(deltaMs, world, state);
     const tip = state === 'resting' && !this.tipping ? this.keepBalance(deltaMs, world) : 0;
     if (tip === 0) this.slideSpeed = 0;
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
@@ -338,6 +355,57 @@ export class Block extends Body {
       const deadly = person.hit(this.facing, solids, drive.damage, drive.pushSpeed, 'bruise');
       world.hitEffect(person.feet.x, person.feet.y - PERSON.height / 2, deadly, 'punch');
     }
+  }
+
+  /**
+   * A monster is always angry. It looks for the closest living doll it can see, pops
+   * its head out, scoots toward the doll and zaps it with a laser from its eyes.
+   * With nobody in sight its head bobs up and down, peeking.
+   */
+  private hunt(deltaMs: number, world: World, state: BodyState): void {
+    const monster = this.def.monster;
+    if (!monster || !this.head) return;
+    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    const { head } = monster;
+    const eyesY = this.y - head.outUp - SKIBIDI.eyes.up;
+    const pieces = world.pieces(this);
+    const awake = state === 'resting' && this.fallen === 0;
+
+    // The closest living doll in range that nothing solid hides
+    let victim: Person | null = null;
+    let closest = monster.range;
+    for (const person of awake ? world.people : []) {
+      if (person.dead || person.seated || !person.canBePicked) continue;
+      const body = person.hitBox;
+      const atX = (body.left + body.right) / 2;
+      const atY = (body.top + body.bottom) / 2;
+      const distance = Math.hypot(atX - this.x, atY - eyesY);
+      if (distance >= closest) continue;
+      if (segmentHit(this.x, eyesY, atX, atY, pieces) !== null) continue;
+      victim = person;
+      closest = distance;
+    }
+
+    const peeking = 0.3 + 0.3 * Math.sin(this.clockMs / 420);
+    const wanted = victim ? 1 : awake ? peeking : 0;
+    this.headOut += (wanted - this.headOut) * Math.min(1, deltaMs / head.popMs);
+    this.head.y = -(head.inUp + (head.outUp - head.inUp) * this.headOut);
+    if (!victim) return;
+
+    // Face the doll and scoot toward it
+    const target = victim.feet;
+    this.facing = target.x < this.x ? -1 : 1;
+    const { halfWidth, height } = this.shape;
+    const from = this.x;
+    const step = this.facing * monster.speed * (deltaMs / 1000);
+    const inside = clamp(from + step, world.area.left + halfWidth, world.area.right - halfWidth);
+    this.x = blockedX(from, inside, halfWidth, this.y, height, pieces, 0);
+    world.carry(this, this.x - from);
+
+    if (this.zapWaitMs > 0 || this.headOut < 0.9) return;
+    this.zapWaitMs = monster.everyMs;
+    const eyesX = this.x + this.facing * SKIBIDI.eyes.x;
+    world.zap(eyesX, eyesY, victim, monster.damage, monster.pushSpeed);
   }
 
   /**
@@ -407,6 +475,14 @@ type Graphics = Phaser.GameObjects.Graphics;
 
 function isVehicle(kind: BlockKind): kind is VehicleKind {
   return BLOCKS[kind].drive !== undefined;
+}
+
+/**
+ * Draws a piece for the area. A monster gets its fridge only: its head is a picture
+ * of its own, so that it can pop in and out.
+ */
+function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
+  return kind === 'skibidi' ? drawJunk(g, 'fridge') : drawBlock(g, kind);
 }
 
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
