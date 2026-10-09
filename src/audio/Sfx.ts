@@ -62,6 +62,13 @@ export class Sfx {
     this.tone(SOUND.out.tone);
   }
 
+  /** One note of the skibidis' tune. A pitch of 0 is a rest. */
+  note(pitch: number): void {
+    if (pitch <= 0 || !this.ready('note')) return;
+    const { wave, seconds, volume } = SOUND.chant;
+    this.tone({ wave, from: pitch, to: pitch * 0.97, seconds, volume });
+  }
+
   /** A laser going off. */
   zap(): void {
     if (!this.ready('zap')) return;
