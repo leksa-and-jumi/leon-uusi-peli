@@ -444,11 +444,11 @@ export const MENU = {
   color: 0x2b2b2b,
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
-  tabs: { x: 8, y: 5, width: 46, height: 16, gap: 2.5, vertical: true },
+  tabs: { x: 6, y: 7, width: 24, height: 26, gap: 4, vertical: true, wrap: 3 },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
-  tabFontSize: '12px',
+  tabFontSize: '15px',
   slots: { x: 66, y: 10, width: 64, height: 80, gap: 8 },
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
@@ -480,6 +480,7 @@ export const TABS = [
   { id: 'build', emoji: '🧱' },
   { id: 'junk', emoji: '🚽' },
   { id: 'vehicles', emoji: '🚗' },
+  { id: 'monsters', emoji: '👾' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -515,7 +516,7 @@ export type JunkBlockKind =
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
 /** Things that are alive in their own way and go after the dolls. */
-export type MonsterKind = 'skibidi';
+export type MonsterKind = 'skibidi' | 'skibidiToilet';
 export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind;
 
 /** A monster: always angry. It scoots toward the dolls and zaps them with a laser from its eyes. */
@@ -528,8 +529,13 @@ export interface MonsterDef {
   pushSpeed: number;
   /** How fast it scoots along the ground toward the doll it is after (pixels per second). */
   speed: number;
-  /** The head that pops out of its top: how big it is, and how high its middle is when in and out. */
-  head: { radius: number; inUp: number; outUp: number; popMs: number };
+  /** The piece of junk it lives in. */
+  body: JunkBlockKind;
+  /**
+   * The head that pops out of its top: how big it is, how far in front of the middle
+   * it comes up, and how high its middle is when in and out.
+   */
+  head: { radius: number; x: number; inUp: number; outUp: number; popMs: number };
   /** The blast when it is shot to bits. */
   blast: BlastDef;
 }
@@ -582,6 +588,20 @@ export const SKIBIDI = {
   /** Its head sways from side to side: this far (radians), one sway in this long. */
   sway: 0.24,
   swayMs: 300,
+} as const;
+
+/** What a laser leaves of a thing: a puff of ash that drifts down and is soon gone. */
+export const ASH = {
+  colors: [0x2b2b2b, 0x4a4a4a, 0x6b6b6b, 0x141414],
+  /** One flake for every this many square pixels of the thing, between the least and the most. */
+  areaPerFlake: 90,
+  least: 10,
+  most: 46,
+  burst: { spread: 55, size: { min: 2, max: 5 }, spin: 5 },
+  /** The flakes puff up a little before they sink. */
+  lift: -70,
+  lieMs: 450,
+  fadeMs: 750,
 } as const;
 
 /** The laser a monster shoots from its eyes. */
@@ -748,8 +768,26 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       damage: 99,
       pushSpeed: 340,
       speed: 55,
-      head: { radius: 17, inUp: 92, outUp: 131, popMs: 140 },
+      body: 'fridge',
+      head: { radius: 17, x: 0, inUp: 92, outUp: 131, popMs: 140 },
       blast: { radius: 150, damage: 3, pushSpeed: 650 },
+    },
+  },
+  skibidiToilet: {
+    halfWidth: 25,
+    height: 58,
+    menuScale: 0.75,
+    colors: { fill: 0xf4f6f7, dark: 0x8b979e, light: 0xffffff, detail: 0xc3ccd1 },
+    // Smaller and quicker than the fridge, but it doesn't see as far
+    monster: {
+      range: 420,
+      everyMs: 1100,
+      damage: 99,
+      pushSpeed: 300,
+      speed: 95,
+      body: 'toilet',
+      head: { radius: 15, x: 6, inUp: 22, outUp: 60, popMs: 140 },
+      blast: { radius: 120, damage: 3, pushSpeed: 600 },
     },
   },
   helicopter: {
@@ -1017,6 +1055,7 @@ export const BUILD_KINDS: readonly BuildKind[] = [
   'girder',
   'barrel',
 ];
+export const MONSTER_KINDS: readonly MonsterKind[] = ['skibidi', 'skibidiToilet'];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'car',
   'truck',
@@ -1199,6 +1238,17 @@ export const SOUND = {
   },
   out: {
     tone: { wave: 'triangle', from: 330, to: 70, seconds: 0.4, volume: 0.4 },
+  },
+  /**
+   * The little tune the skibidis bop along to: an own tune, one note per beat (in
+   * Hz, 0 is a rest), played over and over while one of them is around.
+   */
+  chant: {
+    beatMs: 210,
+    wave: 'square',
+    seconds: 0.13,
+    volume: 0.11,
+    notes: [147, 147, 0, 196, 147, 0, 220, 196, 147, 147, 0, 262, 247, 196, 175, 0],
   },
   /** A laser: a bright tone that drops fast. */
   zap: {

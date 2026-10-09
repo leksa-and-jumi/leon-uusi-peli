@@ -23,6 +23,21 @@ describe('a vertical row', () => {
   });
 });
 
+describe('a vertical row that wraps', () => {
+  const columns = { ...row, vertical: true, wrap: 3 };
+
+  it('starts a new column beside the first one', () => {
+    expect(slotRect(columns, 2)).toEqual({ x: 10, y: 145, width: 50, height: 60 });
+    expect(slotRect(columns, 3)).toEqual({ x: 70, y: 5, width: 50, height: 60 });
+    expect(slotRect(columns, 5)).toEqual({ x: 70, y: 145, width: 50, height: 60 });
+  });
+
+  it('finds the slot under the point in either column', () => {
+    expect(slotAt(columns, 6, 30, 100)).toBe(1);
+    expect(slotAt(columns, 6, 90, 100)).toBe(4);
+  });
+});
+
 describe('slotAt', () => {
   it('finds the slot under the point', () => {
     expect(slotAt(row, 3, 10, 5)).toBe(0);

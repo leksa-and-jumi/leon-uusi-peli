@@ -27,16 +27,16 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
       return drawTable(g, def);
     case 'fridge':
       return drawFridge(g, def);
-    case 'skibidi': {
-      // In the menu the head is drawn popped out, behind the fridge it lives in
-      const head = def.monster?.head;
-      if (head) {
-        g.save();
-        g.translateCanvas(0, -head.outUp);
-        drawSkibidiHead(g, head.radius);
-        g.restore();
-      }
-      return drawFridge(g, def);
+    case 'skibidi':
+    case 'skibidiToilet': {
+      // In the menu the head is drawn popped out, behind the thing it lives in
+      const monster = def.monster;
+      if (!monster) return g;
+      g.save();
+      g.translateCanvas(monster.head.x, -monster.head.outUp);
+      drawSkibidiHead(g, monster.head.radius);
+      g.restore();
+      return drawJunk(g, monster.body);
     }
     case 'cone':
       return drawCone(g, def);

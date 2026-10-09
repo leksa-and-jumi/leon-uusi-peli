@@ -93,7 +93,7 @@ export class Block extends Body {
     if (monster) {
       // The head goes behind the fridge, so that it comes up out of its top
       this.head = drawSkibidiHead(blank(), monster.head.radius);
-      this.head.setPosition(0, -monster.head.inUp);
+      this.head.setPosition(monster.head.x, -monster.head.inUp);
       parts.unshift(this.head);
       this.holes = blank();
       parts.push(this.holes);
@@ -408,7 +408,7 @@ export class Block extends Body {
 
     if (this.zapWaitMs > 0 || this.headOut < 0.9) return;
     this.zapWaitMs = monster.everyMs;
-    const eyesX = this.x + this.facing * SKIBIDI.eyes.x;
+    const eyesX = this.x + this.facing * (head.x + SKIBIDI.eyes.x);
     world.zap(eyesX, eyesY, victim, monster.damage, monster.pushSpeed);
   }
 
@@ -433,7 +433,8 @@ export class Block extends Body {
     if (!thing) return;
     this.zapWaitMs = this.def.monster?.everyMs ?? 0;
     this.facing = thing.feet.x < this.x ? -1 : 1;
-    world.zapThing(this.x + this.facing * SKIBIDI.eyes.x, eyesY, thing);
+    const eyesX = this.x + this.facing * ((this.def.monster?.head.x ?? 0) + SKIBIDI.eyes.x);
+    world.zapThing(eyesX, eyesY, thing);
   }
 
   /**
@@ -510,7 +511,8 @@ function isVehicle(kind: BlockKind): kind is VehicleKind {
  * of its own, so that it can pop in and out.
  */
 function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
-  return kind === 'skibidi' ? drawJunk(g, 'fridge') : drawBlock(g, kind);
+  const monster = BLOCKS[kind].monster;
+  return monster ? drawJunk(g, monster.body) : drawBlock(g, kind);
 }
 
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {
+  ASH,
   BLAST,
   BLOCKS,
   BLOOD,
@@ -77,6 +78,9 @@ interface Piece {
   crumb: Crumb;
   picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc;
   blood: number | null;
+  /** How long it lies there before it starts to fade, and how long fading takes. */
+  lieMs: number;
+  fadeMs: number;
 }
 
 /**
@@ -109,6 +113,9 @@ export class MainScene extends Phaser.Scene {
   private downDolls: Box[] = [];
   /** Things destroyed during this frame, waiting to be taken out of the game. */
   private doomed: Body[] = [];
+  /** Where the monsters' tune is: time into the beat, and which beat. */
+  private chantMs = 0;
+  private chantBeat = 0;
   private world!: World;
 
   constructor() {
@@ -215,6 +222,7 @@ export class MainScene extends Phaser.Scene {
     }
     this.forget(this.doomed);
     this.doomed = [];
+    this.chant(delta);
     this.updateBullets(delta);
     this.updatePieces(delta);
     this.sweep();
@@ -670,6 +678,22 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
   }
 
+  /** While a monster is in the area, its little tune plays over and over, a note per beat. */
+  private chant(delta: number): void {
+    if (!this.blocks.some((block) => block.def.monster)) {
+      this.chantMs = 0;
+      this.chantBeat = 0;
+      return;
+    }
+    this.chantMs += delta;
+    const { beatMs, notes } = SOUND.chant;
+    while (this.chantMs >= beatMs) {
+      this.chantMs -= beatMs;
+      this.sfx.note(notes[this.chantBeat % notes.length] ?? 0);
+      this.chantBeat += 1;
+    }
+  }
+
   /** A laser beam flashes from one spot to another and fades, with its sound. */
   private beam(fromX: number, fromY: number, toX: number, toY: number): void {
     const beam = this.add.graphics().setDepth(LASER.depth);
@@ -706,23 +730,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   /**
-   * A laser hits a thing and destroys it. A bomb, a barrel or a vehicle goes off with
-   * its own blast; everything else bursts into pieces that fly away from the laser.
+   * A laser hits a thing and burns it up: it turns straight to ash, whatever it was.
+   * Nothing explodes and no pieces are left.
    */
   private zapThing(fromX: number, fromY: number, thing: Body): void {
     const box = thing.box;
-    const atX = (box.left + box.right) / 2;
-    this.beam(fromX, fromY, atX, (box.top + box.bottom) / 2);
-    if (thing instanceof Block && thing.explosive) {
-      thing.setOff(0);
-      return;
-    }
-    if (thing instanceof Item && thing.def.bomb) {
-      thing.setOff(0);
-      return;
-    }
-    const away = (atX < fromX ? -1 : 1) * DEBRIS.blastPush;
-    this.crumble(thing, away, -DEBRIS.blastLift);
+    this.beam(fromX, fromY, (box.left + box.right) / 2, (box.top + box.bottom) / 2);
+    this.burnToAsh(thing);
     this.sfx.crumble();
     // It is taken out of the game once everything has had its turn this frame
     this.doomed.push(thing);
@@ -739,7 +753,21 @@ export class MainScene extends Phaser.Scene {
       const picture = this.add
         .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
         .setDepth(DEBRIS.depth);
-      this.pieces.push({ crumb, picture, blood: null });
+      this.pieces.push({ crumb, picture, blood: null, lieMs: DEBRIS.lieMs, fadeMs: DEBRIS.fadeMs });
+    }
+    this.trimPieces();
+  }
+
+  /** Burn something to ash: a puff of gray flakes that drift down and are soon gone. */
+  private burnToAsh(body: Body): void {
+    const box = body.box;
+    const count = crumbCount(box, ASH.areaPerFlake, ASH.least, ASH.most);
+    for (const crumb of scatter(box, count, { ...ASH.burst, pushX: 0, pushY: ASH.lift })) {
+      const color = ASH.colors[Math.floor(Math.random() * ASH.colors.length)] ?? 0;
+      const picture = this.add
+        .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
+        .setDepth(DEBRIS.depth);
+      this.pieces.push({ crumb, picture, blood: null, lieMs: ASH.lieMs, fadeMs: ASH.fadeMs });
     }
     this.trimPieces();
   }
@@ -754,7 +782,7 @@ export class MainScene extends Phaser.Scene {
       const picture = this.add
         .circle(crumb.x, crumb.y, crumb.size / 2, color)
         .setDepth(DEBRIS.depth);
-      this.pieces.push({ crumb, picture, blood: color });
+      this.pieces.push({ crumb, picture, blood: color, lieMs: 0, fadeMs: 0 });
     }
     this.trimPieces();
   }
@@ -787,7 +815,7 @@ export class MainScene extends Phaser.Scene {
         piece.picture.destroy();
         return false;
       }
-      const alpha = crumbAlpha(ageMs, DEBRIS.lieMs, DEBRIS.fadeMs);
+      const alpha = crumbAlpha(ageMs, piece.lieMs, piece.fadeMs);
       if (alpha <= 0) {
         piece.picture.destroy();
         return false;
