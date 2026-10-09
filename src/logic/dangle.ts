@@ -11,6 +11,8 @@ export interface Swinger {
 export interface Joint {
   stiffness: number;
   damping: number;
+  /** It never turns faster than this (radians per second), however hard it is flung. */
+  maxSpeed?: number;
 }
 
 /** Longer frames are cut to this, so a slow frame can't make joints fly off. */
@@ -20,7 +22,8 @@ const MAX_STEP_MS = 33;
 export function dangleStep(swinger: Swinger, rest: number, joint: Joint, deltaMs: number): Swinger {
   const seconds = Math.min(deltaMs, MAX_STEP_MS) / 1000;
   const pull = -joint.stiffness * (swinger.angle - rest) - joint.damping * swinger.speed;
-  const speed = swinger.speed + pull * seconds;
+  const most = joint.maxSpeed ?? Infinity;
+  const speed = clamp(swinger.speed + pull * seconds, -most, most);
   return { angle: swinger.angle + speed * seconds, speed };
 }
 
@@ -54,8 +57,7 @@ export const JOINT_KEYS = [
 
 /** How a limp doll hangs in the air. */
 export interface Hang {
-  /** Upper arms and thighs can't swing further than this from straight along the body. */
-  armMax: number;
+  /** Thighs can't swing further than this from straight along the body. Arms turn freely. */
   legMax: number;
   /** Elbows only bend forward and knees only back, at most this far. */
   elbowMax: number;
@@ -75,17 +77,31 @@ export interface Hang {
  * hangs straight down as far as its joint lets it. `down` is the way straight down,
  * seen from the doll (0 when it hangs upright and still). `float` goes from 0 to 1 as
  * the doll drops faster: its arms and legs fly up and apart.
+ *
+ * `current` is the pose the doll is in now. The same direction can be written with
+ * whole turns added, and each limb goes for the one closest to where it already is.
+ * Without that, a doll hanging upside down would have "down" jump from one side to
+ * the other all the time, and its arms would whip around in circles.
  */
-export function hangingRest(flop: Pose, down: number, hang: Hang, float = 0): Pose {
-  const upper = (max: number, own: number, apart: number): number =>
-    clamp(down, -max, max) + own * hang.spread + apart;
-  const frontArm = upper(hang.armMax, flop.frontArm, -float * hang.armFloat);
-  const backArm = upper(hang.armMax, flop.backArm, float * hang.armFloat);
-  const frontLeg = upper(hang.legMax, flop.frontLeg, -float * hang.legFloat);
-  const backLeg = upper(hang.legMax, flop.backLeg, float * hang.legFloat);
+export function hangingRest(
+  flop: Pose,
+  down: number,
+  hang: Hang,
+  float = 0,
+  current: Pose = ZERO,
+): Pose {
+  // Arms turn freely at the shoulder; the other joints only go so far
+  const free = (now: number): number => nearestTurn(down, now);
+  const limited = (now: number, max: number): number => clamp(free(now), -max, max);
+  const frontArm = free(current.frontArm) + flop.frontArm * hang.spread - float * hang.armFloat;
+  const backArm = free(current.backArm) + flop.backArm * hang.spread + float * hang.armFloat;
+  const frontLeg =
+    limited(current.frontLeg, hang.legMax) + flop.frontLeg * hang.spread - float * hang.legFloat;
+  const backLeg =
+    limited(current.backLeg, hang.legMax) + flop.backLeg * hang.spread + float * hang.legFloat;
   // Forearms and shins hang down from the elbow and the knee, as far as those bend
-  const elbow = (arm: number): number => clamp(down - arm, -hang.elbowMax, 0);
-  const knee = (leg: number): number => clamp(down - leg, 0, hang.kneeMax);
+  const elbow = (arm: number): number => clamp(wrapAngle(down - arm), -hang.elbowMax, 0);
+  const knee = (leg: number): number => clamp(wrapAngle(down - leg), 0, hang.kneeMax);
   return {
     frontArm,
     backArm,
@@ -95,8 +111,8 @@ export function hangingRest(flop: Pose, down: number, hang: Hang, float = 0): Po
     backElbow: elbow(backArm),
     frontKnee: knee(frontLeg),
     backKnee: knee(backLeg),
-    waist: clamp(down, -hang.waistMax, hang.waistMax),
-    head: clamp(down, -hang.headMax, hang.headMax),
+    waist: limited(current.waist, hang.waistMax),
+    head: limited(current.head, hang.headMax),
     lift: 0,
     lean: 0,
   };
@@ -138,8 +154,9 @@ export function lyingRest(
     return wrapAngle(target - upperRest);
   };
 
-  const frontArm = upper(current.frontArm, sag.frontArm, Math.PI);
-  const backArm = upper(current.backArm, sag.backArm, Math.PI);
+  // Arms turn freely, so they lie down the short way from wherever they are
+  const frontArm = upper(current.frontArm, sag.frontArm, Infinity);
+  const backArm = upper(current.backArm, sag.backArm, Infinity);
   const frontLeg = upper(current.frontLeg, sag.frontLeg, hang.legMax);
   const backLeg = upper(current.backLeg, sag.backLeg, hang.legMax);
   const elbow = (now: number, bend: number, rest: number, sagBy: number): number =>

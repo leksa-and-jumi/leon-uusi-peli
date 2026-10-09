@@ -37,7 +37,7 @@ export const PHYSICS = {
   /** Feet this little inside a box still count as standing on top of it. */
   groundSlack: 2,
   /** Something flying up bounces off the ceiling with this much of its speed. */
-  ceilingBounce: 0.45,
+  ceilingBounce: 0.2,
   /** Things this low don't stop a walking doll: it steps up onto them (a plank, not a crate). */
   stepUp: 20,
 } as const;
@@ -259,11 +259,11 @@ export const KNOCK = {
  */
 export const LIMP = {
   /** Arms, elbows and the head: light and loose. */
-  loose: { stiffness: 17, damping: 1.4 },
+  loose: { stiffness: 26, damping: 3.8, maxSpeed: 13 },
   /** Legs, knees and the waist: heavier, so they calm down a bit sooner. */
-  heavy: { stiffness: 25, damping: 2.2 },
+  heavy: { stiffness: 34, damping: 5, maxSpeed: 11 },
   /** The whole body swinging from the hand that holds it. */
-  hangBody: { stiffness: 14, damping: 1.6 },
+  hangBody: { stiffness: 22, damping: 3.8, maxSpeed: 9 },
   /** Every joint once the doll lies on the ground: it drops flat and stays there. */
   ground: { stiffness: 70, damping: 12 },
   /** How much arms and legs sag toward the floor when lying, at most (radians). */
@@ -271,15 +271,14 @@ export const LIMP = {
   /** The whole body flopping down flat on the ground. */
   settle: { stiffness: 110, damping: 13 },
   /** How far limbs trail behind when the doll is moved (radians per pixel per second). */
-  limbTrail: 0.005,
-  limbTrailMax: 2.4,
+  limbTrail: 0.0032,
+  limbTrailMax: 1.4,
   /** The same for the whole body hanging from the hand. */
-  bodyTrail: 0.0026,
-  bodyTrailMax: 1.5,
+  bodyTrail: 0.0017,
+  bodyTrailMax: 0.95,
   /** How soon arms and legs fly apart when the doll drops (per pixel per second). */
   floatTrail: 0.0022,
   hang: {
-    armMax: 2.9,
     legMax: 1.3,
     elbowMax: 2.3,
     kneeMax: 2.2,
@@ -321,7 +320,7 @@ export const TOSS = {
   /** A thrown doll is pulled down less, so it flies in a longer arc. */
   gravityScale: 0.6,
   /** It bounces off the ground with this much of its speed, when it lands at least this fast. */
-  floorBounce: 0.42,
+  floorBounce: 0.3,
   bounceMinSpeed: 420,
   /** A thrown doll at least this fast knocks over the dolls it hits. */
   knockSpeed: 170,
@@ -332,7 +331,8 @@ export const TOSS = {
   pushShare: 0.55,
   /** How much speed the thrown doll keeps after hitting someone, or bouncing off a wall. */
   keep: 0.85,
-  bounce: 0.5,
+  /** Off a wall it hardly bounces at all: it stops there and drops. */
+  bounce: 0.02,
   /** On the ground it slides to a stop in about this long. */
   slideMs: 320,
   stopSpeed: 15,

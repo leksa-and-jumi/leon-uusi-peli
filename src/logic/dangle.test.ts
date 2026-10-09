@@ -40,6 +40,12 @@ describe('dangleStep', () => {
     expect(Math.abs(swinger.speed)).toBeLessThan(0.05);
   });
 
+  it('never turns faster than the joint allows', () => {
+    const capped = { ...joint, maxSpeed: 2 };
+    const next = dangleStep({ angle: 5, speed: -50 }, 0, capped, 16);
+    expect(next.speed).toBe(-2);
+  });
+
   it('stays calm even after a very long frame', () => {
     const next = dangleStep({ angle: 1, speed: 0 }, 0, joint, 5000);
     expect(Math.abs(next.angle)).toBeLessThanOrEqual(1);
@@ -73,7 +79,6 @@ describe('trail', () => {
 
 describe('hangingRest', () => {
   const hang = {
-    armMax: 2.9,
     legMax: 1.1,
     elbowMax: 2,
     kneeMax: 2,
@@ -100,6 +105,25 @@ describe('hangingRest', () => {
     expect(rest.frontLeg).toBeCloseTo(1.1);
   });
 
+  it('keeps every limb on its side when straight down passes overhead', () => {
+    // Hanging upside down and swaying a little, "down" is now just under π and now
+    // just over it, which is the same as just above -π
+    const upsideDown = { ...STILL, frontArm: 3, backArm: -3, frontLeg: 1.1, backLeg: -1.1 };
+    const before = hangingRest(flop, Math.PI - 0.05, hang, 0, upsideDown);
+    const after = hangingRest(flop, -Math.PI + 0.05, hang, 0, upsideDown);
+    expect(after.frontArm).toBeCloseTo(before.frontArm + 0.1);
+    expect(after.backArm).toBeCloseTo(before.backArm + 0.1);
+    expect(after.frontLeg).toBeCloseTo(before.frontLeg);
+    expect(after.backLeg).toBeCloseTo(before.backLeg);
+    expect(before.frontLeg).toBeCloseTo(1.1);
+    expect(before.backLeg).toBeCloseTo(-1.1);
+  });
+
+  it('lets an arm that has gone all the way around hang where it is', () => {
+    const wound = { ...STILL, frontArm: Math.PI * 2 + 0.2 };
+    expect(hangingRest(flop, 0, hang, 0, wound).frontArm).toBeCloseTo(Math.PI * 2);
+  });
+
   it('bends the knees to let the shins hang where the thighs cannot reach', () => {
     const rest = hangingRest(flop, 2.5, hang);
     expect(rest.frontKnee).toBeCloseTo(1.4);
@@ -107,9 +131,16 @@ describe('hangingRest', () => {
   });
 
   it('bends the elbows only forward and the knees only back', () => {
-    const forward = hangingRest(flop, -3.1, hang);
-    expect(forward.frontElbow).toBeCloseTo(-0.2);
-    expect(forward.frontKnee).toBe(0);
+    // With a spread, one arm hangs a little behind straight down and one a little ahead
+    const spread = { ...hang, spread: 0.2 };
+    const apart = { ...STILL, frontArm: 2, backArm: -2 };
+    const rest = hangingRest(apart, 0, spread);
+    expect(rest.frontElbow).toBeCloseTo(-0.4);
+    expect(rest.backElbow).toBeCloseTo(0);
+    // Thighs that can't reach straight down the other way leave the knees straight
+    const back = hangingRest(flop, -2.5, hang);
+    expect(back.frontLeg).toBeCloseTo(-1.1);
+    expect(back.frontKnee).toBe(0);
   });
 
   it('tips the head and the waist, but not too far', () => {
@@ -191,7 +222,6 @@ describe('nearestTurn', () => {
 
 describe('lyingRest', () => {
   const hang = {
-    armMax: 2.9,
     legMax: 1.3,
     elbowMax: 2.3,
     kneeMax: 2.2,
