@@ -8,6 +8,7 @@ import {
   MENU,
   PEOPLE,
   TABS,
+  VEHICLE_KINDS,
   WEAPON_KINDS,
   type BlockKind,
   type ItemKind,
@@ -36,6 +37,7 @@ const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
   items: [NOTHING, ...WEAPON_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
   build: [NOTHING, ...BUILD_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   junk: [NOTHING, ...JUNK_KINDS],
+  vehicles: [NOTHING, ...VEHICLE_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
 };
 
 /**

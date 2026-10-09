@@ -18,6 +18,7 @@ import {
   ITEMS,
   MENU,
   PERSON,
+  RIDE_GAP,
   SOUND,
   SWING,
   THINGS_MAX,
@@ -31,7 +32,7 @@ import { Sfx } from '../audio/Sfx';
 import { blastDirection, inBlast } from '../logic/blast';
 import { addDrop, wipe, type Stain } from '../logic/blood';
 import { crumbAlpha, crumbCount, crumbStep, scatter, type Crumb } from '../logic/debris';
-import { overlaps, type Box } from '../logic/ground';
+import { overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
 import { sweepHit } from '../logic/shot';
@@ -128,6 +129,11 @@ export class MainScene extends Phaser.Scene {
       pinned: (person) => this.pinned(person),
       shove: (box, direction) => {
         this.shove(box, direction);
+      },
+      pieces: (body) =>
+        this.solids.filter((solid) => solid.body !== body).map((solid) => solid.box),
+      carry: (vehicle, dx) => {
+        this.carry(vehicle, dx);
       },
       landed: (fallSpeed) => {
         const { quietestFall, loudestFall } = SOUND.thud;
@@ -230,6 +236,21 @@ export class MainScene extends Phaser.Scene {
         box.right > body.left &&
         Math.abs(box.bottom - body.top) <= CRUSH.restGap,
     );
+  }
+
+  /**
+   * A vehicle has moved `dx` sideways: whatever stands on it goes along, and so does
+   * whatever stands on that.
+   */
+  private carry(carrier: Body, dx: number, depth = 0): void {
+    if (dx === 0 || depth > 4) return;
+    const under = carrier.box;
+    for (const body of this.everything()) {
+      if (body === carrier || !body.riding) continue;
+      if (!standsOn(body.box, under, RIDE_GAP, Math.abs(dx))) continue;
+      body.nudge(dx);
+      this.carry(body, dx, depth + 1);
+    }
   }
 
   /** Something heavy and fast runs into the tall pieces right at `box`: they fall over. */
@@ -381,7 +402,7 @@ export class MainScene extends Phaser.Scene {
         this.bubbles.close();
         break;
       case 'turn':
-        if (body instanceof Person || body instanceof Item) body.turn();
+        if (body instanceof Person || body instanceof Item || body instanceof Block) body.turn();
         this.bubbles.flash('turn');
         break;
       case 'drop':
@@ -398,6 +419,9 @@ export class MainScene extends Phaser.Scene {
         break;
       case 'fire':
         if (body instanceof Item) body.toggleFire();
+        break;
+      case 'drive':
+        if (body instanceof Block) body.toggleDrive();
         break;
     }
   }

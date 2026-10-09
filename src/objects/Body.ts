@@ -78,6 +78,16 @@ export abstract class Body {
     return this.flying === null;
   }
 
+  /** Standing on something and not in anybody's hand: it rides along when that thing drives. */
+  get riding(): boolean {
+    return this.state === 'resting' && !this.held;
+  }
+
+  /** Carried sideways by the vehicle it stands on. */
+  nudge(dx: number): void {
+    this.x += dx;
+  }
+
   /** Solid and staying put, so others can stand on it. */
   get carries(): boolean {
     return this.solid && !this.held && this.flying === null;

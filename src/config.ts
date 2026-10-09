@@ -82,6 +82,12 @@ export const TOPPLE = {
   reach: 4,
 } as const;
 
+/** How the wheels of the vehicles are drawn. */
+export const WHEEL = { tire: 0x1c1c1f, rim: 0xb0b8c0, hub: 0x555b63, spokes: 4 } as const;
+
+/** Something that stands this close above a vehicle rides along with it. */
+export const RIDE_GAP = 3;
+
 /** Something solid landing on a doll squashes it down. */
 export const CRUSH = {
   /**
@@ -385,6 +391,7 @@ export const ACTION_EMOJI = {
   drop: '✋',
   fuse: '🔥',
   fire: '💥',
+  drive: '🏁',
 } as const;
 
 export type ActionId = keyof typeof ACTION_EMOJI;
@@ -403,6 +410,8 @@ export const THING_ACTIONS: readonly ActionId[] = ['throw'];
 export const BOMB_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
 /** A barrel can be set off the same way. */
 export const BARREL_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
+/** The bubbles of a vehicle: turn it around, and make it drive. */
+export const VEHICLE_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'drive'];
 /** The bubbles of a gun: turn it around, and make it fire nonstop. */
 export const GUN_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'fire'];
 /** The most bubbles anything has. */
@@ -429,11 +438,11 @@ export const MENU = {
   color: 0x2b2b2b,
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
-  tabs: { x: 8, y: 7, width: 46, height: 20, gap: 2, vertical: true },
+  tabs: { x: 8, y: 5, width: 46, height: 16, gap: 2.5, vertical: true },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
-  tabFontSize: '14px',
+  tabFontSize: '12px',
   slots: { x: 66, y: 10, width: 64, height: 80, gap: 8 },
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
@@ -464,6 +473,7 @@ export const TABS = [
   { id: 'items', emoji: '🔫' },
   { id: 'build', emoji: '🧱' },
   { id: 'junk', emoji: '🚽' },
+  { id: 'vehicles', emoji: '🚗' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -485,6 +495,8 @@ export interface BlockDef {
   colors: { fill: number; dark: number; light: number; detail: number };
   /** It explodes when a bullet or another blast hits it. */
   blast?: BombDef;
+  /** It is a vehicle: it can drive. */
+  drive?: DriveDef;
 }
 
 /** The pieces on the building page. */
@@ -492,7 +504,20 @@ export type BuildKind = 'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barre
 /** Junk that is solid like a building piece: you can stack it and stand on it. */
 export type JunkBlockKind =
   'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire';
-export type BlockKind = BuildKind | JunkBlockKind;
+/** The things on the vehicles page. They are solid like building pieces, and they drive. */
+export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard';
+export type BlockKind = BuildKind | JunkBlockKind | VehicleKind;
+
+/** How a vehicle drives, and where its wheels are. */
+export interface DriveDef {
+  /** Pixels per second. */
+  speed: number;
+  /** How many lives a doll loses when the vehicle drives into it, and how hard it is flung. */
+  damage: number;
+  pushSpeed: number;
+  /** The wheels: how far each one is from the middle, how high their middle is, and how big they are. */
+  wheels: { xs: readonly number[]; up: number; radius: number };
+}
 
 export const BLOCKS: Record<BlockKind, BlockDef> = {
   crate: {
@@ -573,6 +598,39 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     height: 42,
     menuScale: 1.35,
     colors: { fill: 0xf57c00, dark: 0x9a4a00, light: 0xffb056, detail: 0xfafafa },
+  },
+  car: {
+    halfWidth: 52,
+    height: 40,
+    menuScale: 0.6,
+    colors: { fill: 0xd32f2f, dark: 0x6d1414, light: 0xff8a80, detail: 0x9fd6f2 },
+    drive: { speed: 260, damage: 1, pushSpeed: 520, wheels: { xs: [-30, 30], up: 9, radius: 9 } },
+  },
+  truck: {
+    halfWidth: 78,
+    height: 62,
+    menuScale: 0.4,
+    colors: { fill: 0x1976d2, dark: 0x0d3c73, light: 0x7fb8f0, detail: 0xe6ebee },
+    drive: {
+      speed: 180,
+      damage: 2,
+      pushSpeed: 640,
+      wheels: { xs: [-52, -26, 48], up: 11, radius: 11 },
+    },
+  },
+  bike: {
+    halfWidth: 34,
+    height: 40,
+    menuScale: 0.9,
+    colors: { fill: 0xf9a825, dark: 0x2a2a2e, light: 0xffe082, detail: 0x9aa3ad },
+    drive: { speed: 360, damage: 1, pushSpeed: 420, wheels: { xs: [-22, 22], up: 11, radius: 11 } },
+  },
+  skateboard: {
+    halfWidth: 27,
+    height: 10,
+    menuScale: 1.1,
+    colors: { fill: 0x7e57c2, dark: 0x3b2470, light: 0xb39ddb, detail: 0xe0e0e0 },
+    drive: { speed: 210, damage: 0, pushSpeed: 260, wheels: { xs: [-17, 17], up: 3, radius: 3 } },
   },
   tire: {
     halfWidth: 24,
@@ -792,6 +850,7 @@ export const BUILD_KINDS: readonly BuildKind[] = [
   'girder',
   'barrel',
 ];
+export const VEHICLE_KINDS: readonly VehicleKind[] = ['car', 'truck', 'bike', 'skateboard'];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
 )[] = [
