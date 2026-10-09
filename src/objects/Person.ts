@@ -553,7 +553,9 @@ export class Person extends Body {
     if (this.x !== wanted) {
       // Thrown hard into a tall piece, it knocks the piece over
       if (Math.abs(this.vx) >= TOPPLE.minSpeed) world.shove(this.box, this.vx < 0 ? -1 : 1);
+      // It stops at the wall and drops down, with its full weight again
       this.vx *= -TOSS.bounce;
+      this.gravityScale = 1;
     }
     if (this.state === 'resting') this.vx *= Math.exp(-deltaMs / TOSS.slideMs);
     if (Math.abs(this.vx) < TOSS.stopSpeed) this.vx = 0;
@@ -643,7 +645,7 @@ export class Person extends Body {
     const pulled = trail(this.speed.x, LIMP.limbTrail, LIMP.limbTrailMax);
     const down = this.facing * wrapAngle(pulled - rotation);
     const float = Math.max(0, trail(this.speed.y, LIMP.floatTrail, 1));
-    const hanging = hangingRest(this.flop, down, LIMP.hang, float);
+    const hanging = hangingRest(this.flop, down, LIMP.hang, float, this.limbs);
     // The further it has tipped over on the ground, the more its limbs lie down flat
     const flatness =
       state === 'resting' ? clamp((Math.abs(Math.sin(rotation)) - 0.4) / 0.4, 0, 1) : 0;
