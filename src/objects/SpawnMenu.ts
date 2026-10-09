@@ -187,7 +187,9 @@ export class SpawnMenu {
         this.pictures.push(picture.setDepth(MENU.depth + 1));
       } else {
         const def = BLOCKS[choice.kind];
-        const scale = fit(def.halfWidth, def.height, def.menuScale);
+        // A vehicle's drawing is smaller than the vehicle, so it is made bigger to match
+        const drawn = def.drive?.scale ?? 1;
+        const scale = fit(def.halfWidth, def.height, def.menuScale) * drawn;
         const picture = drawBlock(scene.add.graphics(), choice.kind)
           .setScale(scale)
           .setPosition(middleX, middleY + (def.height / 2) * scale);

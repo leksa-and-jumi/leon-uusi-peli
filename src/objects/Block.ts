@@ -4,13 +4,16 @@ import {
   BLAST,
   BLOCK_LOOK,
   BLOCKS,
+  BULLET_HOLE,
   DEPTH,
   PERSON,
   PHYSICS,
   THING_ACTIONS,
   TOPPLE,
   VEHICLE_ACTIONS,
+  VEHICLE_HULL,
   type ActionId,
+  type BlastDef,
   type BlockDef,
   type BlockKind,
   type VehicleKind,
@@ -19,9 +22,11 @@ import { isTall, leaning, supportSpan, toppled, topplePose } from '../logic/bala
 import { clamp } from '../logic/bounds';
 import { shade } from '../logic/color';
 import { blockedX, liftOut, overlaps } from '../logic/ground';
-import type { PersonSize } from '../logic/place';
+import type { Spot } from '../logic/pick';
+import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
+import type { Person } from './Person';
 import { drawJunk } from './junkShapes';
 import { drawTvProgram } from './tvScreen';
 import { drawParkedVehicle, drawVehicle, drawWheel } from './vehicleShapes';
@@ -59,6 +64,11 @@ export class Block extends Body {
   private facing: Facing = 1;
   private driving = false;
   private readonly wheels: Phaser.GameObjects.Graphics[] = [];
+  /** How many more bullets a vehicle takes, and the holes they have left in it. */
+  private hull: number = VEHICLE_HULL;
+  private readonly holes: Phaser.GameObjects.Graphics | null = null;
+  /** The doll sitting in a vehicle, driving it. */
+  private driver: Person | null = null;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
@@ -76,13 +86,17 @@ export class Block extends Body {
         const wheel = drawWheel(blank(), drive.wheels.radius);
         this.wheels.push(wheel.setPosition(x, -drive.wheels.up));
       }
-      parts.push(...this.wheels);
+      this.holes = blank();
+      parts.push(...this.wheels, this.holes);
     }
     if (kind === 'tv') {
       this.screen = scene.make.graphics({}, false);
       parts.push(this.screen);
     }
-    this.display = scene.add.container(x, y, parts).setDepth(DEPTH.block);
+    // A vehicle is drawn small and then made as big as it really is
+    const picture = scene.make.container({ x: 0, y: 0 }, false).add(parts);
+    picture.setScale(drive?.scale ?? 1);
+    this.display = scene.add.container(x, y, [picture]).setDepth(DEPTH.block);
   }
 
   get size(): PersonSize {
@@ -95,7 +109,81 @@ export class Block extends Body {
 
   /** Does it go off with a blast when it is hit? */
   get explosive(): boolean {
-    return this.def.blast !== undefined;
+    return this.blast !== undefined;
+  }
+
+  /** A vehicle with a seat that nobody sits in, standing where a doll can get in. */
+  get seatFree(): boolean {
+    return this.def.drive?.seat !== undefined && this.driver === null && this.carries;
+  }
+
+  /** Which way a vehicle points: 1 right, -1 left. */
+  get pointing(): Facing {
+    return this.facing;
+  }
+
+  /** Does the driver sit on it (a motorbike) and not inside it? */
+  get seatInFront(): boolean {
+    return this.def.drive?.seat?.inFront ?? false;
+  }
+
+  /** Where the hips of the doll that sits in it are right now. */
+  seatSpot(): Spot {
+    const drive = this.def.drive;
+    const seat = drive?.seat ?? { x: 0, up: 0 };
+    const scale = drive?.scale ?? 1;
+    return { x: this.x + this.facing * seat.x * scale, y: this.y - seat.up * scale };
+  }
+
+  /** A doll sits down in it: the vehicle drives off. */
+  takeDriver(person: Person): void {
+    this.driver = person;
+    this.driving = true;
+  }
+
+  /** The doll in it has left: the vehicle stops. */
+  dropDriver(): void {
+    this.driver = null;
+    this.driving = false;
+  }
+
+  /** Make the doll in it get out, when the vehicle blows up or is taken away. */
+  ejectDriver(): void {
+    this.driver?.leaveSeat();
+  }
+
+  /**
+   * Hit by a bullet at this spot. A barrel goes off at once. A vehicle gets a hole,
+   * and the last bullet it can take blows it up.
+   */
+  shot(px: number, py: number, world: World): void {
+    const drive = this.def.drive;
+    if (!drive) {
+      this.setOff(0);
+      return;
+    }
+    if (this.exploded) return;
+    this.hull -= 1;
+    // The hole goes where the bullet hit, measured on the vehicle's own drawing
+    const across = this.shape.halfWidth / drive.scale;
+    const tall = this.shape.height / drive.scale;
+    const x = clamp(((px - this.x) * this.facing) / drive.scale, -across, across);
+    const y = clamp((py - this.y) / drive.scale, -tall, 0);
+    this.holes?.fillStyle(BULLET_HOLE.rim).fillCircle(x, y, BULLET_HOLE.radius + 1);
+    this.holes?.fillStyle(BULLET_HOLE.color).fillCircle(x, y, BULLET_HOLE.radius);
+    if (this.hull > 0) return;
+    this.ejectDriver();
+    this.exploded = true;
+    if (this.blast) {
+      world.explode(this, this.blast);
+    } else {
+      world.breakApart(this, 0, -200);
+    }
+  }
+
+  override throwAway(area: PlaceArea): void {
+    this.ejectDriver();
+    super.throwAway(area);
   }
 
   /** Standing up, staying put, and tall enough to fall over onto its side. */
@@ -119,6 +207,11 @@ export class Block extends Body {
   /** Point a vehicle the other way. */
   turn(): void {
     this.facing = this.facing === 1 ? -1 : 1;
+  }
+
+  /** The blast it goes off with: a barrel's own, or a vehicle's when it is shot to bits. */
+  private get blast(): BlastDef | undefined {
+    return this.def.blast ?? this.def.drive?.blast;
   }
 
   /** Set a barrel off, or stop it again while its fuse still burns. */
@@ -168,13 +261,14 @@ export class Block extends Body {
     this.draw(state, deltaMs);
     if (this.screen) drawTvProgram(this.screen, this.clockMs);
 
-    if (this.fuseMs === null || !this.def.blast) return;
+    if (this.fuseMs === null || !this.blast) return;
     this.fuseMs -= deltaMs;
     // It blinks while its fuse burns
     this.display.setAlpha(Math.floor(this.fuseMs / BLAST.blinkMs) % 2 === 0 ? 1 : 0.55);
     if (this.fuseMs <= 0) {
+      this.ejectDriver();
       this.exploded = true;
-      world.explode(this, this.def.blast);
+      world.explode(this, this.blast);
     }
   }
 
@@ -201,7 +295,7 @@ export class Block extends Body {
     this.x = blockedX(from, inside, halfWidth, this.y, height, world.pieces(this), 0);
     const moved = this.x - from;
     for (const wheel of this.wheels) {
-      wheel.rotation += (moved * this.facing) / drive.wheels.radius;
+      wheel.rotation += (moved * this.facing) / (drive.wheels.radius * drive.scale);
     }
     world.carry(this, moved);
     if (this.x !== wanted) {

@@ -116,6 +116,12 @@ export class PersonFigure {
     this.headPart.rotation = pose.head;
   }
 
+  /** Hide the legs of a doll sitting inside a vehicle, where they are out of sight anyway. */
+  showLegs(visible: boolean): void {
+    this.frontLeg.upper.setVisible(visible);
+    this.backLeg.upper.setVisible(visible);
+  }
+
   /** Angry eyebrows on or off. */
   setAngry(angry: boolean): void {
     this.brows.setVisible(angry && !this.faceless);
