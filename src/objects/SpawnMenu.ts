@@ -33,7 +33,12 @@ const NOTHING: SpawnChoice = { type: 'none' };
 const FIRST_THING = 1;
 
 const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
-  people: [NOTHING, ...PEOPLE.map((look): SpawnChoice => ({ type: 'person', look }))],
+  // The skibidi fridge is no doll, but it hunts like one, so it lives on the dolls page
+  people: [
+    NOTHING,
+    ...PEOPLE.map((look): SpawnChoice => ({ type: 'person', look })),
+    { type: 'block', kind: 'skibidi' },
+  ],
   items: [NOTHING, ...WEAPON_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
   build: [NOTHING, ...BUILD_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   junk: [NOTHING, ...JUNK_KINDS],

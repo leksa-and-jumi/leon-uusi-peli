@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLOCKS, type BlockDef, type JunkBlockKind } from '../config';
+import { BLOCKS, SKIBIDI, type BlockDef, type JunkBlockKind, type MonsterKind } from '../config';
 import { shade } from '../logic/color';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -12,7 +12,7 @@ const OUTLINE = 1.6;
  * Draws a piece of junk with code, with outlines, shading and small details so it
  * looks like the real thing. The middle of its bottom edge is at (0, 0).
  */
-export function drawJunk(g: Graphics, kind: JunkBlockKind): Graphics {
+export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphics {
   const def = BLOCKS[kind];
   switch (kind) {
     case 'toilet':
@@ -27,6 +27,17 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind): Graphics {
       return drawTable(g, def);
     case 'fridge':
       return drawFridge(g, def);
+    case 'skibidi': {
+      // In the menu the head is drawn popped out, behind the fridge it lives in
+      const head = def.monster?.head;
+      if (head) {
+        g.save();
+        g.translateCanvas(0, -head.outUp);
+        drawSkibidiHead(g, head.radius);
+        g.restore();
+      }
+      return drawFridge(g, def);
+    }
     case 'cone':
       return drawCone(g, def);
     case 'tire':
@@ -347,6 +358,59 @@ function drawTire(g: Graphics, def: BlockDef): Graphics {
   for (let i = 0; i < 5; i++) {
     const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
     g.fillCircle(Math.cos(angle) * 7.5, middleY + Math.sin(angle) * 7.5, 1.4);
+  }
+  return g;
+}
+
+/**
+ * The head that pops out of a skibidi fridge, around (0, 0) and looking right: a
+ * long neck, a bald head with a few hairs, wide staring eyes with red pupils, angry
+ * eyebrows and a huge grin full of teeth.
+ */
+export function drawSkibidiHead(g: Graphics, radius: number): Graphics {
+  const c = SKIBIDI;
+  // Neck, long enough to reach down into the fridge
+  box(g, c.skin, c.dark, -6, radius - 4, 12, radius * 2.4, 3);
+  // Head
+  g.fillStyle(c.dark);
+  g.fillCircle(0, 0, radius);
+  g.fillStyle(c.skin);
+  g.fillCircle(0, 0, radius - OUTLINE);
+  g.fillStyle(0xffffff, 0.3);
+  g.fillEllipse(-3, -radius * 0.55, radius, radius * 0.5);
+  // A few hairs on top
+  g.lineStyle(1.4, c.hair);
+  for (const x of [-5, -1, 3]) {
+    g.lineBetween(x, -radius + 2, x + 3, -radius - 5);
+  }
+  // Wide eyes with red pupils, under angry eyebrows
+  for (const x of [-3, 8]) {
+    g.fillStyle(c.dark);
+    g.fillCircle(x, -c.eyes.up, 5.2);
+    g.fillStyle(c.eye);
+    g.fillCircle(x, -c.eyes.up, 4.2);
+    g.fillStyle(c.pupil);
+    g.fillCircle(x + 1.2, -c.eyes.up, 2);
+  }
+  g.lineStyle(2.4, c.hair);
+  g.lineBetween(-9, -11, 0, -7.5);
+  g.lineBetween(13, -11, 5, -7.5);
+  // A huge grin with a row of teeth
+  shape(g, c.mouth, c.dark, [
+    [-8, 4],
+    [12, 3],
+    [10, 11],
+    [-5, 12],
+  ]);
+  shape(g, c.teeth, c.dark, [
+    [-6.5, 5],
+    [10.5, 4.2],
+    [10, 7.6],
+    [-6, 8.4],
+  ]);
+  g.lineStyle(1, c.dark, 0.8);
+  for (const x of [-2.5, 1.5, 5.5]) {
+    g.lineBetween(x, 4.6, x, 8);
   }
   return g;
 }

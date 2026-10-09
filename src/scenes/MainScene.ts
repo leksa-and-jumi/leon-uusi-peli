@@ -16,6 +16,7 @@ import {
   HINT,
   HIT_FX,
   ITEMS,
+  LASER,
   MENU,
   PERSON,
   RIDE_GAP,
@@ -149,6 +150,9 @@ export class MainScene extends Phaser.Scene {
       },
       explode: (source, blast) => {
         this.explode(source, blast);
+      },
+      zap: (fromX, fromY, victim, damage, pushSpeed) => {
+        this.zap(fromX, fromY, victim, damage, pushSpeed);
       },
       breakApart: (body, pushX, pushY) => {
         this.crumble(body, pushX, pushY);
@@ -653,6 +657,36 @@ export class MainScene extends Phaser.Scene {
     this.sfx.blast();
     this.popUp(x, middleY, BLAST.emoji, BLAST.fontSize, BLAST.ms, BLAST.grow);
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
+  }
+
+  /** A laser hits a doll: a beam flashes from the eyes to the doll, and the doll takes the hit. */
+  private zap(
+    fromX: number,
+    fromY: number,
+    victim: Person,
+    damage: number,
+    pushSpeed: number,
+  ): void {
+    const body = victim.hitBox;
+    const atX = (body.left + body.right) / 2;
+    const atY = (body.top + body.bottom) / 2;
+    const beam = this.add.graphics().setDepth(LASER.depth);
+    beam.lineStyle(LASER.width, LASER.color, 0.9);
+    beam.lineBetween(fromX, fromY, atX, atY);
+    beam.lineStyle(LASER.coreWidth, LASER.core);
+    beam.lineBetween(fromX, fromY, atX, atY);
+    this.tweens.add({
+      targets: beam,
+      alpha: 0,
+      duration: LASER.ms,
+      onComplete: () => {
+        beam.destroy();
+      },
+    });
+    this.sfx.zap();
+    const direction: Facing = atX < fromX ? -1 : 1;
+    const deadly = victim.hit(direction, this.solidBoxes(victim), damage, pushSpeed, 'burn');
+    this.showHit(atX, atY, deadly, 'none');
   }
 
   /** Break something into small pieces of its own colors. They fly off with this push. */
