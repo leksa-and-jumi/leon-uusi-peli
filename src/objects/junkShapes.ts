@@ -364,8 +364,8 @@ function drawTire(g: Graphics, def: BlockDef): Graphics {
 
 /**
  * The head that pops out of a skibidi fridge, around (0, 0) and looking right: a
- * long neck, a bald head with a few hairs, wide staring eyes with red pupils, angry
- * eyebrows and a huge grin full of teeth.
+ * long neck, a bald head with a few hairs, wide staring eyes, eyebrows raised high
+ * and a huge grin full of teeth. An own drawing, in the spirit of the meme.
  */
 export function drawSkibidiHead(g: Graphics, radius: number): Graphics {
   const c = SKIBIDI;
@@ -383,34 +383,40 @@ export function drawSkibidiHead(g: Graphics, radius: number): Graphics {
   for (const x of [-5, -1, 3]) {
     g.lineBetween(x, -radius + 2, x + 3, -radius - 5);
   }
-  // Wide eyes with red pupils, under angry eyebrows
+  // Wide, staring eyes with small red pupils, and eyebrows raised high above them
   for (const x of [-3, 8]) {
     g.fillStyle(c.dark);
-    g.fillCircle(x, -c.eyes.up, 5.2);
+    g.fillCircle(x, -c.eyes.up, 5.6);
     g.fillStyle(c.eye);
-    g.fillCircle(x, -c.eyes.up, 4.2);
+    g.fillCircle(x, -c.eyes.up, 4.6);
     g.fillStyle(c.pupil);
-    g.fillCircle(x + 1.2, -c.eyes.up, 2);
+    g.fillCircle(x + 0.6, -c.eyes.up, 1.7);
+    g.fillStyle(0xffffff);
+    g.fillCircle(x - 1.2, -c.eyes.up - 1.6, 0.9);
   }
-  g.lineStyle(2.4, c.hair);
-  g.lineBetween(-9, -11, 0, -7.5);
-  g.lineBetween(13, -11, 5, -7.5);
-  // A huge grin with a row of teeth
-  shape(g, c.mouth, c.dark, [
-    [-8, 4],
-    [12, 3],
-    [10, 11],
-    [-5, 12],
-  ]);
-  shape(g, c.teeth, c.dark, [
-    [-6.5, 5],
-    [10.5, 4.2],
-    [10, 7.6],
-    [-6, 8.4],
-  ]);
-  g.lineStyle(1, c.dark, 0.8);
-  for (const x of [-2.5, 1.5, 5.5]) {
-    g.lineBetween(x, 4.6, x, 8);
+  g.lineStyle(1.8, c.hair);
+  for (const x of [-3, 8]) {
+    g.beginPath();
+    g.arc(x, -c.eyes.up - 4.5, 5.5, Math.PI * 1.2, Math.PI * 1.8);
+    g.strokePath();
+  }
+  // A big, wide grin from cheek to cheek, with a row of teeth along the top
+  const smileY = 3.5;
+  g.fillStyle(c.dark);
+  g.beginPath();
+  g.arc(2.5, smileY, 11.5, 0, Math.PI);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(c.mouth);
+  g.beginPath();
+  g.arc(2.5, smileY + 0.6, 10, 0, Math.PI);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(c.teeth);
+  g.fillRect(-6.5, smileY + 0.6, 18, 3.6);
+  g.lineStyle(1, c.dark, 0.7);
+  for (const x of [-3, 0.5, 4, 7.5]) {
+    g.lineBetween(x, smileY + 0.6, x, smileY + 4.2);
   }
   return g;
 }
