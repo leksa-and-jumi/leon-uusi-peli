@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLOCKS, WHEEL, type BlockDef, type VehicleKind } from '../config';
+import { BLOCKS, ROTOR, WHEEL, type BlockDef, type VehicleKind } from '../config';
 import { shade } from '../logic/color';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -22,20 +22,47 @@ export function drawVehicle(g: Graphics, kind: VehicleKind): Graphics {
       return drawBike(g, def);
     case 'skateboard':
       return drawSkateboard(g, def);
+    case 'helicopter':
+      return drawHelicopter(g, def);
+    case 'plane':
+      return drawPlane(g, def);
   }
 }
 
 /** Draws a whole vehicle with its wheels on, standing still: the picture for the menu. */
 export function drawParkedVehicle(g: Graphics, kind: VehicleKind): Graphics {
   drawVehicle(g, kind);
-  const wheels = BLOCKS[kind].drive?.wheels;
-  if (!wheels) return g;
-  for (const x of wheels.xs) {
+  const drive = BLOCKS[kind].drive;
+  if (!drive) return g;
+  for (const x of drive.wheels.xs) {
     g.save();
-    g.translateCanvas(x, -wheels.up);
-    drawWheel(g, wheels.radius);
+    g.translateCanvas(x, -drive.wheels.up);
+    drawWheel(g, drive.wheels.radius);
     g.restore();
   }
+  if (drive.rotor) {
+    g.save();
+    g.translateCanvas(drive.rotor.x, -drive.rotor.up);
+    drawRotor(g, drive.rotor);
+    g.restore();
+  }
+  return g;
+}
+
+/** Draws a rotor or a propeller around (0, 0): two blades and a hub. */
+export function drawRotor(
+  g: Graphics,
+  rotor: { length: number; thickness: number; flat: boolean },
+): Graphics {
+  const { length, thickness, flat } = rotor;
+  g.fillStyle(ROTOR.color);
+  if (flat) {
+    g.fillRoundedRect(-length / 2, -thickness / 2, length, thickness, thickness / 2);
+  } else {
+    g.fillRoundedRect(-thickness / 2, -length / 2, thickness, length, thickness / 2);
+  }
+  g.fillStyle(ROTOR.hub);
+  g.fillCircle(0, 0, thickness);
   return g;
 }
 
@@ -321,5 +348,135 @@ function drawSkateboard(g: Graphics, def: BlockDef): Graphics {
   g.fillStyle(detail);
   g.fillRect(-20, -4.5, 6, 2);
   g.fillRect(14, -4.5, 6, 2);
+  return g;
+}
+
+/**
+ * A helicopter: a cabin with a big see-through bubble in front, a tail boom with a
+ * fin and a small rotor, and two skids. The big rotor on top is drawn separately.
+ */
+function drawHelicopter(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // Skids and their struts
+  g.lineStyle(2.5, dark);
+  g.lineBetween(-22, -2, 34, -2);
+  g.lineBetween(34, -2, 38, -5);
+  g.lineBetween(-12, -2, -8, -10);
+  g.lineBetween(20, -2, 16, -10);
+  // Tail boom, fin and the little rotor at the end
+  shape(g, fill, dark, [
+    [-10, -31],
+    [-46, -27],
+    [-46, -22],
+    [-10, -17],
+  ]);
+  shape(g, fill, dark, [
+    [-39, -26],
+    [-48, -42],
+    [-43, -42],
+    [-36, -26],
+  ]);
+  g.fillStyle(ROTOR.color, 0.35);
+  g.fillCircle(-46, -30, 7);
+  g.fillStyle(ROTOR.hub);
+  g.fillCircle(-46, -30, 1.8);
+  // Cabin: built around the open bubble, so that the pilot shows through the glass
+  box(g, fill, dark, -12, -37, 26, 29, 9);
+  shape(g, fill, dark, [
+    [12, -37],
+    [29, -37],
+    [34, -32],
+    [12, -32],
+  ]);
+  shape(g, fill, dark, [
+    [29, -37],
+    [37, -30],
+    [43, -18],
+    [38, -18],
+    [33, -32],
+  ]);
+  shape(g, fill, dark, [
+    [12, -18],
+    [43, -18],
+    [40, -10],
+    [12, -8],
+  ]);
+  glass(g, detail, [
+    [14, -32],
+    [33, -32],
+    [38, -18],
+    [14, -18],
+  ]);
+  g.fillStyle(0xffffff, 0.45);
+  g.fillTriangle(17, -20, 17, -30, 24, -30);
+  g.fillStyle(light, 0.7);
+  g.fillRoundedRect(-8, -34, 16, 2.5, 1);
+  g.fillStyle(dark, 0.35);
+  g.fillRect(-9, -13, 46, 3);
+  // Mast for the rotor
+  g.fillStyle(dark);
+  g.fillRect(8, -44, 4, 8);
+  return g;
+}
+
+/**
+ * A small plane: a white body with a red stripe, a wing, a tail, and a glass canopy
+ * that the pilot's head shows through. The propeller is drawn separately.
+ */
+function drawPlane(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // Legs for the two little wheels
+  g.lineStyle(2, dark);
+  g.lineBetween(-28, -5, -30, -13);
+  g.lineBetween(22, -5, 20, -12);
+  // Tail fin and tailplane
+  shape(g, detail, dark, [
+    [-50, -22],
+    [-56, -41],
+    [-46, -41],
+    [-36, -27],
+  ]);
+  shape(g, fill, dark, [
+    [-54, -20],
+    [-40, -22],
+    [-38, -18],
+    [-54, -16],
+  ]);
+  // Body, with a nose cone for the propeller
+  shape(g, fill, dark, [
+    [-52, -23],
+    [-38, -30],
+    [32, -30],
+    [48, -26],
+    [54, -19],
+    [48, -12],
+    [30, -10],
+    [-44, -13],
+  ]);
+  g.fillStyle(light, 0.9);
+  g.fillRect(-36, -28.5, 66, 2.5);
+  g.fillStyle(detail);
+  g.fillRect(-42, -21, 88, 3);
+  g.fillStyle(dark, 0.3);
+  g.fillRect(-40, -15, 78, 3);
+  // Wing, seen from the side
+  shape(g, shade(fill, -0.12), dark, [
+    [-10, -20],
+    [16, -20],
+    [8, -12],
+    [-18, -12],
+  ]);
+  // Canopy: just glass and a thin frame over the body
+  glass(g, 0x9fd6f2, [
+    [2, -30],
+    [8, -40],
+    [22, -40],
+    [32, -30],
+  ]);
+  g.lineStyle(1.6, dark);
+  g.lineBetween(2, -30, 8, -40);
+  g.lineBetween(8, -40, 22, -40);
+  g.lineBetween(22, -40, 32, -30);
+  g.lineBetween(15, -40, 15, -30);
   return g;
 }

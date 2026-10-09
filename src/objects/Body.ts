@@ -30,6 +30,8 @@ export abstract class Body {
   protected spin = 0;
   /** How hard it is pulled down, compared with everything else (1 is the usual). */
   protected gravityScale = 1;
+  /** Held up in the air by itself (a flying machine): nothing pulls it down. */
+  protected hovering = false;
   /**
    * What it does when something solid is put where it is. An item climbs out and
    * ends up on top of anything; a doll only steps up onto low things.
@@ -163,6 +165,10 @@ export abstract class Body {
       const low = this.y - PHYSICS.stepUp - 1;
       const climbable = this.climbsOnlyLow ? solids.filter((box) => box.top >= low) : solids;
       this.y = liftOut(boxAround(this.x, this.y, halfWidth - 1, height), climbable);
+    }
+    if (this.hovering) {
+      this.fallSpeed = 0;
+      return 'resting';
     }
     const ground = groundBelow(
       this.x - halfWidth,

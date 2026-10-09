@@ -7,6 +7,7 @@ import {
   BULLET_HOLE,
   DEPTH,
   PERSON,
+  ROTOR,
   PHYSICS,
   THING_ACTIONS,
   TOPPLE,
@@ -29,7 +30,7 @@ import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
 import { drawJunk } from './junkShapes';
 import { drawTvProgram } from './tvScreen';
-import { drawParkedVehicle, drawVehicle, drawWheel } from './vehicleShapes';
+import { drawParkedVehicle, drawRotor, drawVehicle, drawWheel } from './vehicleShapes';
 import type { World } from './World';
 
 /**
@@ -64,6 +65,8 @@ export class Block extends Body {
   private facing: Facing = 1;
   private driving = false;
   private readonly wheels: Phaser.GameObjects.Graphics[] = [];
+  /** The rotor of a helicopter or the propeller of a plane. */
+  private readonly rotor: Phaser.GameObjects.Graphics | null = null;
   /** How many more bullets a vehicle takes, and the holes they have left in it. */
   private hull: number = VEHICLE_HULL;
   private readonly holes: Phaser.GameObjects.Graphics | null = null;
@@ -88,6 +91,10 @@ export class Block extends Body {
       }
       this.holes = blank();
       parts.push(...this.wheels, this.holes);
+      if (drive.rotor) {
+        this.rotor = drawRotor(blank(), drive.rotor).setPosition(drive.rotor.x, -drive.rotor.up);
+        parts.push(this.rotor);
+      }
     }
     if (kind === 'tv') {
       this.screen = scene.make.graphics({}, false);
@@ -138,13 +145,24 @@ export class Block extends Body {
   /** A doll sits down in it: the vehicle drives off. */
   takeDriver(person: Person): void {
     this.driver = person;
-    this.driving = true;
+    this.setDriving(true);
   }
 
   /** The doll in it has left: the vehicle stops. */
   dropDriver(): void {
     this.driver = null;
-    this.driving = false;
+    this.setDriving(false);
+  }
+
+  /**
+   * Switch a vehicle on or off. One that flies holds itself up in the air while it
+   * is on, and sinks down slowly once it is off.
+   */
+  private setDriving(on: boolean): void {
+    const flies = this.def.drive?.flies;
+    this.driving = on;
+    this.hovering = on && flies !== undefined;
+    this.gravityScale = flies ? flies.sink : 1;
   }
 
   /** Make the doll in it get out, when the vehicle blows up or is taken away. */
@@ -201,7 +219,7 @@ export class Block extends Body {
   /** Make a vehicle drive, or stop it again. */
   toggleDrive(): void {
     if (!this.def.drive) return;
-    this.driving = !this.driving;
+    this.setDriving(!this.driving);
   }
 
   /** Point a vehicle the other way. */
@@ -254,7 +272,11 @@ export class Block extends Body {
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
     const state = this.physics(deltaMs, world);
-    if (state === 'resting') this.drive(deltaMs, world);
+    // A flying machine can be switched on in the air too, while it is sinking
+    if (state === 'resting' || (state === 'falling' && this.def.drive?.flies)) {
+      this.drive(deltaMs, world);
+    }
+    this.spinRotor();
     const tip = state === 'resting' && !this.tipping ? this.keepBalance(deltaMs, world) : 0;
     if (tip === 0) this.slideSpeed = 0;
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
@@ -289,6 +311,13 @@ export class Block extends Body {
     const drive = this.def.drive;
     if (!drive || !this.driving) return;
     const { halfWidth, height } = this.shape;
+    if (drive.flies) {
+      // Climb to where it flies: its top a little under the ceiling
+      this.hovering = true;
+      const flyAt = world.area.top + drive.flies.below + height;
+      const step = drive.flies.climb * (deltaMs / 1000);
+      this.y += clamp(flyAt - this.y, -step, step);
+    }
     const from = this.x;
     const wanted = from + this.facing * drive.speed * (deltaMs / 1000);
     const inside = clamp(wanted, world.area.left + halfWidth, world.area.right - halfWidth);
@@ -309,6 +338,18 @@ export class Block extends Body {
       const deadly = person.hit(this.facing, solids, drive.damage, drive.pushSpeed, 'bruise');
       world.hitEffect(person.feet.x, person.feet.y - PERSON.height / 2, deadly, 'punch');
     }
+  }
+
+  /**
+   * A rotor seen from the side looks like a bar that gets short and long again as it
+   * goes around. It flickers fast while the machine is on.
+   */
+  private spinRotor(): void {
+    const rotor = this.def.drive?.rotor;
+    if (!this.rotor || !rotor) return;
+    // Switched off, it stands still
+    const seen = this.driving ? Math.max(0.12, Math.abs(Math.cos(this.clockMs / ROTOR.turnMs))) : 1;
+    this.rotor.setScale(rotor.flat ? seen : 1, rotor.flat ? 1 : seen);
   }
 
   /**

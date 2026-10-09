@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSee, sweepHit } from './shot';
+import { aimAt, canSee, segmentHit, sweepHit } from './shot';
 
 const near = { left: 200, right: 240, top: 380, bottom: 500 };
 const far = { left: 400, right: 440, top: 380, bottom: 500 };
@@ -33,5 +33,47 @@ describe('canSee', () => {
 
   it('cannot see through a wall', () => {
     expect(canSee(100, 300, 420, [near])).toBe(false);
+  });
+});
+
+describe('segmentHit', () => {
+  const low = { left: 200, right: 240, top: 380, bottom: 500 };
+  const further = { left: 400, right: 440, top: 380, bottom: 500 };
+
+  it('hits the first box on a straight line sideways', () => {
+    expect(segmentHit(100, 420, 600, 420, [further, low])).toBe(1);
+    expect(segmentHit(600, 420, 100, 420, [low, further])).toBe(1);
+  });
+
+  it('hits a box when shooting down at a slant', () => {
+    expect(segmentHit(100, 100, 220, 440, [low])).toBe(0);
+  });
+
+  it('misses a box the line passes over', () => {
+    expect(segmentHit(100, 100, 600, 150, [low, further])).toBeNull();
+  });
+
+  it('misses a box that is further than the bullet flies', () => {
+    expect(segmentHit(100, 420, 150, 420, [low])).toBeNull();
+  });
+
+  it('hits straight down', () => {
+    expect(segmentHit(220, 100, 220, 400, [low])).toBe(0);
+    expect(segmentHit(260, 100, 260, 400, [low])).toBeNull();
+  });
+
+  it('hits at once when it starts inside a box', () => {
+    expect(segmentHit(220, 420, 600, 420, [further, low])).toBe(1);
+  });
+});
+
+describe('aimAt', () => {
+  it('points from one spot to the other, with length 1', () => {
+    expect(aimAt(0, 0, 30, 40, 1)).toEqual({ x: 0.6, y: 0.8 });
+    expect(aimAt(100, 100, 0, 100, 1)).toEqual({ x: -1, y: 0 });
+  });
+
+  it('points straight ahead when there is nowhere to aim', () => {
+    expect(aimAt(5, 5, 5, 5, -1)).toEqual({ x: -1, y: 0 });
   });
 });
