@@ -1,5 +1,6 @@
 import type { BlastDef, GunDef } from '../config';
 import type { Box } from '../logic/ground';
+import type { Spot } from '../logic/pick';
 import type { PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import type { Body } from './Body';
@@ -27,8 +28,20 @@ export interface World {
   pinned: (person: Person) => boolean;
   /** A doll hit the ground, falling this fast (pixels per second). */
   landed: (fallSpeed: number) => void;
-  /** Fire a bullet from this spot. With no shooter, it hits dolls of any color. */
-  shoot: (shooter: Person | null, x: number, y: number, direction: Facing, gun: GunDef) => void;
+  /**
+   * Fire a bullet from this spot. With no shooter, it hits dolls of any color.
+   * `aim` is the way it flies (an arrow of length 1; straight sideways when left
+   * out), and it flies through `from`, the vehicle it is fired out of.
+   */
+  shoot: (
+    shooter: Person | null,
+    x: number,
+    y: number,
+    direction: Facing,
+    gun: GunDef,
+    aim?: Spot,
+    from?: Body,
+  ) => void;
   /** Something smashes to pieces, which fly off with this push (pixels per second). */
   breakApart: (body: Body, pushX: number, pushY: number) => void;
   /** Blood sprays or drips from this spot: this many drops of this color. */

@@ -11,6 +11,7 @@ import {
   PHYSICS,
   PICK_PADDING,
   PUNCH_DAMAGE,
+  SEAT_GUN,
   STUCK,
   TOPPLE,
   TOSS,
@@ -56,7 +57,7 @@ import {
   type Pose,
   type PoseKind,
 } from '../logic/pose';
-import { canSee } from '../logic/shot';
+import { aimAt, canSee } from '../logic/shot';
 import { sameTeam } from '../logic/team';
 import { walkStep, type Facing } from '../logic/walk';
 import type { Block } from './Block';
@@ -455,7 +456,7 @@ export class Person extends Body {
     this.clockMs += deltaMs;
     this.flinchMs = Math.max(0, this.flinchMs - deltaMs);
     if (this.seat) {
-      this.sitStill(this.seat);
+      this.sitStill(this.seat, deltaMs, world);
       this.bleed(deltaMs, world);
       return;
     }
@@ -520,7 +521,7 @@ export class Person extends Body {
   }
 
   /** Sitting in a vehicle: stay in the seat, facing the way the vehicle points. */
-  private sitStill(vehicle: Block): void {
+  private sitStill(vehicle: Block, deltaMs: number, world: World): void {
     const hips = vehicle.seatSpot();
     this.facing = vehicle.pointing;
     this.x = hips.x;
@@ -529,8 +530,48 @@ export class Person extends Body {
     this.last = { x: this.x, y: this.y };
     this.speed = { x: 0, y: 0 };
     // On a motorbike the legs hang down; inside a car they are stretched out, out of sight
-    this.figure.setPose(poseFor(vehicle.seatInFront ? 'sit' : 'drive', this.clockMs));
+    const pose = poseFor(vehicle.seatInFront ? 'sit' : 'drive', this.clockMs);
+    const aim = this.shootFromSeat(vehicle, hips, deltaMs, world);
+    // The arm with the gun points where it shoots
+    const armed = aim
+      ? { ...pose, frontArm: Math.atan2(-aim.x * this.facing, aim.y), frontElbow: 0 }
+      : pose;
+    this.figure.setPose(armed);
     this.place(this.x, this.y, 0);
+  }
+
+  /**
+   * With a gun in its hand, a doll in a vehicle shoots at the closest standing doll
+   * of another color in front of it, aiming straight at it. Gives the way it aims,
+   * or `null` when there is nobody to shoot at.
+   */
+  private shootFromSeat(vehicle: Block, hips: Spot, deltaMs: number, world: World): Spot | null {
+    this.waitMs = Math.max(0, this.waitMs - deltaMs);
+    const gun = this.item?.def.gun;
+    if (!gun) return null;
+    const fromX = hips.x + this.facing * SEAT_GUN.forward;
+    const fromY = hips.y - SEAT_GUN.up;
+    const ahead = world.people.filter(
+      (other) =>
+        other !== this &&
+        other.canBeHit &&
+        !sameTeam(other.look, this.look) &&
+        (other.x - fromX) * this.facing > 0 &&
+        Math.hypot(other.x - fromX, other.y - fromY) <= gun.range,
+    );
+    const nearest = nearestIndex(
+      fromX,
+      ahead.map((other) => other.x),
+    );
+    const target = nearest === null ? undefined : ahead[nearest];
+    if (!target) return null;
+    const atY = target.y - PERSON.height * SEAT_GUN.aimHeight;
+    const aim = aimAt(fromX, fromY, target.x, atY, this.facing);
+    if (this.waitMs === 0) {
+      world.shoot(this, fromX, fromY, this.facing, gun, aim, vehicle);
+      this.waitMs = gun.everyMs;
+    }
+    return aim;
   }
 
   /** Go limp, starting from exactly how the doll is standing or moving right now. */

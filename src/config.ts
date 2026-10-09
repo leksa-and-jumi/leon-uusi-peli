@@ -511,7 +511,7 @@ export type BuildKind = 'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barre
 export type JunkBlockKind =
   'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
-export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard';
+export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
 export type BlockKind = BuildKind | JunkBlockKind | VehicleKind;
 
 /** How a vehicle drives, and where its wheels are. */
@@ -535,7 +535,30 @@ export interface DriveDef {
   seat?: { x: number; up: number; inFront: boolean };
   /** The blast when it is shot to bits. Without one it just breaks into pieces. */
   blast?: BlastDef;
+  /**
+   * It flies. Switched on, it climbs until its top is `below` under the ceiling,
+   * `climb` pixels per second. Switched off, it sinks down, pulled only `sink` as hard
+   * as other things.
+   */
+  flies?: { below: number; climb: number; sink: number };
+  /**
+   * The rotor or propeller: where its middle is on the drawing, how long and thick
+   * it is, and whether it lies flat (a rotor) or stands up (a propeller).
+   */
+  rotor?: { x: number; up: number; length: number; thickness: number; flat: boolean };
 }
+
+/** How the rotors and propellers are drawn, and how fast they flicker around. */
+export const ROTOR = { color: 0x24272b, hub: 0x8b949c, turnMs: 70 } as const;
+
+/** A doll sitting in a vehicle with a gun in its hand shoots from it. */
+export const SEAT_GUN = {
+  /** Where the bullet comes out: this far in front of the doll's hips and above them. */
+  forward: 26,
+  up: 30,
+  /** It aims at the middle of a doll: this much of the doll's height above its feet. */
+  aimHeight: 0.55,
+} as const;
 
 /** A vehicle takes this many bullets. The last one blows it up. */
 export const VEHICLE_HULL = 3;
@@ -665,6 +688,40 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       wheels: { xs: [-22, 22], up: 11, radius: 11 },
       seat: { x: -13, up: 30, inFront: true },
       blast: { radius: 140, damage: 2, pushSpeed: 600 },
+    },
+  },
+  helicopter: {
+    halfWidth: 96,
+    height: 92,
+    menuScale: 1,
+    colors: { fill: 0x2e7d32, dark: 0x143d17, light: 0x81c784, detail: 0x9fd6f2 },
+    drive: {
+      speed: 240,
+      damage: 1,
+      pushSpeed: 520,
+      scale: 2,
+      wheels: { xs: [], up: 0, radius: 0 },
+      seat: { x: 24, up: 1, inFront: false },
+      blast: { radius: 210, damage: 3, pushSpeed: 760 },
+      flies: { below: 26, climb: 170, sink: 0.22 },
+      rotor: { x: 10, up: 45, length: 96, thickness: 3, flat: true },
+    },
+  },
+  plane: {
+    halfWidth: 112,
+    height: 82,
+    menuScale: 1,
+    colors: { fill: 0xeceff1, dark: 0x546e7a, light: 0xffffff, detail: 0xe53935 },
+    drive: {
+      speed: 400,
+      damage: 1,
+      pushSpeed: 600,
+      scale: 2,
+      wheels: { xs: [-28, 22], up: 4, radius: 4 },
+      seat: { x: 16, up: 9, inFront: false },
+      blast: { radius: 210, damage: 3, pushSpeed: 760 },
+      flies: { below: 150, climb: 150, sink: 0.22 },
+      rotor: { x: 55, up: 19, length: 30, thickness: 3, flat: false },
     },
   },
   skateboard: {
@@ -898,7 +955,14 @@ export const BUILD_KINDS: readonly BuildKind[] = [
   'girder',
   'barrel',
 ];
-export const VEHICLE_KINDS: readonly VehicleKind[] = ['car', 'truck', 'bike', 'skateboard'];
+export const VEHICLE_KINDS: readonly VehicleKind[] = [
+  'car',
+  'truck',
+  'bike',
+  'skateboard',
+  'helicopter',
+  'plane',
+];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
 )[] = [

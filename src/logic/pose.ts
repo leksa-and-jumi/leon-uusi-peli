@@ -76,7 +76,7 @@ export const MOVES = {
   /** Sitting on a motorbike: thighs out in front, shins down, hands on the handlebar. */
   sit: { leg: -1.4, knee: 1.35, arm: -0.95, elbow: -0.5, waist: 0.08 },
   /** Sitting inside a car: legs stretched out in front, hands on the wheel. */
-  drive: { leg: -1.5, knee: 0.15, arm: -0.7, elbow: -1.1, waist: 0.05 },
+  drive: { leg: -1.5, knee: 0.15, arm: -0.45, elbow: -1.5, waist: 0.05 },
   /** A limp doll: how far each joint can flop, at most. */
   limp: { arm: 2.9, leg: 1.2, elbow: 2.2, knee: 2, waist: 1, head: 1 },
 } as const;

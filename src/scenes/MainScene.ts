@@ -35,7 +35,7 @@ import { crumbAlpha, crumbCount, crumbStep, scatter, type Crumb } from '../logic
 import { overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
-import { sweepHit } from '../logic/shot';
+import { segmentHit } from '../logic/shot';
 import { sameTeam } from '../logic/team';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
 import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
@@ -59,6 +59,11 @@ const AREA: PlaceArea = {
 interface Bullet {
   x: number;
   y: number;
+  /** The way it flies: an arrow of length 1. */
+  aim: Spot;
+  /** The vehicle it was fired out of. It flies through that one. */
+  from: Body | null;
+  /** The way a doll that is hit by it is knocked: 1 right, -1 left. */
   direction: Facing;
   gun: GunDef;
   /** The doll that fired it, or `null` for a gun firing on its own. */
@@ -139,8 +144,8 @@ export class MainScene extends Phaser.Scene {
         const { quietestFall, loudestFall } = SOUND.thud;
         this.sfx.thud((fallSpeed - quietestFall) / (loudestFall - quietestFall));
       },
-      shoot: (shooter, x, y, direction, gun) => {
-        this.shoot(shooter, x, y, direction, gun);
+      shoot: (shooter, x, y, direction, gun, aim, from) => {
+        this.shoot(shooter, x, y, direction, gun, aim, from);
       },
       explode: (source, blast) => {
         this.explode(source, blast);
@@ -530,35 +535,49 @@ export class MainScene extends Phaser.Scene {
     y: number,
     direction: Facing,
     gun: GunDef,
+    aim: Spot = { x: direction, y: 0 },
+    from: Body | null = null,
   ): void {
     this.sfx.shot();
     const picture = this.add
       .rectangle(x, y, BULLET.width, BULLET.height, BULLET.color)
       .setDepth(DEPTH.bullet);
-    this.bullets.push({ x, y, direction, gun, shooter, picture });
+    picture.rotation = Math.atan2(aim.y, aim.x);
+    this.bullets.push({ x, y, aim, from, direction, gun, shooter, picture });
   }
 
-  /** Bullets fly until they hit a doll, hit something solid, or leave the area. */
+  /** Bullets fly straight until they hit a doll, hit something solid, or leave the area. */
   private updateBullets(delta: number): void {
     this.bullets = this.bullets.filter((bullet) => {
       const fromX = bullet.x;
-      bullet.x += bullet.direction * bullet.gun.bulletSpeed * (delta / 1000);
-      bullet.picture.x = bullet.x;
+      const fromY = bullet.y;
+      const step = bullet.gun.bulletSpeed * (delta / 1000);
+      bullet.x += bullet.aim.x * step;
+      bullet.y += bullet.aim.y * step;
+      bullet.picture.setPosition(bullet.x, bullet.y);
 
       // Bullets hit every living doll in their way: standing, lying, falling or held in
-      // the hand. A doll's own bullets fly past dolls of its color.
+      // the hand. A doll's own bullets fly past dolls of its color, and out of its vehicle.
       const { shooter } = bullet;
+      const solids = this.solids.filter((solid) => solid.body !== bullet.from);
       const targets = this.people.filter(
         (person) =>
-          !person.dead && person.canBePicked && !(shooter && sameTeam(person.look, shooter.look)),
+          !person.dead &&
+          !person.seated &&
+          person.canBePicked &&
+          !(shooter && sameTeam(person.look, shooter.look)),
       );
-      const boxes = [...this.solids.map((solid) => solid.box), ...targets.map((p) => p.hitBox)];
-      const hit = sweepHit(fromX, bullet.x, bullet.y, boxes);
-      const flownOut = bullet.x < AREA.left || bullet.x > AREA.right;
+      const boxes = [...solids.map((solid) => solid.box), ...targets.map((p) => p.hitBox)];
+      const hit = segmentHit(fromX, fromY, bullet.x, bullet.y, boxes);
+      const flownOut =
+        bullet.x < AREA.left ||
+        bullet.x > AREA.right ||
+        bullet.y < AREA.top ||
+        bullet.y > AREA.floorY;
       if (hit === null && !flownOut) return true;
 
-      const struck = hit === null ? undefined : this.solids[hit]?.body;
-      const victim = hit === null ? undefined : targets[hit - this.solids.length];
+      const struck = hit === null ? undefined : solids[hit]?.body;
+      const victim = hit === null ? undefined : targets[hit - solids.length];
       if (struck instanceof Block) {
         if (struck.def.drive) this.sfx.clang();
         struck.shot(bullet.x, bullet.y, this.world);
