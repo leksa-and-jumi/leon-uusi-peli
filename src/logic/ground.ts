@@ -146,3 +146,14 @@ export function lyingRoom(
   }
   return { least, most };
 }
+
+/**
+ * Does `box` stand on top of `under`? Its bottom has to be within `gap` of the top
+ * of `under`, and it has to be over it sideways, give or take `reach` (how far
+ * `under` has just moved).
+ */
+export function standsOn(box: Box, under: Box, gap: number, reach = 0): boolean {
+  const onTop = Math.abs(box.bottom - under.top) <= gap;
+  const over = box.left < under.right + reach && box.right > under.left - reach;
+  return onTop && over;
+}

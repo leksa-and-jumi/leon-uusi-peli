@@ -5,22 +5,26 @@ import {
   BLOCK_LOOK,
   BLOCKS,
   DEPTH,
+  PERSON,
   PHYSICS,
   THING_ACTIONS,
   TOPPLE,
+  VEHICLE_ACTIONS,
   type ActionId,
   type BlockDef,
   type BlockKind,
+  type VehicleKind,
 } from '../config';
 import { isTall, leaning, supportSpan, toppled, topplePose } from '../logic/balance';
 import { clamp } from '../logic/bounds';
 import { shade } from '../logic/color';
-import { blockedX, liftOut } from '../logic/ground';
+import { blockedX, liftOut, overlaps } from '../logic/ground';
 import type { PersonSize } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
 import { drawJunk } from './junkShapes';
 import { drawTvProgram } from './tvScreen';
+import { drawParkedVehicle, drawVehicle, drawWheel } from './vehicleShapes';
 import type { World } from './World';
 
 /**
@@ -51,15 +55,29 @@ export class Block extends Body {
   /** Sliding off what it stands on: how fast, and how far it leans meanwhile. */
   private slideSpeed = 0;
   private lean = 0;
+  /** A vehicle: which way it points, whether it is driving, and its turning wheels. */
+  private facing: Facing = 1;
+  private driving = false;
+  private readonly wheels: Phaser.GameObjects.Graphics[] = [];
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
     this.def = BLOCKS[kind];
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
-    this.actions = this.def.blast ? BARREL_ACTIONS : THING_ACTIONS;
+    const { blast, drive } = this.def;
+    this.actions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
     const { fill, dark, light } = this.def.colors;
     this.crumbs = [fill, dark, light];
-    const parts = [drawBlock(scene.make.graphics({}, false), kind)];
+    const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
+    const parts = [isVehicle(kind) ? drawVehicle(blank(), kind) : drawBlock(blank(), kind)];
+    if (drive) {
+      // The wheels are their own pictures, so that they can turn
+      for (const x of drive.wheels.xs) {
+        const wheel = drawWheel(blank(), drive.wheels.radius);
+        this.wheels.push(wheel.setPosition(x, -drive.wheels.up));
+      }
+      parts.push(...this.wheels);
+    }
     if (kind === 'tv') {
       this.screen = scene.make.graphics({}, false);
       parts.push(this.screen);
@@ -86,9 +104,21 @@ export class Block extends Body {
     return this.fallen === 0 && this.carries && isTall(halfWidth, height, TOPPLE.tallRatio);
   }
 
-  /** A barrel that has been set off glows on its 🔥 bubble until it goes off. */
+  /** A barrel that has been set off, or a vehicle that is driving, glows on its bubble. */
   isOn(action: ActionId): boolean {
+    if (action === 'drive') return this.driving;
     return action === 'fuse' && this.fuseMs !== null;
+  }
+
+  /** Make a vehicle drive, or stop it again. */
+  toggleDrive(): void {
+    if (!this.def.drive) return;
+    this.driving = !this.driving;
+  }
+
+  /** Point a vehicle the other way. */
+  turn(): void {
+    this.facing = this.facing === 1 ? -1 : 1;
   }
 
   /** Set a barrel off, or stop it again while its fuse still burns. */
@@ -131,6 +161,7 @@ export class Block extends Body {
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
     const state = this.physics(deltaMs, world);
+    if (state === 'resting') this.drive(deltaMs, world);
     const tip = state === 'resting' && !this.tipping ? this.keepBalance(deltaMs, world) : 0;
     if (tip === 0) this.slideSpeed = 0;
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
@@ -153,6 +184,37 @@ export class Block extends Body {
 
   destroy(): void {
     this.display.destroy();
+  }
+
+  /**
+   * A vehicle that is switched on drives the way it points. It turns back at the
+   * edge of the area and at anything solid (and knocks tall pieces over), carries
+   * what stands on it, and knocks down the dolls it drives into.
+   */
+  private drive(deltaMs: number, world: World): void {
+    const drive = this.def.drive;
+    if (!drive || !this.driving) return;
+    const { halfWidth, height } = this.shape;
+    const from = this.x;
+    const wanted = from + this.facing * drive.speed * (deltaMs / 1000);
+    const inside = clamp(wanted, world.area.left + halfWidth, world.area.right - halfWidth);
+    this.x = blockedX(from, inside, halfWidth, this.y, height, world.pieces(this), 0);
+    const moved = this.x - from;
+    for (const wheel of this.wheels) {
+      wheel.rotation += (moved * this.facing) / drive.wheels.radius;
+    }
+    world.carry(this, moved);
+    if (this.x !== wanted) {
+      world.shove(this.box, this.facing);
+      this.turn();
+    }
+
+    for (const person of world.people) {
+      if (!person.canBeHit || !overlaps(this.box, person.box)) continue;
+      const solids = world.solidBoxes(person);
+      const deadly = person.hit(this.facing, solids, drive.damage, drive.pushSpeed, 'bruise');
+      world.hitEffect(person.feet.x, person.feet.y - PERSON.height / 2, deadly, 'punch');
+    }
   }
 
   /**
@@ -202,13 +264,19 @@ export class Block extends Body {
       this.fallen === 0 ? this.y : this.y - this.def.halfWidth,
     );
     this.display.rotation = turned + (state === 'flying' ? this.spin : this.lean);
+    this.display.setScale(this.facing, 1);
   }
 }
 
 type Graphics = Phaser.GameObjects.Graphics;
 
+function isVehicle(kind: BlockKind): kind is VehicleKind {
+  return BLOCKS[kind].drive !== undefined;
+}
+
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
 export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
+  if (isVehicle(kind)) return drawParkedVehicle(g, kind);
   switch (kind) {
     case 'crate':
       return drawCrate(g, BLOCKS.crate);

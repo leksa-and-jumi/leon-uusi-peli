@@ -10,9 +10,9 @@
 
 ## How to play / Miten pelataan
 
-🇬🇧 The menu at the top has four pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces and 🚽 junk. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it. Every page starts with an empty box: with that picked, a click on the gray area puts nothing in.
+🇬🇧 The menu at the top has five pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces, 🚽 junk and 🚗 vehicles. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it. Every page starts with an empty box: with that picked, a click on the gray area puts nothing in.
 
-🇫🇮 Ylävalikossa on neljä sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat ja 🚽 krääsä. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi. Jokainen sivu alkaa tyhjällä ruudulla: kun se on valittuna, harmaan alueen klikkaus ei laita mitään paikalle.
+🇫🇮 Ylävalikossa on viisi sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat, 🚽 krääsä ja 🚗 ajoneuvot. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi. Jokainen sivu alkaa tyhjällä ruudulla: kun se on valittuna, harmaan alueen klikkaus ei laita mitään paikalle.
 
 🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets; dolls step up onto low ones. The red barrel explodes when a bullet or a blast hits it, or when you double-click it and press 🔥! Drop a piece on a doll and it squashes the doll: its head bends down, it goes down under the piece and stays there until you take the piece away (it doesn't lose lives).
 
@@ -21,6 +21,10 @@
 🇬🇧 **Gravity ⚖️:** pieces have to balance. A beam or a crate whose middle hangs out past what it stands on tips toward its heavy side and slides off. Tall pieces (brick walls and fridges) fall over onto their side when they lose their balance, or when you throw or swing a doll into them or throw a weapon at them, and they knock over the next tall piece like dominoes. A doll knocked down beside a piece lies next to it, not through it.
 
 🇫🇮 **Painovoima ⚖️:** palojen pitää pysyä tasapainossa. Palkki tai laatikko, jonka keskikohta roikkuu tuen ohi, kallistuu painavamman puolensa suuntaan ja liukuu pois. Korkeat palat (tiiliseinät ja jääkaapit) kaatuvat kyljelleen, kun ne menettävät tasapainonsa tai kun heität tai heilautat nuken niitä päin tai heität niitä aseella, ja ne kaatavat seuraavan korkean palan kuin dominot. Palan viereen kaadettu nukke makaa sen vieressä eikä sen läpi.
+
+🇬🇧 **Vehicles 🚗:** a car, a truck, a motorbike and a skateboard. Double-click one and press 🏁 to make it drive (press again to stop) or 🔄 to turn it around. A driving vehicle turns back at walls and at the edges, knocks tall pieces over, and knocks down the dolls it drives into: the car and the motorbike take 1 life, the truck 2, the skateboard none. Whatever stands on top of a vehicle rides along, so put a doll on the truck! Vehicles are solid, so you can also stack things on them and drop them on dolls.
+
+🇫🇮 **Ajoneuvot 🚗:** auto, kuorma-auto, moottoripyörä ja skeittilauta. Tuplaklikkaa ajoneuvoa ja paina 🏁, niin se lähtee ajamaan (paina uudestaan, niin se pysähtyy), tai 🔄, niin se kääntyy. Ajava ajoneuvo kääntyy takaisin seinistä ja reunoista, kaataa korkeat palat ja kaataa nuket, joihin se ajaa: auto ja moottoripyörä vievät 1 elämän, kuorma-auto 2, skeittilauta ei yhtään. Kaikki, mikä seisoo ajoneuvon päällä, kulkee mukana, eli laita nukke kuorma-auton päälle! Ajoneuvot ovat kiinteitä, joten niiden päälle voi myös pinota tavaroita ja niitä voi pudottaa nukkejen päälle.
 
 🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. The TV always has a program on 📺. A doll can hold the bottle, the frying pan and the broom and hit with them. Throw the bottle hard and it smashes. Drag the broom 🧹 along the floor to wipe blood away.
 

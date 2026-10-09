@@ -7,6 +7,7 @@ import {
   lyingRoom,
   overlaps,
   pressingOn,
+  standsOn,
   tiltedBox,
 } from './ground';
 
@@ -189,5 +190,26 @@ describe('lyingRoom', () => {
   it('ignores a low thing the doll can lie over', () => {
     const plank = { left: 420, right: 560, top: 482, bottom: 500 };
     expect(lyingRoom(400, 500, 1, 24, 120, [plank], room, 20)).toEqual(room);
+  });
+});
+
+describe('standsOn', () => {
+  const car = { left: 100, right: 200, top: 460, bottom: 500 };
+
+  it('is true for something standing on top', () => {
+    expect(standsOn({ left: 120, right: 160, top: 340, bottom: 460 }, car, 3)).toBe(true);
+    expect(standsOn({ left: 120, right: 160, top: 342, bottom: 462 }, car, 3)).toBe(true);
+  });
+
+  it('is false for something beside it, above it or on the ground next to it', () => {
+    expect(standsOn({ left: 220, right: 260, top: 340, bottom: 460 }, car, 3)).toBe(false);
+    expect(standsOn({ left: 120, right: 160, top: 300, bottom: 420 }, car, 3)).toBe(false);
+    expect(standsOn({ left: 120, right: 160, top: 380, bottom: 500 }, car, 3)).toBe(false);
+  });
+
+  it('still counts something the carrier has just moved out from under a little', () => {
+    const rider = { left: 201, right: 241, top: 340, bottom: 460 };
+    expect(standsOn(rider, car, 3)).toBe(false);
+    expect(standsOn(rider, car, 3, 4)).toBe(true);
   });
 });
