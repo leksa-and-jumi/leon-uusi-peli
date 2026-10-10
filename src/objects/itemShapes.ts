@@ -14,6 +14,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawPistol(g);
     case 'mgun':
       return drawMachineGun(g);
+    case 'shotgun':
+      return drawShotgun(g);
     case 'sword':
       return drawSword(g);
     case 'axe':
@@ -22,8 +24,14 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawSpear(g);
     case 'bat':
       return drawBat(g);
+    case 'hammer':
+      return drawHammer(g);
+    case 'knife':
+      return drawKnife(g);
     case 'bomb':
       return drawBomb(g);
+    case 'dynamite':
+      return drawDynamite(g);
     case 'bottle':
       return drawBottle(g);
     case 'pan':
@@ -138,6 +146,136 @@ function drawMachineGun(g: Graphics): Graphics {
   g.fillRect(-2, -3.5, 12, 1.5);
   g.lineStyle(1.5, c.dark);
   g.strokeRoundedRect(-1, 2, 6, 5, 2);
+  return g;
+}
+
+/** A shotgun: a wooden stock, two long barrels on top of each other, and a pump under them. */
+function drawShotgun(g: Graphics): Graphics {
+  const c = ITEM_COLORS.gun;
+  // Stock
+  shape(g, c.gripDark, [
+    [-25, -5],
+    [-7, -7],
+    [-7, 3],
+    [-25, 8],
+  ]);
+  shape(g, c.grip, [
+    [-23.5, -3.5],
+    [-8, -5.5],
+    [-8, 1.5],
+    [-23.5, 6],
+  ]);
+  // Grip
+  shape(g, c.gripDark, [
+    [-5, 1],
+    [2, 1],
+    [0, 10],
+    [-7, 10],
+  ]);
+  // The two barrels
+  g.fillStyle(c.dark);
+  g.fillRect(14, -8.5, 35, 8);
+  g.fillStyle(c.body);
+  g.fillRect(14, -7.5, 34, 2.6);
+  g.fillRect(14, -4, 34, 2.6);
+  g.fillStyle(c.shine, 0.8);
+  g.fillRect(16, -7.2, 28, 1);
+  // The wooden pump
+  g.fillStyle(c.gripDark);
+  g.fillRoundedRect(22, -1.5, 16, 5, 2);
+  g.fillStyle(c.grip);
+  g.fillRoundedRect(23, -0.8, 14, 3, 1.5);
+  // Body and trigger guard
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-8, -9, 24, 11, 2);
+  g.fillStyle(c.body);
+  g.fillRoundedRect(-7, -8, 22, 8.5, 1.5);
+  g.fillStyle(c.shine, 0.9);
+  g.fillRect(-5, -7.5, 18, 1.4);
+  g.lineStyle(1.5, c.dark);
+  g.strokeRoundedRect(0, 2, 6, 5, 2);
+  return g;
+}
+
+/** A sledgehammer: a wooden handle with a heavy block of steel across its end. */
+function drawHammer(g: Graphics): Graphics {
+  const blade = ITEM_COLORS.blade;
+  const wood = ITEM_COLORS.wood;
+  g.fillStyle(wood.dark);
+  g.fillRoundedRect(-12, -3, 50, 6, 2.5);
+  g.fillStyle(wood.fill);
+  g.fillRoundedRect(-11, -2, 48, 3.2, 1.5);
+  g.fillStyle(wood.wrap);
+  for (const x of [-10, -6, -2]) {
+    g.fillRect(x, -3, 2.2, 6);
+  }
+  g.fillStyle(blade.dark);
+  g.fillRoundedRect(27, -13, 15, 26, 3);
+  g.fillStyle(blade.steel);
+  g.fillRoundedRect(28.2, -11.8, 12.6, 23.6, 2);
+  g.fillStyle(blade.light);
+  g.fillRect(29.5, -11, 3, 22);
+  g.fillStyle(blade.dark, 0.5);
+  g.fillRect(28.2, -4, 12.6, 1.2);
+  g.fillRect(28.2, 2.8, 12.6, 1.2);
+  return g;
+}
+
+/** A knife: a short blade with a straight back and a sharp point, and a wrapped grip. */
+function drawKnife(g: Graphics): Graphics {
+  const blade = ITEM_COLORS.blade;
+  const c = ITEM_COLORS.sword;
+  shape(g, blade.dark, [
+    [3, -4.5],
+    [22, -4.5],
+    [31, 0.5],
+    [20, 4.5],
+    [3, 4.5],
+  ]);
+  shape(g, blade.light, [
+    [4, -3.4],
+    [21.5, -3.4],
+    [28, 0],
+    [4, 0],
+  ]);
+  shape(g, blade.steel, [
+    [4, 0],
+    [28, 0],
+    [19.5, 3.4],
+    [4, 3.4],
+  ]);
+  g.fillStyle(c.wrap);
+  g.fillRoundedRect(-11, -3.2, 13, 6.4, 2.5);
+  g.fillStyle(c.grip);
+  for (const x of [-9, -6, -3]) {
+    g.fillRect(x, -3.2, 1.6, 6.4);
+  }
+  g.fillStyle(blade.dark);
+  g.fillRoundedRect(1, -5.5, 3, 11, 1.2);
+  return g;
+}
+
+/** Dynamite: three red sticks tied together with two bands, and a fuse. */
+function drawDynamite(g: Graphics): Graphics {
+  const c = ITEM_COLORS.dynamite;
+  g.lineStyle(2.4, c.fuse);
+  g.beginPath();
+  g.moveTo(0, -13);
+  g.lineTo(3, -19);
+  g.lineTo(8, -19);
+  g.lineTo(FUSE_TIP.x, FUSE_TIP.y);
+  g.strokePath();
+  for (const x of [-11.5, -3.75, 4]) {
+    g.fillStyle(c.dark);
+    g.fillRoundedRect(x, -13, 7.5, 26, 2);
+    g.fillStyle(c.stick);
+    g.fillRoundedRect(x + 0.8, -12.2, 5.9, 24.4, 1.5);
+    g.fillStyle(c.light, 0.8);
+    g.fillRect(x + 1.6, -11, 1.4, 22);
+  }
+  g.fillStyle(c.band);
+  g.fillRect(-12, -7.5, 24, 3.5);
+  g.fillRect(-12, 4, 24, 3.5);
   return g;
 }
 

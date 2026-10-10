@@ -517,17 +517,28 @@ export interface BlockDef {
   drive?: DriveDef;
   /** It is a monster: it hunts the dolls. */
   monster?: MonsterDef;
+  /** Glass: it shatters when a bullet hits it or when it falls over. */
+  fragile?: boolean;
 }
 
 /** The pieces on the building page. */
-export type BuildKind = 'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barrel';
+export type BuildKind =
+  'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barrel' | 'glass' | 'tnt' | 'pillar';
 /** Junk that is solid like a building piece: you can stack it and stand on it. */
 export type JunkBlockKind =
   'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
 /** Things that are alive in their own way and go after the dolls. */
-export type MonsterKind = 'skibidi' | 'skibidiToilet' | 'skibidiCone' | 'chomper' | 'ghost';
+export type MonsterKind =
+  | 'skibidi'
+  | 'skibidiToilet'
+  | 'skibidiCone'
+  | 'skibidiTv'
+  | 'chomper'
+  | 'ghost'
+  | 'batMonster'
+  | 'ufo';
 export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind;
 
 /**
@@ -560,7 +571,19 @@ export interface MonsterDef {
    * A ghost: it floats, goes straight through everything, and can't be shot. `alpha`
    * is how see-through it is, and it bobs `bob` pixels up and down every `bobMs`.
    */
-  ghost?: { alpha: number; bob: number; bobMs: number };
+  ghost?: {
+    alpha: number;
+    bob: number;
+    bobMs: number;
+    /** A bat: it bites instead of scaring, and flaps its wings once in `flapMs`. */
+    bite?: boolean;
+    flapMs?: number;
+  };
+  /**
+   * A flying saucer: it hovers `below` the ceiling, flies over the closest doll and
+   * shoots straight down at it once it is at most `aim` pixels off to the side.
+   */
+  saucer?: { below: number; aim: number };
 }
 
 /** How a vehicle drives, and where its wheels are. */
@@ -708,6 +731,27 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xc62828, dark: 0x6d1414, light: 0xf08a85, detail: 0xffd54f },
     blast: { fuseMs: 1500, radius: 150, damage: 3, pushSpeed: 700 },
   },
+  glass: {
+    halfWidth: 7,
+    height: 120,
+    menuScale: 0.6,
+    colors: { fill: 0xa9d6e8, dark: 0x4f7f93, light: 0xeaf8ff, detail: 0xffffff },
+    fragile: true,
+  },
+  // A bigger bang than the barrel, and a longer fuse to get away from it
+  tnt: {
+    halfWidth: 26,
+    height: 44,
+    menuScale: 1.1,
+    colors: { fill: 0xd32f2f, dark: 0x6d1414, light: 0xff8a80, detail: 0xfff3e0 },
+    blast: { fuseMs: 2000, radius: 230, damage: 4, pushSpeed: 850 },
+  },
+  pillar: {
+    halfWidth: 15,
+    height: 150,
+    menuScale: 0.5,
+    colors: { fill: 0xb8b8b0, dark: 0x5f5f58, light: 0xe2e2da, detail: 0x8c8c84 },
+  },
   toilet: {
     halfWidth: 25,
     height: 58,
@@ -852,6 +896,25 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       blast: { radius: 90, damage: 2, pushSpeed: 480 },
     },
   },
+  skibidiTv: {
+    halfWidth: 31,
+    height: 46,
+    menuScale: 0.9,
+    colors: { fill: 0x4a4a55, dark: 0x1f1f26, light: 0x7d7d8a, detail: 0x86b3c9 },
+    // Its TV is on all the time, and its laser takes 2 lives a shot
+    monster: {
+      attack: 'laser',
+      range: 500,
+      everyMs: 900,
+      damage: 2,
+      pushSpeed: 320,
+      speed: 75,
+      face: 'skibidi',
+      body: 'tv',
+      head: { radius: 15, x: -4, inUp: 20, outUp: 61, popMs: 140 },
+      blast: { radius: 120, damage: 3, pushSpeed: 600 },
+    },
+  },
   chomper: {
     halfWidth: 20,
     height: 50,
@@ -885,6 +948,39 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       pushSpeed: 260,
       speed: 115,
       ghost: { alpha: 0.82, bob: 7, bobMs: 420 },
+    },
+  },
+  batMonster: {
+    halfWidth: 24,
+    height: 27,
+    menuScale: 1.3,
+    colors: { fill: 0x3b2a4a, dark: 0x1a1022, light: 0x6a4d85, detail: 0xff1744 },
+    // Quick and small: it flies through everything like the ghost, and bites
+    monster: {
+      attack: 'scare',
+      range: 2000,
+      everyMs: 800,
+      damage: 1,
+      pushSpeed: 90,
+      speed: 230,
+      ghost: { alpha: 1, bob: 9, bobMs: 130, bite: true, flapMs: 90 },
+    },
+  },
+  ufo: {
+    halfWidth: 46,
+    height: 37,
+    menuScale: 0.8,
+    colors: { fill: 0x9aa7b4, dark: 0x3d4852, light: 0xdfe7ee, detail: 0x7cf0c4 },
+    // It hovers up under the ceiling and shoots straight down: 2 lives a shot
+    monster: {
+      attack: 'laser',
+      range: 760,
+      everyMs: 1000,
+      damage: 2,
+      pushSpeed: 260,
+      speed: 130,
+      saucer: { below: 26, aim: 150 },
+      blast: { radius: 140, damage: 3, pushSpeed: 650 },
     },
   },
   helicopter: {
@@ -966,6 +1062,9 @@ export interface GunDef {
   muzzle: { x: number; y: number };
   /** How high the barrel is above the bottom of the gun when it lies around. */
   barrelUp: number;
+  /** A shotgun: this many bullets at once, fanned out over `spread` (radians). */
+  pellets?: number;
+  spread?: number;
 }
 
 /**
@@ -1014,7 +1113,18 @@ export interface ItemDef {
 }
 
 /** The items on the weapons page. */
-export type WeaponKind = 'pistol' | 'mgun' | 'sword' | 'axe' | 'spear' | 'bat' | 'bomb';
+export type WeaponKind =
+  | 'pistol'
+  | 'mgun'
+  | 'shotgun'
+  | 'sword'
+  | 'axe'
+  | 'spear'
+  | 'bat'
+  | 'hammer'
+  | 'knife'
+  | 'bomb'
+  | 'dynamite';
 /** Junk a doll can hold, and hit others with. */
 export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 export type ItemKind = WeaponKind | JunkItemKind;
@@ -1052,6 +1162,26 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       bulletSpeed: 900,
       muzzle: { x: 98, y: 86 },
       barrelUp: 17,
+    },
+  },
+  // Slow, and it doesn't reach far, but five bullets fly out at once
+  shotgun: {
+    crumbs: [0x455a64, 0x1c262b, 0x4e342e],
+    halfWidth: 37,
+    height: 19,
+    menuScale: 0.9,
+    lie: { x: -12, y: -10 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 330,
+      damage: 1,
+      everyMs: 1600,
+      autoMs: 950,
+      bulletSpeed: 820,
+      muzzle: { x: 106, y: 86 },
+      barrelUp: 15,
+      pellets: 5,
+      spread: 0.34,
     },
   },
   sword: {
@@ -1093,6 +1223,26 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 78, damage: 1, wound: 'bruise', pushSpeed: 620 },
   },
+  // Heavy: it takes 2 lives and sends the doll flying
+  hammer: {
+    crumbs: [0xb4c0c8, 0xc9a46a, 0x7a5a2e],
+    halfWidth: 27,
+    height: 26,
+    menuScale: 1.15,
+    lie: { x: -15, y: -13 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 76, damage: 2, wound: 'bruise', pushSpeed: 760 },
+  },
+  knife: {
+    crumbs: [0xeef3f6, 0xb4c0c8, 0x5d4037],
+    halfWidth: 21,
+    height: 11,
+    menuScale: 1.4,
+    lie: { x: -10, y: -5.5 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 62, damage: 1, wound: 'stab', pushSpeed: 160 },
+    stick: { out: 14 },
+  },
   bomb: {
     crumbs: [0x1b1b1b, 0x8a8a8a, 0xff9800],
     halfWidth: 13,
@@ -1101,6 +1251,16 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: 0, y: -13 },
     hand: { rotation: 0, along: 10 },
     bomb: { fuseMs: 4000, radius: 170, damage: 3, pushSpeed: 700 },
+  },
+  // A shorter fuse than the bomb and a much bigger blast
+  dynamite: {
+    crumbs: [0xd32f2f, 0x7f1d1d, 0x3e2723],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.6,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 10 },
+    bomb: { fuseMs: 3000, radius: 250, damage: 4, pushSpeed: 850 },
   },
   bottle: {
     crumbs: [0x2e7d4f, 0xa5e0bd, 0x174428],
@@ -1138,11 +1298,15 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
 export const WEAPON_KINDS: readonly WeaponKind[] = [
   'pistol',
   'mgun',
+  'shotgun',
   'sword',
   'axe',
   'spear',
   'bat',
+  'hammer',
+  'knife',
   'bomb',
+  'dynamite',
 ];
 export const BUILD_KINDS: readonly BuildKind[] = [
   'crate',
@@ -1150,14 +1314,20 @@ export const BUILD_KINDS: readonly BuildKind[] = [
   'plank',
   'stone',
   'girder',
+  'pillar',
+  'glass',
   'barrel',
+  'tnt',
 ];
 export const MONSTER_KINDS: readonly MonsterKind[] = [
   'skibidi',
   'skibidiToilet',
   'skibidiCone',
+  'skibidiTv',
   'chomper',
   'ghost',
+  'batMonster',
+  'ufo',
 ];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'car',
@@ -1190,6 +1360,7 @@ export const ITEM_COLORS = {
   sword: { guard: 0xffc107, guardDark: 0xb8860b, grip: 0x5d4037, wrap: 0x3e2723 },
   wood: { fill: 0xc9a46a, dark: 0x7a5a2e, light: 0xecd2a0, wrap: 0x3e2723 },
   bomb: { body: 0x1b1b1b, shine: 0x8a8a8a, cap: 0x9e9e9e, fuse: 0xbcaaa4, spark: 0xffb300 },
+  dynamite: { stick: 0xd32f2f, dark: 0x7f1d1d, light: 0xff8a80, band: 0x3e2723, fuse: 0xbcaaa4 },
   bottle: { glass: 0x2e7d4f, dark: 0x174428, shine: 0xa5e0bd, label: 0xf3ead2, cap: 0xc9a227 },
   pan: { metal: 0x3a3f44, dark: 0x1a1d20, shine: 0x8b959c, handle: 0x5d4037, inside: 0x23272b },
   broom: { bristle: 0xd9b44a, bristleDark: 0x9a7a1e, band: 0xc62828, bandDark: 0x7f1d1d },

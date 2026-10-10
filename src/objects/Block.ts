@@ -86,7 +86,8 @@ export class Block extends Body {
     this.def = BLOCKS[kind];
     const ghost = this.def.monster?.ghost;
     this.solid = !ghost;
-    this.hovering = ghost !== undefined;
+    // A ghost and a flying saucer hold themselves up in the air
+    this.hovering = ghost !== undefined || this.def.monster?.saucer !== undefined;
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
     const { blast, drive } = this.def;
     this.actions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
@@ -95,6 +96,10 @@ export class Block extends Body {
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
     const { monster } = this.def;
     const parts = [isVehicle(kind) ? drawVehicle(blank(), kind) : drawJunkOrPiece(blank(), kind)];
+    if (monster && !monster.head && !monster.ghost) {
+      this.holes = blank();
+      parts.push(this.holes);
+    }
     if (monster?.head) {
       // The head goes behind the fridge, so that it comes up out of its top
       this.head = drawMonsterHead(blank(), monster.face, monster.head);
@@ -117,7 +122,7 @@ export class Block extends Body {
         parts.push(this.rotor);
       }
     }
-    if (kind === 'tv') {
+    if (kind === 'tv' || monster?.body === 'tv') {
       this.screen = scene.make.graphics({}, false);
       parts.push(this.screen);
     }
@@ -197,7 +202,11 @@ export class Block extends Body {
    * and the last bullet it can take blows it up.
    */
   shot(px: number, py: number, world: World): void {
-    const { drive, monster } = this.def;
+    const { drive, monster, fragile } = this.def;
+    if (fragile) {
+      this.shatter(world);
+      return;
+    }
     if (!drive && !monster) {
       this.setOff(0);
       return;
@@ -220,6 +229,13 @@ export class Block extends Body {
     } else {
       world.breakApart(this, 0, -200);
     }
+  }
+
+  /** Glass breaks into pieces with a crash. */
+  private shatter(world: World): void {
+    if (this.exploded) return;
+    this.exploded = true;
+    world.breakApart(this, 0, -120);
   }
 
   override throwAway(area: PlaceArea): void {
@@ -281,6 +297,11 @@ export class Block extends Body {
    */
   topple(direction: Facing, world: World): void {
     if (!this.canTopple) return;
+    // Glass doesn't survive falling over
+    if (this.def.fragile) {
+      this.shatter(world);
+      return;
+    }
     const lying = toppled({ x: this.x, ...this.shape }, direction);
     this.tipping = { fromX: this.x, fromY: this.y, ms: 0 };
     this.fallen = direction;
@@ -302,7 +323,8 @@ export class Block extends Body {
     this.spinRotor();
     this.hunt(deltaMs, world, state);
     this.haunt(deltaMs, world, state);
-    const balancing = this.solid && state === 'resting' && !this.tipping;
+    this.patrol(deltaMs, world, state);
+    const balancing = this.solid && !this.hovering && state === 'resting' && !this.tipping;
     const tip = balancing ? this.keepBalance(deltaMs, world) : 0;
     if (tip === 0) this.slideSpeed = 0;
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
@@ -480,18 +502,56 @@ export class Block extends Body {
     if (this.zapWaitMs > 0 || !overlaps(this.box, body)) return;
     this.zapWaitMs = monster.everyMs;
     const solids = world.solidBoxes(victim);
-    const deadly = victim.hit(this.facing, solids, monster.damage, monster.pushSpeed, 'bruise');
-    world.hitEffect(atX, atY, deadly, 'none');
-    world.spook();
+    const { bite } = monster.ghost;
+    const wound = bite ? 'stab' : 'bruise';
+    const deadly = victim.hit(this.facing, solids, monster.damage, monster.pushSpeed, wound);
+    world.hitEffect(atX, atY, deadly, bite ? 'punch' : 'none');
+    if (!bite) world.spook();
+  }
+
+  /**
+   * A flying saucer climbs up under the ceiling and flies over the closest living doll
+   * it can see. Once it is above the doll it shoots its laser straight down at it.
+   * With no doll in sight it burns up everything else, like the skibidis do.
+   */
+  private patrol(deltaMs: number, world: World, state: BodyState): void {
+    const monster = this.def.monster;
+    const saucer = monster?.saucer;
+    if (!monster || !saucer) return;
+    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    if (state !== 'resting') return;
+    const { halfWidth, height } = this.shape;
+    const { left, right, top } = world.area;
+    const pieces = world.pieces(this);
+    const climb = monster.speed * (deltaMs / 1000);
+    this.y += clamp(top + saucer.below + height - this.y, -climb, climb);
+
+    const victim = this.closestDoll(world, this.y, monster.range, pieces, false);
+    if (!victim) {
+      this.smash(monster.range, this.y, world);
+      return;
+    }
+    const body = victim.hitBox;
+    const atX = (body.left + body.right) / 2;
+    const from = this.x;
+    const next = floatStep(from, 0, atX, 0, monster.speed, deltaMs).x;
+    const inside = clamp(next, left + halfWidth, right - halfWidth);
+    this.x = blockedX(from, inside, halfWidth, this.y, height, pieces, 0);
+    world.carry(this, this.x - from);
+
+    if (this.zapWaitMs > 0 || Math.abs(atX - this.x) > saucer.aim) return;
+    this.zapWaitMs = monster.everyMs;
+    world.zap(this.x, this.y, victim, monster.damage, monster.pushSpeed);
   }
 
   /**
    * With no doll in sight, a monster zaps whatever else is closest: building pieces,
-   * junk, vehicles and loose items. Not other monsters.
+   * junk, vehicles and loose items. Not other monsters. The laser comes from its eyes,
+   * or from the belly of one that has no head.
    */
   private smash(range: number, eyesY: number, world: World): void {
     const head = this.def.monster?.head;
-    if (this.zapWaitMs > 0 || !head) return;
+    if (this.zapWaitMs > 0) return;
     let thing: Body | null = null;
     let closest = range;
     for (const other of world.things(this)) {
@@ -507,8 +567,8 @@ export class Block extends Body {
     if (!thing) return;
     this.zapWaitMs = this.def.monster?.everyMs ?? 0;
     this.facing = thing.feet.x < this.x ? -1 : 1;
-    const eyesX = this.x + this.facing * (head.x + SKIBIDI.eyes.x * (head.scale ?? 1));
-    world.zapThing(eyesX, eyesY, thing);
+    const ahead = head ? head.x + SKIBIDI.eyes.x * (head.scale ?? 1) : 0;
+    world.zapThing(this.x + this.facing * ahead, eyesY, thing);
   }
 
   /**
@@ -573,7 +633,10 @@ export class Block extends Body {
       (this.fallen === 0 ? this.y : this.y - this.def.halfWidth) + bob,
     );
     this.display.rotation = turned + (state === 'flying' ? this.spin : this.lean);
-    this.display.setScale(this.facing, 1);
+    // A bat flaps its wings: its picture is squeezed flat and let go again, fast
+    const flapMs = ghost?.flapMs;
+    const flap = flapMs ? 1 - 0.35 * Math.abs(Math.sin((this.clockMs / flapMs) * Math.PI)) : 1;
+    this.display.setScale(this.facing, flap);
   }
 }
 
@@ -608,6 +671,12 @@ export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
       return drawGirder(g, BLOCKS.girder);
     case 'barrel':
       return drawBarrel(g, BLOCKS.barrel);
+    case 'glass':
+      return drawGlass(g, BLOCKS.glass);
+    case 'tnt':
+      return drawTnt(g, BLOCKS.tnt);
+    case 'pillar':
+      return drawPillar(g, BLOCKS.pillar);
     default:
       return drawJunk(g, kind);
   }
@@ -821,5 +890,94 @@ function drawBarrel(g: Graphics, def: BlockDef): Graphics {
   g.fillStyle(colors.dark);
   g.fillRoundedRect(-1.4, signY - 5.5, 2.8, 7, 1);
   g.fillCircle(0, signY + 4.2, 1.5);
+  return g;
+}
+
+/** A pane of glass: you can see through it, and light streaks across it. */
+function drawGlass(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+
+  g.fillStyle(colors.fill, 0.45);
+  g.fillRect(left, top, width, height);
+  g.fillStyle(colors.light, 0.75);
+  g.fillRect(left + 2, top + 4, 2.5, height - 8);
+  g.lineStyle(1.2, colors.detail, 0.8);
+  for (const y of [top + 22, top + 30, top + 78]) {
+    g.lineBetween(left + 6, y, halfWidth - 2, y - 8);
+  }
+  g.lineStyle(1.5, colors.dark, 0.9);
+  g.strokeRect(left, top, width, height);
+  return g;
+}
+
+/** A red crate of explosives with a pale label that says TNT, and a short fuse. */
+function drawTnt(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+
+  g.lineStyle(2, colors.detail);
+  g.lineBetween(9, top + 1, 13, top - 6);
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(left, top, width, height, 4);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(left + 2, top + 2, width - 4, height - 4, 3);
+  bevel(g, left + 3, top + 2, width - 6, height - 4, def);
+
+  // The label, with the three letters drawn as lines
+  const labelTop = top + height / 2 - 9;
+  g.fillStyle(colors.detail);
+  g.fillRect(left + 5, labelTop, width - 10, 18);
+  const letterTop = labelTop + 3.5;
+  const letterBottom = letterTop + 11;
+  g.lineStyle(2.4, colors.dark);
+  for (const x of [-17, 8]) {
+    g.lineBetween(x, letterTop, x + 9, letterTop);
+    g.lineBetween(x + 4.5, letterTop, x + 4.5, letterBottom);
+  }
+  g.lineBetween(-4.5, letterBottom, -4.5, letterTop);
+  g.lineBetween(-4.5, letterTop, 4.5, letterBottom);
+  g.lineBetween(4.5, letterBottom, 4.5, letterTop);
+  return g;
+}
+
+/** A tall concrete pillar: a round shaft with grooves, on a wide foot and under a wide top. */
+function drawPillar(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+  const end = 9;
+
+  // Shaft: light on the left, shadow on the right, grooves down its length
+  g.fillStyle(colors.dark);
+  g.fillRect(left + 2, top + end, width - 4, height - end * 2);
+  g.fillStyle(colors.fill);
+  g.fillRect(left + 3.5, top + end, width - 7, height - end * 2);
+  g.fillStyle(colors.light, 0.7);
+  g.fillRect(left + 4.5, top + end, 3, height - end * 2);
+  g.fillStyle(colors.detail, 0.55);
+  g.fillRect(halfWidth - 8, top + end, 4.5, height - end * 2);
+  g.lineStyle(1, colors.detail, 0.7);
+  for (const x of [-3.5, 2.5]) {
+    g.lineBetween(x, top + end + 3, x, -end - 3);
+  }
+  g.lineStyle(1.2, colors.dark, 0.7);
+  g.lineBetween(left + 6, top + 52, left + 11, top + 61);
+  g.lineBetween(left + 11, top + 61, left + 8, top + 68);
+
+  // The wide top and foot
+  for (const y of [top, -end]) {
+    g.fillStyle(colors.dark);
+    g.fillRoundedRect(left, y, width, end, 2);
+    g.fillStyle(colors.fill);
+    g.fillRoundedRect(left + 1.3, y + 1.3, width - 2.6, end - 2.6, 1.5);
+    g.fillStyle(colors.light, 0.8);
+    g.fillRect(left + 2.5, y + 1.5, width - 5, 1.6);
+  }
   return g;
 }

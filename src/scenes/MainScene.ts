@@ -40,7 +40,7 @@ import { crumbAlpha, crumbCount, crumbStep, scatter, type Crumb } from '../logic
 import { overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
-import { segmentHit } from '../logic/shot';
+import { fan, segmentHit } from '../logic/shot';
 import { sameTeam } from '../logic/team';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
 import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
@@ -582,11 +582,14 @@ export class MainScene extends Phaser.Scene {
     from: Body | null = null,
   ): void {
     this.sfx.shot();
-    const picture = this.add
-      .rectangle(x, y, BULLET.width, BULLET.height, BULLET.color)
-      .setDepth(DEPTH.bullet);
-    picture.rotation = Math.atan2(aim.y, aim.x);
-    this.bullets.push({ x, y, aim, from, direction, gun, shooter, picture });
+    // A shotgun sends several bullets out at once, fanned out
+    for (const way of fan(aim, gun.pellets ?? 1, gun.spread ?? 0)) {
+      const picture = this.add
+        .rectangle(x, y, BULLET.width, BULLET.height, BULLET.color)
+        .setDepth(DEPTH.bullet);
+      picture.rotation = Math.atan2(way.y, way.x);
+      this.bullets.push({ x, y, aim: way, from, direction, gun, shooter, picture });
+    }
   }
 
   /** Bullets fly straight until they hit a doll, hit something solid, or leave the area. */
