@@ -68,6 +68,8 @@ export interface World {
    * floor is out, except `spare`, the doll that slammed it down.
    */
   thunder: (source: Body, spare?: Body) => void;
+  /** A puff of smoke rises from this spot. */
+  smoke: (x: number, y: number) => void;
   /** A little spark flies off something at this spot. */
   spark: (x: number, y: number) => void;
   /** A ghost scares this doll: an eerie sound. */

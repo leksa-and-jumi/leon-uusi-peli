@@ -86,6 +86,17 @@ export const TOPPLE = {
    */
   longRatio: 1.6,
   longShare: 0.72,
+  /**
+   * A piece that falls onto a block stays leaning on it. Leaning less than `minLean`
+   * (radians) it doesn't fall at all, and within `flatSlack` of a quarter turn it
+   * lies flat. Others walk up it as steps of at most `stepHeight`, `maxSteps` at most.
+   * The picture catches up with where the piece is in about `settleMs`.
+   */
+  minLean: 0.16,
+  flatSlack: 0.03,
+  stepHeight: 13,
+  maxSteps: 12,
+  settleMs: 130,
   /** Falling over onto its side takes this long. */
   ms: 380,
   /** A piece that isn't tall slides off toward its heavy side, faster and faster. */
@@ -790,12 +801,29 @@ export const THUNDER = {
    * fly off it this often and this far, and a monster's head shakes like this.
    */
   haywireMs: 7000,
+  /**
+   * A vehicle on the floor is fried: it smokes (a puff this often) and never drives
+   * again. This share of them blow up as well, after a wait somewhere in between.
+   */
+  fried: { smokeEveryMs: 170, explodeChance: 0.5, explodeAfterMs: { min: 4000, max: 14000 } },
   jitter: 1.6,
   sparkEveryMs: 260,
   sparkReach: 36,
   headShake: { sway: 0.9, ms: 45 },
   flashMs: 220,
   shake: { ms: 320, strength: 0.016 },
+} as const;
+
+/** A puff of smoke: a gray ball that rises, grows and fades. */
+export const SMOKE = {
+  colors: [0x3a3a3a, 0x5a5a5a, 0x7d7d7d],
+  radius: { min: 5, max: 9 },
+  spread: 10,
+  rise: { min: 45, max: 80 },
+  grow: 2.2,
+  alpha: 0.65,
+  ms: 1200,
+  depth: 16,
 } as const;
 
 /** A part that a blade has cut off a doll: how it flies off, and how long it lies around. */
