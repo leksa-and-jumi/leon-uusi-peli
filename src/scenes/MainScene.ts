@@ -49,7 +49,7 @@ import {
   settleTurn,
   type Crumb,
 } from '../logic/debris';
-import { overlaps, standsOn, type Box } from '../logic/ground';
+import { onFloor, overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
 import { fan, segmentHit } from '../logic/shot';
@@ -191,6 +191,10 @@ export class MainScene extends Phaser.Scene {
       },
       thunder: (source, spare) => {
         this.thunder(source, spare);
+      },
+      spark: (x, y) => {
+        const reach = (): number => (Math.random() * 2 - 1) * THUNDER.sparkReach;
+        this.bolt(x, y, x + reach(), y + reach(), SPARK);
       },
       things: (self) => [
         ...this.blocks.filter((block) => block !== self && block.canBePicked),
@@ -799,9 +803,9 @@ export class MainScene extends Phaser.Scene {
 
   /**
    * The thunder hammer strikes the floor: lightning comes down on it and runs along
-   * the whole floor. Every doll is out and every thing turns to ash, except what
-   * holds itself up in the air (and whoever sits in that), the hammer itself, and
-   * `spare`: the doll that slammed it down.
+   * the whole floor. Every doll that touches the floor is out, except `spare`, the
+   * doll that slammed it down; a doll standing up on something is safe. Nothing
+   * breaks, but electric things standing on the floor go haywire.
    */
   private thunder(source: Body, spare?: Body): void {
     if (this.time.now - this.lastThunderMs < THUNDER.cooldownMs) return;
@@ -816,24 +820,16 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.flash(THUNDER.flashMs);
     this.cameras.main.shake(THUNDER.shake.ms, THUNDER.shake.strength);
 
-    const inTheAir = this.blocks.filter((block) => block.floating);
-    const safe = new Set<Body>([source, ...inTheAir]);
-    if (spare) safe.add(spare);
-    inTheAir.forEach((block) => block.rider && safe.add(block.rider));
+    const touchesFloor = (box: Box): boolean => onFloor(box, AREA.floorY, THUNDER.groundSlack);
     for (const person of this.people) {
-      if (safe.has(person) || !person.canBePicked) continue;
+      if (person === spare || person.seated || !person.canBePicked) continue;
+      if (!touchesFloor(person.hitBox)) continue;
       const away: Facing = person.feet.x < x ? -1 : 1;
       person.hit(away, this.solidBoxes(person), THUNDER.damage, THUNDER.pushSpeed, 'burn');
     }
-    const things = [
-      ...this.blocks.filter((block) => block.canBePicked),
-      ...this.items.filter((item) => item.canBePicked && !item.isHeld),
-    ].filter((thing) => !safe.has(thing) && !this.doomed.includes(thing));
-    for (const thing of things) {
-      this.burnToAsh(thing);
-      this.doomed.push(thing);
+    for (const block of this.blocks) {
+      if (block.canBePicked && touchesFloor(block.box)) block.goHaywire(THUNDER.haywireMs);
     }
-    if (things.length > 0) this.sfx.crumble();
   }
 
   /**

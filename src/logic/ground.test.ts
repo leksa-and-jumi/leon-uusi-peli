@@ -6,6 +6,7 @@ import {
   hurdle,
   liftOut,
   lyingRoom,
+  onFloor,
   overlaps,
   pressingOn,
   standsOn,
@@ -245,5 +246,16 @@ describe('hurdle', () => {
   it('leaves alone what can simply be stepped onto', () => {
     const plank = { left: 120, right: 260, top: 482, bottom: 500 };
     expect(hurdle(100, 500, 1, 20, 100, [plank], 20, 70)).toBeNull();
+  });
+});
+
+describe('onFloor', () => {
+  it('is true for something standing on the floor', () => {
+    expect(onFloor({ left: 0, right: 40, top: 400, bottom: 500 }, 500, 3)).toBe(true);
+    expect(onFloor({ left: 0, right: 40, top: 398, bottom: 498 }, 500, 3)).toBe(true);
+  });
+
+  it('is false for something up on a crate', () => {
+    expect(onFloor({ left: 0, right: 40, top: 344, bottom: 444 }, 500, 3)).toBe(false);
   });
 });

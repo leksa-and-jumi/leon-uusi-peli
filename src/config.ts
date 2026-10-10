@@ -537,6 +537,8 @@ export interface BlockDef {
   fragile?: boolean;
   /** It is a trap: it hurts the dolls. */
   hazard?: HazardDef;
+  /** It runs on electricity: lightning along the floor makes it go haywire. */
+  electric?: boolean;
 }
 
 /** The pieces on the building page. */
@@ -750,7 +752,8 @@ export const SPARK: BoltLook = {
 
 /**
  * The thunder hammer: lightning comes down on it from the ceiling and runs along the
- * whole floor. Every doll is out, and every thing that isn't up in the air turns to ash.
+ * whole floor. Every doll that touches the floor is out; a doll standing up on
+ * something is safe. Nothing breaks, but electric things on the floor go haywire.
  */
 export const THUNDER = {
   cooldownMs: 900,
@@ -780,6 +783,17 @@ export const THUNDER = {
   } satisfies BoltLook,
   floorBolts: 3,
   floorUp: 10,
+  /** Something this close to the floor counts as touching it. */
+  groundSlack: 3,
+  /**
+   * An electric thing goes haywire for this long: it shakes this many pixels, sparks
+   * fly off it this often and this far, and a monster's head shakes like this.
+   */
+  haywireMs: 7000,
+  jitter: 1.6,
+  sparkEveryMs: 260,
+  sparkReach: 36,
+  headShake: { sway: 0.9, ms: 45 },
   flashMs: 220,
   shake: { ms: 320, strength: 0.016 },
 } as const;
@@ -977,6 +991,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     height: 46,
     menuScale: 0.95,
     colors: { fill: 0x4a4a55, dark: 0x1f1f26, light: 0x7d7d8a, detail: 0x86b3c9 },
+    electric: true,
   },
   trashcan: {
     halfWidth: 20,
@@ -1115,6 +1130,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     height: 46,
     menuScale: 0.9,
     colors: { fill: 0x4a4a55, dark: 0x1f1f26, light: 0x7d7d8a, detail: 0x86b3c9 },
+    electric: true,
     // Its TV is on all the time, and its laser takes 2 lives a shot
     monster: {
       attack: 'laser',
@@ -1716,6 +1732,8 @@ export const TV = {
   pong: { field: 0x10241a, line: 0x2f6b4c, ball: 0xffffff, paddle: 0xe0e0e0 },
   music: { back: 0x23204a, bars: [0xff5d73, 0xffb84d, 0xfff06a, 0x67e28c, 0x5cc8ff, 0xb388ff] },
   snow: [0x1c1c1c, 0x6e6e6e, 0xb8b8b8, 0xf2f2f2],
+  /** The wild colors on a TV that lightning has hit. */
+  haywire: [0xff1744, 0x00e5ff, 0xffea00, 0x76ff03, 0xd500f9],
 } as const;
 
 /** A doll that has just let go of an item doesn't grab it again for this long. */

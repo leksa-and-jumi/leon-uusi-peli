@@ -26,6 +26,30 @@ export function drawTvProgram(g: Graphics, timeMs: number): void {
   g.fillTriangle(x + 3, y + 2, x + 15, y + 2, x + 3, y + 16);
 }
 
+/**
+ * A TV that lightning has hit: stripes of wild colors and snow that jump about, torn
+ * bits shoved sideways, and the whole glass flashing white. Nothing on it makes sense.
+ */
+export function drawTvHaywire(g: Graphics, timeMs: number): void {
+  const { x, y, width, height } = TV.screen;
+  const pick = (colors: readonly number[]): number =>
+    colors[Math.floor(Math.random() * colors.length)] ?? 0;
+  const stripe = 4;
+  g.clear();
+  for (let row = 0; row * stripe < height; row++) {
+    const tall = Math.min(stripe, height - row * stripe);
+    g.fillStyle(pick(row % 2 === 0 ? TV.haywire : TV.snow));
+    g.fillRect(x, y + row * stripe, width, tall);
+    const torn = Math.random() * (width - 9);
+    g.fillStyle(pick(TV.haywire));
+    g.fillRect(x + torn, y + row * stripe, 9, tall);
+  }
+  if (Math.floor(timeMs / 90) % 3 === 0) {
+    g.fillStyle(0xffffff, 0.55);
+    g.fillRect(x, y, width, height);
+  }
+}
+
 /** Black, gray and white dots all over: no program for a moment. */
 function drawSnow(g: Graphics): void {
   const { x, y, width, height } = TV.screen;

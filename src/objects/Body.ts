@@ -87,11 +87,6 @@ export abstract class Body {
     return this.state === 'resting' && !this.held;
   }
 
-  /** Holding itself up in the air, off the ground. */
-  get floating(): boolean {
-    return this.hovering;
-  }
-
   /** Carried sideways by the vehicle it stands on. */
   nudge(dx: number): void {
     this.x += dx;
