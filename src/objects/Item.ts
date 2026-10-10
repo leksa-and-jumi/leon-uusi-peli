@@ -312,8 +312,13 @@ export class Item extends Body {
     this.strike(speed, world);
   }
 
-  /** It hit something at this speed: a fragile thing that was thrown smashes to pieces. */
+  /**
+   * It hit something at this speed: a fragile thing that was thrown smashes to pieces,
+   * and a thunder hammer thrown down hard enough calls down lightning.
+   */
   private strike(speed: number, world: World): void {
+    const thunder = this.size.thunder;
+    if (thunder && this.thrown && speed >= thunder.minSpeed) world.thunder(this);
     const breaksAt = this.size.breaksAt;
     if (this.broken || !this.thrown || breaksAt === undefined || speed < breaksAt) return;
     this.broken = true;

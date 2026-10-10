@@ -1,3 +1,4 @@
+import type Phaser from 'phaser';
 import type { BlastDef, GunDef } from '../config';
 import type { Box } from '../logic/ground';
 import type { Spot } from '../logic/pick';
@@ -42,14 +43,31 @@ export interface World {
     aim?: Spot,
     from?: Body,
   ) => void;
-  /** A laser from this spot hits this doll: a beam flashes, and the doll takes the hit. */
-  zap: (fromX: number, fromY: number, victim: Person, damage: number, pushSpeed: number) => void;
+  /**
+   * A laser from this spot hits this doll: a beam flashes, and the doll takes the hit.
+   * With `spark` it is a jagged flash of lightning instead of a straight beam.
+   */
+  zap: (
+    fromX: number,
+    fromY: number,
+    victim: Person,
+    damage: number,
+    pushSpeed: number,
+    spark?: boolean,
+  ) => void;
   /** Everything a monster can smash, except itself: building pieces, vehicles and loose items. */
   things: (self: Body) => Body[];
   /** A laser from this spot hits this thing: a beam flashes, and the thing is destroyed. */
   zapThing: (fromX: number, fromY: number, thing: Body) => void;
   /** A monster swallows this doll whole: the doll is gone. */
   swallow: (by: Body, victim: Person) => void;
+  /** A part cut off a doll flies off this way and lies around. `lift` keeps it on top of the floor. */
+  sever: (picture: Phaser.GameObjects.Container, lift: number, direction: Facing) => void;
+  /**
+   * Lightning strikes this thing and runs along the floor: everything on the ground is
+   * destroyed, except `spare`, the doll that slammed it down.
+   */
+  thunder: (source: Body, spare?: Body) => void;
   /** A ghost scares this doll: an eerie sound. */
   spook: () => void;
   /** Something smashes to pieces, which fly off with this push (pixels per second). */

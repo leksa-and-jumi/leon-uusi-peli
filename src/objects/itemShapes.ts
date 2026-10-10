@@ -18,6 +18,10 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawShotgun(g);
     case 'sword':
       return drawSword(g);
+    case 'katana':
+      return drawKatana(g);
+    case 'thunderHammer':
+      return drawThunderHammer(g);
     case 'axe':
       return drawAxe(g);
     case 'spear':
@@ -194,6 +198,114 @@ function drawShotgun(g: Graphics): Graphics {
   g.fillRect(-5, -7.5, 18, 1.4);
   g.lineStyle(1.5, c.dark);
   g.strokeRoundedRect(0, 2, 6, 5, 2);
+  return g;
+}
+
+/**
+ * A samurai sword: a long, thin blade with a gentle curve, a small round guard and a
+ * grip wrapped in black with golden diamonds.
+ */
+function drawKatana(g: Graphics): Graphics {
+  const blade = ITEM_COLORS.blade;
+  const c = ITEM_COLORS.katana;
+  shape(g, blade.dark, [
+    [4, -3],
+    [38, -4.5],
+    [56, -8.5],
+    [65, -12],
+    [61, -5.5],
+    [42, -0.5],
+    [4, 3],
+  ]);
+  shape(g, blade.light, [
+    [5, -1.9],
+    [38, -3.4],
+    [55.5, -7.3],
+    [62, -9.8],
+    [59.5, -6],
+    [41.5, -1.7],
+    [5, 0.4],
+  ]);
+  shape(g, blade.steel, [
+    [5, 0.4],
+    [41.5, -1.7],
+    [59.5, -6],
+    [59, -5],
+    [41.5, -0.4],
+    [5, 2],
+  ]);
+  // Grip with its wrap, and the cap at the end
+  g.fillStyle(c.grip);
+  g.fillRoundedRect(-16, -3.2, 19, 6.4, 2);
+  g.fillStyle(c.wrap);
+  for (const x of [-12, -7.5, -3]) {
+    g.fillTriangle(x - 2, 0, x, -2.4, x + 2, 0);
+    g.fillTriangle(x - 2, 0, x, 2.4, x + 2, 0);
+  }
+  g.fillStyle(c.guard);
+  g.fillRoundedRect(-17.5, -3.6, 3, 7.2, 1.2);
+  // Guard
+  g.fillRoundedRect(2, -6.5, 3.6, 13, 1.6);
+  g.fillStyle(c.guardLight);
+  g.fillRoundedRect(2.7, -5.6, 1.6, 11.2, 0.8);
+  return g;
+}
+
+/**
+ * A thunder hammer, like in the old stories: a short grip wrapped in leather and a
+ * big block of steel with golden bands and a lightning mark. An own drawing.
+ */
+function drawThunderHammer(g: Graphics): Graphics {
+  const c = ITEM_COLORS.thunder;
+  // Grip, with a ring at its end
+  g.fillStyle(c.wrap);
+  g.fillRoundedRect(-11, -3.4, 36, 6.8, 2.5);
+  g.fillStyle(c.grip);
+  for (const x of [-9, -5, -1, 3, 7, 11, 15, 19]) {
+    g.fillRect(x, -3.4, 2, 6.8);
+  }
+  g.fillStyle(c.goldDark);
+  g.fillCircle(-13, 0, 4.2);
+  g.fillStyle(c.gold);
+  g.fillCircle(-13.3, -0.5, 2.6);
+  // Head: a block with slanted ends
+  shape(g, c.dark, [
+    [22, -11],
+    [26, -15],
+    [43, -15],
+    [47, -11],
+    [47, 11],
+    [43, 15],
+    [26, 15],
+    [22, 11],
+  ]);
+  shape(g, c.steel, [
+    [23.5, -10.3],
+    [26.7, -13.5],
+    [42.3, -13.5],
+    [45.5, -10.3],
+    [45.5, 10.3],
+    [42.3, 13.5],
+    [26.7, 13.5],
+    [23.5, 10.3],
+  ]);
+  g.fillStyle(c.light, 0.8);
+  g.fillRect(25, -12.5, 3, 25);
+  // Golden bands, and a lightning mark between them
+  g.fillStyle(c.goldDark);
+  g.fillRect(23.5, -9.5, 22, 3);
+  g.fillRect(23.5, 6.5, 22, 3);
+  g.fillStyle(c.gold);
+  g.fillRect(23.5, -9.5, 22, 1.8);
+  g.fillRect(23.5, 6.5, 22, 1.8);
+  shape(g, c.gold, [
+    [36, -5],
+    [31, 0.8],
+    [34.2, 0.8],
+    [32, 5],
+    [38, -1],
+    [34.8, -1],
+  ]);
   return g;
 }
 

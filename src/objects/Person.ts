@@ -4,6 +4,7 @@ import {
   BLOOD,
   CRUSH,
   DEPTH,
+  JUMP,
   KNOCK,
   LIMP,
   PERSON,
@@ -13,6 +14,7 @@ import {
   SEAT_GUN,
   STUCK,
   TOPPLE,
+  THUNDER,
   TOSS,
   WALK,
   type ActionId,
@@ -37,6 +39,7 @@ import {
 } from '../logic/dangle';
 import {
   blockedX,
+  hurdle,
   boxAround,
   liftOut,
   lyingRoom,
@@ -62,7 +65,7 @@ import { walkStep, type Facing } from '../logic/walk';
 import type { Block } from './Block';
 import { Body, type BodyState } from './Body';
 import type { Item } from './Item';
-import { PersonFigure } from './personShape';
+import { BODY_PARTS, PersonFigure } from './personShape';
 import type { World } from './World';
 
 /** How loosely each joint of a limp doll swings. */
@@ -113,6 +116,8 @@ export class Person extends Body {
   private readonly figure: PersonFigure;
   private facing: Facing = 1;
   private punchMs = 0;
+  /** Time left crouching after slamming the thunder hammer into the floor. */
+  private slamMs = 0;
   /** Time left before the next punch or shot. */
   private waitMs = 0;
   private inReach = false;
@@ -129,6 +134,13 @@ export class Person extends Body {
   private flinchDir: Facing = 1;
   /** No lives left. */
   private out = false;
+  /** Hopping onto something in its way: how fast it goes sideways, and where it took off. */
+  private jumpVx = 0;
+  private jumpFromX = 0;
+  /** Time left before it tries another jump, after one that got it nowhere. */
+  private noJumpMs = 0;
+  /** A blade has just gone right through it: a part comes off on its next turn. */
+  private cutPending = false;
 
   /** Limp like a ragdoll right now: every joint swings loosely. */
   private ragdoll = false;
@@ -278,6 +290,7 @@ export class Person extends Body {
     this.activity = this.activity === activity ? 'idle' : activity;
     this.figure.setAngry(this.activity === 'angry');
     this.punchMs = 0;
+    this.slamMs = 0;
   }
 
   turn(): void {
@@ -419,6 +432,7 @@ export class Person extends Body {
     this.floored = true;
     this.downMs = 0;
     this.punchMs = 0;
+    this.slamMs = 0;
     this.knockDir = direction;
     this.flop = limpPose();
     this.sag = randomSag(LIMP.sag);
@@ -434,6 +448,7 @@ export class Person extends Body {
   /** Lose lives, and get the mark of what did it. Says whether that was the last life. */
   private lose(damage: number, solids: readonly Box[], wound: WoundKind): boolean {
     if (this.dead) return false;
+    if (damage > 0 && wound === 'cut') this.cutPending = true;
     if (damage > 0) {
       // Every hit that hurts leaves its own kind of mark, which sprays and then drips
       const bleeding = BLOOD.byWound[wound];
@@ -461,7 +476,9 @@ export class Person extends Body {
     }
     const wasFalling = this.state === 'falling';
     const fallSpeed = this.speed.y;
+    this.noJumpMs = Math.max(0, this.noJumpMs - deltaMs);
     this.glide(deltaMs, world);
+    this.leap(deltaMs, world);
     const state = this.physics(deltaMs, world);
     this.measureSpeed(deltaMs);
     this.bleed(deltaMs, world);
@@ -482,7 +499,7 @@ export class Person extends Body {
       this.flopAbout(deltaMs, state, world);
       this.maybeGetUp(deltaMs, state, world);
     } else if (state !== 'resting') {
-      this.draw('held', 0);
+      this.draw(this.jumpVx === 0 ? 'held' : 'run', 0);
     } else {
       this.draw(this.act(deltaMs, world), 0);
     }
@@ -682,8 +699,21 @@ export class Person extends Body {
     return hitSomeone;
   }
 
+  /** A part comes off, a different one every time, and flies away. Blood sprays from the cut. */
+  private comeApart(world: World): void {
+    const part = BODY_PARTS[Math.floor(Math.random() * BODY_PARTS.length)] ?? 'head';
+    const loose = this.figure.cutOff(part);
+    if (!loose) return;
+    world.bleed(loose.x, loose.y, BLOOD.cutSpray, this.look.blood ?? BLOOD.color, true);
+    world.sever(loose.picture, loose.lift, this.knockDir);
+  }
+
   /** Spray and drip blood from where the wounds are. */
   private bleed(deltaMs: number, world: World): void {
+    if (this.cutPending) {
+      this.cutPending = false;
+      this.comeApart(world);
+    }
     // A weapon left in the body keeps the wound open
     if (this.stuck.size > 0) this.bleedMs = Math.max(this.bleedMs, BLOOD.dripEveryMs * 2);
     if (this.spray === 0 && this.bleedMs <= 0) return;
@@ -802,7 +832,8 @@ export class Person extends Body {
         world.area.right - edge,
       );
       const blocked = this.walkTo(walker.x, world);
-      // Turn around at a wall, just like at the edge of the area
+      // Hop onto something low in the way, and turn around at a wall, just like at the edge
+      if (blocked && this.jumpOnto(this.facing, world)) return 'walk';
       this.facing = blocked ? (this.facing === 1 ? -1 : 1) : walker.facing;
       return 'walk';
     }
@@ -822,10 +853,27 @@ export class Person extends Body {
       return 'punch';
     }
 
+    if (this.slamMs > 0) {
+      this.slamMs -= deltaMs;
+      return 'slam';
+    }
+
     const target = this.pickTarget(world);
     if (!target) {
       this.inReach = false;
       return 'stand';
+    }
+
+    // With the thunder hammer there is no need to run anywhere: it crouches and slams
+    // the hammer into the floor, and the lightning gets everybody but itself
+    const hammer = this.item;
+    if (hammer?.def.thunder) {
+      this.facing = target.x < this.x ? -1 : 1;
+      if (this.waitMs > 0) return 'stand';
+      this.slamMs = THUNDER.slamMs;
+      this.waitMs = THUNDER.restMs;
+      world.thunder(hammer, this);
+      return 'slam';
     }
 
     const solids = world.solidBoxes(this);
@@ -836,6 +884,7 @@ export class Person extends Body {
     const chase = chaseStep(this.x, this.facing, target.x, reach, ANGRY.speed * this.pace, deltaMs);
     const blocked = this.walkTo(chase.x, world);
     this.facing = chase.facing;
+    if (blocked && this.jumpOnto(this.facing, world)) return 'run';
 
     const close = Math.abs(target.x - this.x) <= reach + 1;
     const sameLevel = Math.abs(target.y - this.y) <= ANGRY.levelSlack;
@@ -894,6 +943,44 @@ export class Person extends Body {
     if (bulletY < box.top || bulletY > box.bottom) return false;
     if (Math.abs(target.x - this.x) > gun.range) return false;
     return canSee(this.x, target.x, bulletY, solids);
+  }
+
+  /**
+   * Something solid is in the way: hop onto it, if it is low enough. Says whether it jumped.
+   */
+  private jumpOnto(direction: Facing, world: World): boolean {
+    if (this.noJumpMs > 0) return false;
+    const { halfWidth, height } = PERSON;
+    const solids = world.solidBoxes(this);
+    const rise = hurdle(
+      this.x,
+      this.y,
+      direction,
+      halfWidth,
+      height,
+      solids,
+      PHYSICS.stepUp,
+      JUMP.height,
+    );
+    if (rise === null) return false;
+    this.jumpVx = direction * JUMP.speed;
+    this.jumpFromX = this.x;
+    this.hop(Math.sqrt(2 * PHYSICS.gravity * (rise + JUMP.clear)));
+    return true;
+  }
+
+  /**
+   * In the middle of a hop: go forward as soon as the feet are high enough. Back on
+   * the ground the hop is over, and if it got nowhere the doll gives up for a while.
+   */
+  private leap(deltaMs: number, world: World): void {
+    if (this.jumpVx === 0) return;
+    if (this.state === 'falling' && !this.ragdoll) {
+      this.walkTo(this.x + this.jumpVx * (deltaMs / 1000), world);
+      return;
+    }
+    if (Math.abs(this.x - this.jumpFromX) < JUMP.least) this.noJumpMs = JUMP.restMs;
+    this.jumpVx = 0;
   }
 
   /**

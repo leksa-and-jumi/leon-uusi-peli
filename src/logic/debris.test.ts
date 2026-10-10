@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { crumbAlpha, crumbCount, crumbStep, scatter } from './debris';
+import { crumbAlpha, crumbCount, crumbStep, scatter, settleTurn } from './debris';
 
 const box = { left: 100, right: 160, top: 400, bottom: 460 };
 const burst = { pushX: 50, pushY: -100, spread: 20, size: { min: 4, max: 8 }, spin: 6 };
@@ -97,5 +97,23 @@ describe('crumbAlpha', () => {
     expect(crumbAlpha(2500, 2000, 1000)).toBeCloseTo(0.5);
     expect(crumbAlpha(3000, 2000, 1000)).toBe(0);
     expect(crumbAlpha(9000, 2000, 1000)).toBe(0);
+  });
+});
+
+describe('settleTurn', () => {
+  it('turns toward the closest way of lying flat', () => {
+    expect(settleTurn(1, 1000, 100)).toBeCloseTo(Math.PI / 2);
+    expect(settleTurn(-1, 1000, 100)).toBeCloseTo(-Math.PI / 2);
+    expect(settleTurn(4, 1000, 100)).toBeCloseTo((3 * Math.PI) / 2);
+  });
+
+  it('gets there bit by bit', () => {
+    const next = settleTurn(1, 50, 100);
+    expect(next).toBeGreaterThan(1);
+    expect(next).toBeLessThan(Math.PI / 2);
+  });
+
+  it('stays put once it lies flat', () => {
+    expect(settleTurn(Math.PI / 2, 16, 100)).toBeCloseTo(Math.PI / 2);
   });
 });

@@ -39,6 +39,21 @@ export function leaning(middleX: number, span: Span, give: number): -1 | 0 | 1 {
   return 0;
 }
 
+/**
+ * How far the middle of a piece may hang out past the end of what holds it up. A
+ * long, flat piece (at least `longRatio` times wider than tall) lies steady: it may
+ * hang out by `longShare` of its half width. Anything else only by `give`.
+ */
+export function overhang(
+  halfWidth: number,
+  height: number,
+  give: number,
+  longRatio: number,
+  longShare: number,
+): number {
+  return halfWidth * 2 >= height * longRatio ? Math.max(give, halfWidth * longShare) : give;
+}
+
 /** Is it so much taller than it is wide that it falls over onto its side? */
 export function isTall(halfWidth: number, height: number, ratio: number): boolean {
   return height >= halfWidth * 2 * ratio;

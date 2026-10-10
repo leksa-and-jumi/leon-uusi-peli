@@ -79,6 +79,13 @@ export const TOPPLE = {
   tallRatio: 1.6,
   /** Its middle may hang this far past the end of what holds it up before it goes. */
   give: 1,
+  /**
+   * A long piece lying flat (at least this many times wider than tall) is steadier:
+   * its middle may hang out by this share of its half width. So a fallen wall or a
+   * plank stays lying on top of a single block.
+   */
+  longRatio: 1.6,
+  longShare: 0.72,
   /** Falling over onto its side takes this long. */
   ms: 380,
   /** A piece that isn't tall slides off toward its heavy side, faster and faster. */
@@ -245,6 +252,14 @@ export const DOUBLE_CLICK_MS = 420;
 
 /** Walking around: back and forth between the edges of the area. */
 export const WALK = { speed: 80 } as const;
+
+/**
+ * A walking or running doll hops onto a low thing in its way and goes on from there.
+ * Onto things at most `height` high; it jumps `clear` higher than it has to, and
+ * goes forward at `speed` in the air. If a jump got it nowhere it waits `restMs`
+ * before it tries again, and turns around like at a wall meanwhile.
+ */
+export const JUMP = { height: 72, clear: 14, speed: 150, least: 2, restMs: 1500 } as const;
 
 /** Angry mode: run to the closest person and punch them over. */
 export const ANGRY = {
@@ -451,13 +466,13 @@ export const MENU = {
   color: 0x2b2b2b,
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
-  // Six big buttons, two under each other in three columns: easy to hit with a finger
-  tabs: { x: 6, y: 7, width: 46, height: 41, gap: 4, vertical: true, wrap: 2 },
+  // Big buttons, two under each other in four columns: easy to hit with a finger
+  tabs: { x: 6, y: 7, width: 44, height: 41, gap: 4, vertical: true, wrap: 2 },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
   tabFontSize: '24px',
-  slots: { x: 160, y: 10, width: 61, height: 80, gap: 7 },
+  slots: { x: 202, y: 10, width: 58, height: 80, gap: 6 },
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
   slotColor: 0x9e9e9e,
@@ -492,6 +507,7 @@ export const TABS = [
   { id: 'junk', emoji: '🚽' },
   { id: 'vehicles', emoji: '🚗' },
   { id: 'monsters', emoji: '👾' },
+  { id: 'traps', emoji: '⚠️' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -519,6 +535,8 @@ export interface BlockDef {
   monster?: MonsterDef;
   /** Glass: it shatters when a bullet hits it or when it falls over. */
   fragile?: boolean;
+  /** It is a trap: it hurts the dolls. */
+  hazard?: HazardDef;
 }
 
 /** The pieces on the building page. */
@@ -539,7 +557,33 @@ export type MonsterKind =
   | 'ghost'
   | 'batMonster'
   | 'ufo';
-export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind;
+/** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
+export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine';
+export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind;
+
+/**
+ * A trap. One that hurts by `touch` gets every doll that touches it, a `zap` trap
+ * shoots lightning at the closest doll in `range`, and a `mine` blows up when a doll
+ * touches it.
+ */
+export interface HazardDef {
+  kind: 'touch' | 'zap' | 'mine';
+  /** How many lives it takes, how hard it flings the doll, and the mark it leaves. */
+  damage: number;
+  pushSpeed: number;
+  wound: WoundKind;
+  sound: 'punch' | 'clang' | 'none';
+  /** The same doll isn't hurt again sooner than this. */
+  everyMs: number;
+  /** It reaches this far past its sides and above its top. */
+  side: number;
+  up: number;
+  range?: number;
+  /** A saw blade that turns: how big, how high its middle is, how fast (radians per second). */
+  blade?: { radius: number; up: number; speed: number };
+  /** Flames that flicker above it, this high. */
+  flames?: { height: number };
+}
 
 /**
  * A monster: always angry, and after the dolls. How it gets them is its `attack`:
@@ -666,6 +710,91 @@ export const CHOMPER = {
   chewMs: 90,
 } as const;
 
+/** The flames of a burner, from the outside in. */
+export const FIRE = { outer: 0xff5722, mid: 0xffa000, core: 0xffee58, tongues: 5 } as const;
+
+/** The blade of a saw trap. */
+export const SAW = {
+  steel: 0xcfd8dc,
+  dark: 0x607d8b,
+  hub: 0x37474f,
+  mark: 0x90a4ae,
+  teeth: 14,
+} as const;
+
+/** A lightning coil shoots from the ball at its top, this far under its tip. */
+export const TESLA = { ballDown: 9, ballRadius: 9 } as const;
+
+/** How a flash of lightning looks: a jagged line that fades fast. */
+export interface BoltLook {
+  color: number;
+  core: number;
+  width: number;
+  coreWidth: number;
+  /** How many straight bits it is made of, and how far each corner strays to the side. */
+  pieces: number;
+  sway: number;
+  ms: number;
+}
+
+/** The spark of a lightning coil. */
+export const SPARK: BoltLook = {
+  color: 0x40c4ff,
+  core: 0xffffff,
+  width: 5,
+  coreWidth: 2,
+  pieces: 7,
+  sway: 12,
+  ms: 190,
+};
+
+/**
+ * The thunder hammer: lightning comes down on it from the ceiling and runs along the
+ * whole floor. Every doll is out, and every thing that isn't up in the air turns to ash.
+ */
+export const THUNDER = {
+  cooldownMs: 900,
+  /** An angry doll with the hammer stays crouched this long, and rests this long between slams. */
+  slamMs: 450,
+  restMs: 2600,
+  damage: 99,
+  pushSpeed: 520,
+  bolt: {
+    color: 0x82b1ff,
+    core: 0xffffff,
+    width: 12,
+    coreWidth: 5,
+    pieces: 9,
+    sway: 34,
+    ms: 420,
+  } satisfies BoltLook,
+  /** The lightning along the floor: this many of them, this far above the floor. */
+  floor: {
+    color: 0x40c4ff,
+    core: 0xffffff,
+    width: 6,
+    coreWidth: 2.5,
+    pieces: 30,
+    sway: 16,
+    ms: 520,
+  } satisfies BoltLook,
+  floorBolts: 3,
+  floorUp: 10,
+  flashMs: 220,
+  shake: { ms: 320, strength: 0.016 },
+} as const;
+
+/** A part that a blade has cut off a doll: how it flies off, and how long it lies around. */
+export const SEVER = {
+  push: 170,
+  lift: 300,
+  spin: 5,
+  /** Lying on the floor it turns flat in about this long. */
+  settleMs: 140,
+  lieMs: 16000,
+  fadeMs: 2500,
+} as const;
+
 /** The laser a monster shoots from its eyes. */
 export const LASER = {
   color: 0xff1744,
@@ -751,6 +880,91 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     height: 150,
     menuScale: 0.5,
     colors: { fill: 0xb8b8b0, dark: 0x5f5f58, light: 0xe2e2da, detail: 0x8c8c84 },
+  },
+  // Dolls that stand, fall or lie on them lose a life again and again
+  spikes: {
+    halfWidth: 34,
+    height: 16,
+    menuScale: 0.9,
+    colors: { fill: 0xb4c0c8, dark: 0x4c575e, light: 0xeef3f6, detail: 0x6f7b83 },
+    hazard: {
+      kind: 'touch',
+      damage: 1,
+      pushSpeed: 140,
+      wound: 'stab',
+      sound: 'clang',
+      everyMs: 700,
+      side: 2,
+      up: 4,
+    },
+  },
+  saw: {
+    halfWidth: 28,
+    height: 14,
+    menuScale: 0.9,
+    colors: { fill: 0x5d6770, dark: 0x2b3238, light: 0x9aa7b4, detail: 0xffc107 },
+    hazard: {
+      kind: 'touch',
+      damage: 2,
+      pushSpeed: 420,
+      wound: 'slash',
+      sound: 'clang',
+      everyMs: 500,
+      side: 0,
+      up: 30,
+      blade: { radius: 22, up: 22, speed: 14 },
+    },
+  },
+  burner: {
+    halfWidth: 26,
+    height: 12,
+    menuScale: 1,
+    colors: { fill: 0x3a3f44, dark: 0x1a1d20, light: 0x8b959c, detail: 0xff8a1e },
+    hazard: {
+      kind: 'touch',
+      damage: 1,
+      pushSpeed: 120,
+      wound: 'burn',
+      sound: 'none',
+      everyMs: 450,
+      side: 0,
+      up: 36,
+      flames: { height: 38 },
+    },
+  },
+  tesla: {
+    halfWidth: 14,
+    height: 86,
+    menuScale: 0.75,
+    colors: { fill: 0x8d6e63, dark: 0x3e2723, light: 0xd7ccc8, detail: 0x40c4ff },
+    hazard: {
+      kind: 'zap',
+      damage: 1,
+      pushSpeed: 260,
+      wound: 'burn',
+      sound: 'none',
+      everyMs: 1100,
+      side: 0,
+      up: 0,
+      range: 210,
+    },
+  },
+  mine: {
+    halfWidth: 16,
+    height: 9,
+    menuScale: 1.6,
+    colors: { fill: 0x5b6628, dark: 0x23280f, light: 0x9aab55, detail: 0xff1744 },
+    blast: { fuseMs: 800, radius: 150, damage: 3, pushSpeed: 750 },
+    hazard: {
+      kind: 'mine',
+      damage: 0,
+      pushSpeed: 0,
+      wound: 'burn',
+      sound: 'none',
+      everyMs: 0,
+      side: 2,
+      up: 4,
+    },
   },
   toilet: {
     halfWidth: 25,
@@ -1069,9 +1283,10 @@ export interface GunDef {
 
 /**
  * The mark a hit leaves on a doll: a bruise from a fist or something blunt, a slash
- * from a blade, a stab from a point, a hole from a bullet, a burn from a blast.
+ * from a blade, a stab from a point, a hole from a bullet, a burn from a blast. A `cut`
+ * goes right through: a part of the doll comes off.
  */
-export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn';
+export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'cut';
 
 /** Something to hit with: reaches further and hurts more than a fist. */
 export interface MeleeDef {
@@ -1108,6 +1323,8 @@ export interface ItemDef {
   stick?: { out: number };
   /** Dragged along the floor, it wipes stains away. */
   wipes?: boolean;
+  /** Struck against the floor at least this fast (pixels per second), it calls down lightning. */
+  thunder?: { minSpeed: number };
   /** The colors of the pieces it breaks into. */
   crumbs: readonly number[];
 }
@@ -1118,10 +1335,12 @@ export type WeaponKind =
   | 'mgun'
   | 'shotgun'
   | 'sword'
+  | 'katana'
   | 'axe'
   | 'spear'
   | 'bat'
   | 'hammer'
+  | 'thunderHammer'
   | 'knife'
   | 'bomb'
   | 'dynamite';
@@ -1194,6 +1413,16 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 84, damage: 1, wound: 'slash', pushSpeed: 300 },
     stick: { out: 38 },
   },
+  // So sharp that one swing takes a part of the doll clean off
+  katana: {
+    crumbs: [0xeef3f6, 0xb4c0c8, 0x1b1b1b],
+    halfWidth: 39,
+    height: 17,
+    menuScale: 0.88,
+    lie: { x: -25, y: -6 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 96, damage: 99, wound: 'cut', pushSpeed: 260 },
+  },
   axe: {
     crumbs: [0xb4c0c8, 0xc9a46a, 0x7a5a2e],
     halfWidth: 28,
@@ -1232,6 +1461,17 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: -15, y: -13 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 76, damage: 2, wound: 'bruise', pushSpeed: 760 },
+  },
+  // Slam it on the floor and lightning strikes: everything on the ground is gone
+  thunderHammer: {
+    crumbs: [0x78909c, 0xffd54f, 0x5d4037],
+    halfWidth: 31,
+    height: 30,
+    menuScale: 1,
+    lie: { x: -15.5, y: -15 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 78, damage: 3, wound: 'burn', pushSpeed: 820 },
+    thunder: { minSpeed: 600 },
   },
   knife: {
     crumbs: [0xeef3f6, 0xb4c0c8, 0x5d4037],
@@ -1300,13 +1540,25 @@ export const WEAPON_KINDS: readonly WeaponKind[] = [
   'mgun',
   'shotgun',
   'sword',
+  'katana',
   'axe',
   'spear',
   'bat',
   'hammer',
+  'thunderHammer',
   'knife',
-  'bomb',
-  'dynamite',
+];
+/** The traps page: the traps, and the things with a fuse. */
+export const TRAP_KINDS: readonly (
+  { type: 'block'; kind: TrapKind } | { type: 'item'; kind: WeaponKind }
+)[] = [
+  { type: 'block', kind: 'spikes' },
+  { type: 'block', kind: 'saw' },
+  { type: 'block', kind: 'burner' },
+  { type: 'block', kind: 'tesla' },
+  { type: 'block', kind: 'mine' },
+  { type: 'item', kind: 'bomb' },
+  { type: 'item', kind: 'dynamite' },
 ];
 export const BUILD_KINDS: readonly BuildKind[] = [
   'crate',
@@ -1361,6 +1613,16 @@ export const ITEM_COLORS = {
   wood: { fill: 0xc9a46a, dark: 0x7a5a2e, light: 0xecd2a0, wrap: 0x3e2723 },
   bomb: { body: 0x1b1b1b, shine: 0x8a8a8a, cap: 0x9e9e9e, fuse: 0xbcaaa4, spark: 0xffb300 },
   dynamite: { stick: 0xd32f2f, dark: 0x7f1d1d, light: 0xff8a80, band: 0x3e2723, fuse: 0xbcaaa4 },
+  katana: { grip: 0x1b1b1b, wrap: 0xffd54f, guard: 0xb8860b, guardLight: 0xffd54f },
+  thunder: {
+    steel: 0x78909c,
+    dark: 0x37474f,
+    light: 0xcfd8dc,
+    gold: 0xffd54f,
+    goldDark: 0xb8860b,
+    grip: 0x5d4037,
+    wrap: 0x3e2723,
+  },
   bottle: { glass: 0x2e7d4f, dark: 0x174428, shine: 0xa5e0bd, label: 0xf3ead2, cap: 0xc9a227 },
   pan: { metal: 0x3a3f44, dark: 0x1a1d20, shine: 0x8b959c, handle: 0x5d4037, inside: 0x23272b },
   broom: { bristle: 0xd9b44a, bristleDark: 0x9a7a1e, band: 0xc62828, bandDark: 0x7f1d1d },
@@ -1409,7 +1671,11 @@ export const BLOOD = {
     stab: { burst: 22, bleedMs: 7500 },
     hole: { burst: 18, bleedMs: 6000 },
     burn: { burst: 9, bleedMs: 2200 },
+    cut: { burst: 70, bleedMs: 14000 },
   },
+  /** Where a part is cut off, this many more drops spray out, and the cut end looks like this. */
+  cutSpray: 60,
+  stump: { radius: 6, rim: 0.5 },
   /** The colors of marks that aren't blood: bruises, burns and the dark inside of a hole. */
   marks: {
     bruise: 0x4a2a5e,
@@ -1536,6 +1802,11 @@ export const SOUND = {
   /** A ghost scaring a doll: an eerie rising howl. */
   spook: {
     tone: { wave: 'sine', from: 260, to: 720, seconds: 0.35, volume: 0.3 },
+  },
+  /** Thunder: a long low boom under a sharp crack. */
+  thunder: {
+    tone: { wave: 'sawtooth', from: 120, to: 28, seconds: 1.1, volume: 0.9 },
+    hiss: { from: 7000, to: 200, seconds: 0.7, volume: 0.9 },
   },
   /** A laser: a bright tone that drops fast. */
   zap: {

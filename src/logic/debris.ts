@@ -96,3 +96,13 @@ export function crumbAlpha(ageMs: number, lieMs: number, fadeMs: number): number
   if (ageMs <= lieMs) return 1;
   return Math.max(0, 1 - (ageMs - lieMs) / fadeMs);
 }
+
+/**
+ * A long thing that has landed turns to lie flat: its turn eases toward the closest
+ * quarter turn to either side (so it points left or right, never up), in about `ms`.
+ */
+export function settleTurn(turn: number, deltaMs: number, ms: number): number {
+  const quarter = Math.PI / 2;
+  const flat = Math.round((turn - quarter) / Math.PI) * Math.PI + quarter;
+  return turn + (flat - turn) * Math.min(1, deltaMs / ms);
+}

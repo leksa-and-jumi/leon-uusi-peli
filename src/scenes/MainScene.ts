@@ -24,19 +24,31 @@ import {
   PICK_PADDING,
   PICK_PADDING_TOUCH,
   RIDE_GAP,
+  SEVER,
   SOUND,
+  SPARK,
   SWING,
   THINGS_MAX,
+  THUNDER,
   TOPPLE,
   TOSS,
   type ActionId,
   type BlastDef,
+  type BoltLook,
   type GunDef,
 } from '../config';
 import { Sfx } from '../audio/Sfx';
 import { blastDirection, inBlast } from '../logic/blast';
 import { addDrop, wipe, type Stain } from '../logic/blood';
-import { crumbAlpha, crumbCount, crumbStep, scatter, type Crumb } from '../logic/debris';
+import { jagged } from '../logic/bolt';
+import {
+  crumbAlpha,
+  crumbCount,
+  crumbStep,
+  scatter,
+  settleTurn,
+  type Crumb,
+} from '../logic/debris';
 import { overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
@@ -76,11 +88,15 @@ interface Bullet {
   picture: Phaser.GameObjects.Rectangle;
 }
 
-/** A flying piece of something that broke, or a drop of blood (then `blood` is its color). */
+/**
+ * A flying piece of something that broke, a drop of blood (then `blood` is its color),
+ * or a part cut off a doll (then `flat` is how far above the floor it lies).
+ */
 interface Piece {
   crumb: Crumb;
-  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc;
+  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc | Phaser.GameObjects.Container;
   blood: number | null;
+  flat: number | null;
   /** How long it lies there before it starts to fade, and how long fading takes. */
   lieMs: number;
   fadeMs: number;
@@ -116,6 +132,8 @@ export class MainScene extends Phaser.Scene {
   private downDolls: Box[] = [];
   /** Things destroyed during this frame, waiting to be taken out of the game. */
   private doomed: Body[] = [];
+  /** When the thunder hammer last called down lightning. */
+  private lastThunderMs = -Infinity;
   /** The full-screen button was pressed: switch when the press is let go. */
   private fullScreenAsked = false;
   /** Where the monsters' tune is: time into the beat, and which beat. */
@@ -165,8 +183,14 @@ export class MainScene extends Phaser.Scene {
       explode: (source, blast) => {
         this.explode(source, blast);
       },
-      zap: (fromX, fromY, victim, damage, pushSpeed) => {
-        this.zap(fromX, fromY, victim, damage, pushSpeed);
+      zap: (fromX, fromY, victim, damage, pushSpeed, spark) => {
+        this.zap(fromX, fromY, victim, damage, pushSpeed, spark);
+      },
+      sever: (picture, lift, direction) => {
+        this.sever(picture, lift, direction);
+      },
+      thunder: (source, spare) => {
+        this.thunder(source, spare);
       },
       things: (self) => [
         ...this.blocks.filter((block) => block !== self && block.canBePicked),
@@ -246,6 +270,7 @@ export class MainScene extends Phaser.Scene {
     this.sweep();
     this.handOutItems();
     this.swing(delta);
+    this.pound(delta);
     this.trackDrag();
     this.forget(this.everything().filter((body) => body.gone));
     this.bubbles.update(delta, AREA);
@@ -413,6 +438,17 @@ export class MainScene extends Phaser.Scene {
         return;
       }
     }
+  }
+
+  /** The thunder hammer, slammed down onto the floor by hand, calls down lightning. */
+  private pound(delta: number): void {
+    const hammer = this.dragged;
+    const thunder = hammer instanceof Item ? hammer.def.thunder : undefined;
+    if (!hammer || !thunder || delta <= 0) return;
+    const now = hammer.feet;
+    const before = this.lastDragSpot ?? now;
+    const down = ((now.y - before.y) / delta) * 1000;
+    if (now.y >= AREA.floorY - 1 && down >= thunder.minSpeed) this.thunder(hammer);
   }
 
   private letGo(): void {
@@ -735,18 +771,110 @@ export class MainScene extends Phaser.Scene {
     this.sfx.zap();
   }
 
-  /** A laser hits a doll: the doll takes the hit. */
+  /** A flash of lightning from one spot to another: a jagged line that fades fast. */
+  private bolt(fromX: number, fromY: number, toX: number, toY: number, look: BoltLook): void {
+    const corners = jagged(fromX, fromY, toX, toY, look.pieces, look.sway);
+    const flash = this.add.graphics().setDepth(LASER.depth);
+    for (const [width, color] of [
+      [look.width, look.color],
+      [look.coreWidth, look.core],
+    ] as const) {
+      flash.lineStyle(width, color, 0.95);
+      flash.beginPath();
+      corners.forEach((corner, index) => {
+        if (index === 0) flash.moveTo(corner.x, corner.y);
+        else flash.lineTo(corner.x, corner.y);
+      });
+      flash.strokePath();
+    }
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: look.ms,
+      onComplete: () => {
+        flash.destroy();
+      },
+    });
+  }
+
+  /**
+   * The thunder hammer strikes the floor: lightning comes down on it and runs along
+   * the whole floor. Every doll is out and every thing turns to ash, except what
+   * holds itself up in the air (and whoever sits in that), the hammer itself, and
+   * `spare`: the doll that slammed it down.
+   */
+  private thunder(source: Body, spare?: Body): void {
+    if (this.time.now - this.lastThunderMs < THUNDER.cooldownMs) return;
+    this.lastThunderMs = this.time.now;
+    const { x, y } = source.feet;
+    this.bolt(x, AREA.top, x, y - source.size.height, THUNDER.bolt);
+    const floorY = AREA.floorY - THUNDER.floorUp;
+    for (let i = 0; i < THUNDER.floorBolts; i++) {
+      this.bolt(AREA.left, floorY, AREA.right, floorY, THUNDER.floor);
+    }
+    this.sfx.thunder();
+    this.cameras.main.flash(THUNDER.flashMs);
+    this.cameras.main.shake(THUNDER.shake.ms, THUNDER.shake.strength);
+
+    const inTheAir = this.blocks.filter((block) => block.floating);
+    const safe = new Set<Body>([source, ...inTheAir]);
+    if (spare) safe.add(spare);
+    inTheAir.forEach((block) => block.rider && safe.add(block.rider));
+    for (const person of this.people) {
+      if (safe.has(person) || !person.canBePicked) continue;
+      const away: Facing = person.feet.x < x ? -1 : 1;
+      person.hit(away, this.solidBoxes(person), THUNDER.damage, THUNDER.pushSpeed, 'burn');
+    }
+    const things = [
+      ...this.blocks.filter((block) => block.canBePicked),
+      ...this.items.filter((item) => item.canBePicked && !item.isHeld),
+    ].filter((thing) => !safe.has(thing) && !this.doomed.includes(thing));
+    for (const thing of things) {
+      this.burnToAsh(thing);
+      this.doomed.push(thing);
+    }
+    if (things.length > 0) this.sfx.crumble();
+  }
+
+  /**
+   * A part cut off a doll: it flies off, drops to the floor, lies there flat for a
+   * good while and then fades away.
+   */
+  private sever(picture: Phaser.GameObjects.Container, lift: number, direction: Facing): void {
+    picture.setDepth(DEBRIS.depth);
+    const crumb: Crumb = {
+      x: picture.x,
+      y: picture.y + lift,
+      vx: direction * SEVER.push * (0.5 + Math.random()),
+      vy: -SEVER.lift,
+      size: 0,
+      turn: picture.rotation,
+      spin: direction * SEVER.spin,
+      ageMs: 0,
+    };
+    const { lieMs, fadeMs } = SEVER;
+    this.pieces.push({ crumb, picture, blood: null, lieMs, fadeMs, flat: lift });
+    this.trimPieces();
+  }
+
+  /** A laser hits a doll: the doll takes the hit. With `spark` it is lightning. */
   private zap(
     fromX: number,
     fromY: number,
     victim: Person,
     damage: number,
     pushSpeed: number,
+    spark = false,
   ): void {
     const body = victim.hitBox;
     const atX = (body.left + body.right) / 2;
     const atY = (body.top + body.bottom) / 2;
-    this.beam(fromX, fromY, atX, atY);
+    if (spark) {
+      this.bolt(fromX, fromY, atX, atY, SPARK);
+      this.sfx.zap();
+    } else {
+      this.beam(fromX, fromY, atX, atY);
+    }
     const direction: Facing = atX < fromX ? -1 : 1;
     const deadly = victim.hit(direction, this.solidBoxes(victim), damage, pushSpeed, 'burn');
     this.showHit(atX, atY, deadly, 'none');
@@ -787,7 +915,14 @@ export class MainScene extends Phaser.Scene {
       const picture = this.add
         .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
         .setDepth(DEBRIS.depth);
-      this.pieces.push({ crumb, picture, blood: null, lieMs: DEBRIS.lieMs, fadeMs: DEBRIS.fadeMs });
+      this.pieces.push({
+        crumb,
+        picture,
+        blood: null,
+        lieMs: DEBRIS.lieMs,
+        fadeMs: DEBRIS.fadeMs,
+        flat: null,
+      });
     }
     this.trimPieces();
   }
@@ -801,7 +936,14 @@ export class MainScene extends Phaser.Scene {
       const picture = this.add
         .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
         .setDepth(DEBRIS.depth);
-      this.pieces.push({ crumb, picture, blood: null, lieMs: ASH.lieMs, fadeMs: ASH.fadeMs });
+      this.pieces.push({
+        crumb,
+        picture,
+        blood: null,
+        lieMs: ASH.lieMs,
+        fadeMs: ASH.fadeMs,
+        flat: null,
+      });
     }
     this.trimPieces();
   }
@@ -816,7 +958,7 @@ export class MainScene extends Phaser.Scene {
       const picture = this.add
         .circle(crumb.x, crumb.y, crumb.size / 2, color)
         .setDepth(DEBRIS.depth);
-      this.pieces.push({ crumb, picture, blood: color, lieMs: 0, fadeMs: 0 });
+      this.pieces.push({ crumb, picture, blood: color, lieMs: 0, fadeMs: 0, flat: null });
     }
     this.trimPieces();
   }
@@ -842,6 +984,11 @@ export class MainScene extends Phaser.Scene {
     let stained = false;
     this.pieces = this.pieces.filter((piece) => {
       piece.crumb = crumbStep(piece.crumb, physics, delta);
+      if (piece.flat !== null && piece.crumb.y >= AREA.floorY) {
+        // A part cut off a doll doesn't stand on end: it turns to lie flat
+        const turn = settleTurn(piece.crumb.turn, delta, SEVER.settleMs);
+        piece.crumb = { ...piece.crumb, turn, spin: 0 };
+      }
       const { x, y, turn, ageMs } = piece.crumb;
       if (piece.blood !== null && y >= AREA.floorY) {
         this.stains = addDrop(this.stains, x, piece.blood, BLOOD.stain);
@@ -855,7 +1002,7 @@ export class MainScene extends Phaser.Scene {
         piece.picture.destroy();
         return false;
       }
-      piece.picture.setPosition(x, y).setAlpha(alpha);
+      piece.picture.setPosition(x, y - (piece.flat ?? 0)).setAlpha(alpha);
       piece.picture.rotation = turn;
       return true;
     });
