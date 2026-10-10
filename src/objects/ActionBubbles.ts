@@ -77,6 +77,8 @@ export class ActionBubbles {
     );
 
     this.graphics.clear();
+    // What it can do may have changed since the bubbles opened: a doll that died has fewer
+    this.labels.forEach((label, index) => label.setVisible(index < body.actions.length));
     body.actions.forEach((action, index) => {
       const center = this.centers[index];
       const label = this.labels[index];

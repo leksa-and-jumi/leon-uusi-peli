@@ -19,6 +19,7 @@ import {
   TOPPLE,
   VEHICLE_ACTIONS,
   VEHICLE_HULL,
+  WRECK_ACTIONS,
   type ActionId,
   type BlastDef,
   type BlockDef,
@@ -63,7 +64,7 @@ import type { World } from './World';
 export class Block extends Body {
   override readonly solid: boolean;
   readonly def: BlockDef;
-  readonly actions: readonly ActionId[];
+  private readonly usualActions: readonly ActionId[];
   readonly crumbs: readonly number[];
   private readonly display: Phaser.GameObjects.Container;
   /** The moving picture on the screen of a TV, or `null` for everything else. */
@@ -133,7 +134,7 @@ export class Block extends Body {
     this.hovering = ghost !== undefined || this.def.monster?.saucer !== undefined;
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
     const { blast, drive } = this.def;
-    this.actions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
+    this.usualActions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
     const { fill, dark, light } = this.def.colors;
     this.crumbs = [fill, dark, light];
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
@@ -194,6 +195,11 @@ export class Block extends Body {
 
   get size(): PersonSize {
     return this.shape;
+  }
+
+  /** A vehicle that lightning has fried can't drive any more: it can only be thrown away. */
+  get actions(): readonly ActionId[] {
+    return this.fried ? WRECK_ACTIONS : this.usualActions;
   }
 
   override get gone(): boolean {

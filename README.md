@@ -66,9 +66,9 @@
 
 🇫🇮 **Haavat ja palaset 🩸:** nukke, joka menettää elämän, saa jäljen ja vuotaa verta jonkin aikaa. Jokainen ase jättää oman jälkensä: nyrkistä, mailasta, pannusta tai pullosta jää mustelma, miekasta tai kirveestä viilto, keihäästä pistohaava, luodista luodinreikä ja räjähdyksestä palovamma. Viilto vuotaa eniten, mustelma tuskin lainkaan; veri jää lattialle, kunnes lakaiset sen pois harjalla. Kaikki, mikä räjäytetään tai särkyy, hajoaa pieniksi paloiksi, jotka makaavat hetken ja haalistuvat sitten pois. Tavaroita voi heittää kuten nukkeja, ja heitetty ase satuttaa nukkea, johon se osuu.
 
-🇬🇧 **Special dolls 🤖:** the last four dolls in the menu are always angry and attack the moment they land. They have more lives than the plain dolls and their hits take one life more. 🤖 Robot: 5 lives. 🥷 Ninja: 4 lives, very fast. 🛡️ Knight: 6 lives, slow. 🧟 Zombie: 5 lives, slow, arms out.
+🇬🇧 **Special dolls 🤖:** the last four dolls in the menu start out angry and attack the moment they land (you can still make them walk, dance or calm down with their bubbles). They have more lives than the plain dolls and their hits take one life more. 🤖 Robot: 5 lives. 🥷 Ninja: 4 lives, very fast. 🛡️ Knight: 6 lives, slow. 🧟 Zombie: 5 lives, slow, arms out.
 
-🇫🇮 **Erikoisnuket 🤖:** valikon neljä viimeistä nukkea ovat aina vihaisia ja hyökkäävät heti, kun ne laskeutuvat. Niillä on enemmän elämiä kuin tavallisilla nukeilla, ja niiden iskut vievät yhden elämän enemmän. 🤖 Robotti: 5 elämää. 🥷 Ninja: 4 elämää, tosi nopea. 🛡️ Ritari: 6 elämää, hidas. 🧟 Zombi: 5 elämää, hidas, kädet ojossa.
+🇫🇮 **Erikoisnuket 🤖:** valikon neljä viimeistä nukkea ovat aluksi vihaisia ja hyökkäävät heti, kun ne laskeutuvat (saat ne silti kävelemään, tanssimaan tai rauhoittumaan niiden palloista). Niillä on enemmän elämiä kuin tavallisilla nukeilla, ja niiden iskut vievät yhden elämän enemmän. 🤖 Robotti: 5 elämää. 🥷 Ninja: 4 elämää, tosi nopea. 🛡️ Ritari: 6 elämää, hidas. 🧟 Zombi: 5 elämää, hidas, kädet ojossa.
 
 🇬🇧 **Bullets 🔫:** a bullet takes a life but doesn't knock a doll over; only the last one makes it fall. Bullets also hit dolls that are lying down, falling, or hanging from your hand.
 
@@ -125,6 +125,10 @@
 🇬🇧 Double-click a doll to open its action bubbles. A pressed bubble glows, and pressing it again stops it.
 
 🇫🇮 Tuplaklikkaa nukkea, niin sen toimintopallot aukeavat. Painettu pallo hohtaa, ja toinen painallus lopettaa sen.
+
+🇬🇧 The bubbles only show what the thing can still do. A doll with no lives left, and a vehicle fried by the thunder hammer, only have 🚀 left: you can throw them away, nothing else. The robot, the ninja, the knight and the zombie start out angry, but you can make them walk and dance too; when you stop that, they are angry again. Press their 😡 to calm them down.
+
+🇫🇮 Pallot näyttävät vain sen, mihin juttu vielä pystyy. Nukella, jolla ei ole elämiä jäljellä, ja ukkosvasaran kärventämällä ajoneuvolla on jäljellä vain 🚀: ne voi heittää pois, ei muuta. Robotti, ninja, ritari ja zombi ovat aluksi vihaisia, mutta nekin saa kävelemään ja tanssimaan; kun lopetat sen, ne ovat taas vihaisia. Paina niiden 😡-palloa, niin ne rauhoittuvat.
 
 | Bubble / Pallo | 🇬🇧                                                         | 🇫🇮                                                   |
 | -------------- | ---------------------------------------------------------- | ---------------------------------------------------- |

@@ -446,6 +446,8 @@ export const PERSON_ACTIONS: readonly ActionId[] = [
 ];
 /** The bubbles of a building piece or an item, and of a bomb. */
 export const THING_ACTIONS: readonly ActionId[] = ['throw'];
+/** A doll with no lives left, or a vehicle that is broken for good, can only be thrown away. */
+export const WRECK_ACTIONS: readonly ActionId[] = ['throw'];
 export const BOMB_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
 /** A barrel can be set off the same way. */
 export const BARREL_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
