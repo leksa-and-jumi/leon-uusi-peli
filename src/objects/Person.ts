@@ -110,6 +110,7 @@ export class Person extends Body {
   readonly crumbs: readonly number[] = [];
   /** A doll steps up onto low things, but a tall thing that lands on it squashes it. */
   protected override readonly climbsOnlyLow = true;
+  protected override readonly lively = true;
   /** Its colors. Dolls of the same color are on the same side. */
   readonly look: PersonLook;
   activity: Activity = 'idle';

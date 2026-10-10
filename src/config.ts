@@ -1,3 +1,4 @@
+import type { Spring } from './logic/fall';
 /** Shared game constants. Tweak values here instead of inside scenes. */
 export const GAME_WIDTH = 1120;
 export const GAME_HEIGHT = 660;
@@ -550,16 +551,27 @@ export interface BlockDef {
   hazard?: HazardDef;
   /** It runs on electricity: lightning along the floor makes it go haywire. */
   electric?: boolean;
+  /** It is a trampoline: what lands on it is thrown back up. */
+  spring?: Spring;
 }
 
 /** The pieces on the building page. */
 export type BuildKind =
-  'crate' | 'wall' | 'plank' | 'stone' | 'girder' | 'barrel' | 'glass' | 'tnt' | 'pillar';
+  | 'crate'
+  | 'wall'
+  | 'plank'
+  | 'stone'
+  | 'girder'
+  | 'barrel'
+  | 'glass'
+  | 'tnt'
+  | 'pillar'
+  | 'trampoline';
 /** Junk that is solid like a building piece: you can stack it and stand on it. */
 export type JunkBlockKind =
   'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
-export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
+export type VehicleKind = 'car' | 'truck' | 'tank' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
 /** Things that are alive in their own way and go after the dolls. */
 export type MonsterKind =
   | 'skibidi'
@@ -569,7 +581,8 @@ export type MonsterKind =
   | 'chomper'
   | 'ghost'
   | 'batMonster'
-  | 'ufo';
+  | 'ufo'
+  | 'boss';
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
 export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine';
 export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind;
@@ -641,6 +654,19 @@ export interface MonsterDef {
    * shoots straight down at it once it is at most `aim` pixels off to the side.
    */
   saucer?: { below: number; aim: number };
+  /**
+   * A boss: huge and tough. It takes `hull` bullets (a blast counts as `blastHits`),
+   * and a bar above its head shows how many are left. It shoots its laser from its
+   * `eyes`, stomps every doll within `reach` of it, and smashes the things in its way.
+   */
+  boss?: {
+    hull: number;
+    blastHits: number;
+    eyes: { x: number; up: number };
+    reach: number;
+    stomp: { everyMs: number; damage: number; pushSpeed: number; hopMs: number; hop: number };
+    smashEveryMs: number;
+  };
 }
 
 /** How a vehicle drives, and where its wheels are. */
@@ -675,6 +701,13 @@ export interface DriveDef {
    * it is, and whether it lies flat (a rotor) or stands up (a propeller).
    */
   rotor?: { x: number; up: number; length: number; thickness: number; flat: boolean };
+  /** How many bullets it takes, when that isn't the usual number. */
+  hull?: number;
+  /**
+   * A cannon: while the vehicle is switched on it fires at the closest doll in front
+   * of it, from this spot on the drawing. It doesn't fire at anything closer than `tooClose`.
+   */
+  cannon?: { x: number; up: number; tooClose: number; gun: GunDef };
 }
 
 /** The head of a skibidi fridge. */
@@ -813,6 +846,32 @@ export const THUNDER = {
   flashMs: 220,
   shake: { ms: 320, strength: 0.016 },
 } as const;
+
+/** The bar above a boss that shows how much more it can take. */
+export const BOSS_BAR = {
+  width: 76,
+  height: 8,
+  up: 16,
+  back: 0x1b1b1b,
+  full: 0x66bb6a,
+  low: 0xe53935,
+  /** With less than this share left, the bar turns red. */
+  lowShare: 0.35,
+} as const;
+
+/** The looks of the boss that aren't its body: eyes, mouth, teeth, claws. */
+export const BOSS_LOOK = {
+  eye: 0xff1744,
+  glow: 0xffeb3b,
+  mouth: 0x1a0626,
+  teeth: 0xfffbe6,
+} as const;
+
+/** When a trampoline throws something up, it is squashed flat for a moment. */
+export const BOING = { ms: 180, squash: 0.35 } as const;
+
+/** The ground shakes when a boss stomps. */
+export const QUAKE = { ms: 200, strength: 0.01 } as const;
 
 /** A puff of smoke: a gray ball that rises, grows and fades. */
 export const SMOKE = {
@@ -1008,6 +1067,14 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       up: 4,
     },
   },
+  // A little too high to step onto: a doll hops on, and then it bounces
+  trampoline: {
+    halfWidth: 46,
+    height: 24,
+    menuScale: 0.9,
+    colors: { fill: 0x1e88e5, dark: 0x0d3c73, light: 0x90caf9, detail: 0x23272b },
+    spring: { minSpeed: 140, keep: 0.85, boost: 150, dull: 0.55, most: 1100 },
+  },
   toilet: {
     halfWidth: 25,
     height: 58,
@@ -1079,6 +1146,43 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       wheels: { xs: [-52, -26, 48], up: 11, radius: 11 },
       seat: { x: 52, up: 16, inFront: false },
       blast: { radius: 230, damage: 3, pushSpeed: 780 },
+    },
+  },
+  // Slow and very tough, and its cannon fires shells that explode
+  tank: {
+    halfWidth: 119,
+    height: 99,
+    menuScale: 1,
+    colors: { fill: 0x5b6b3a, dark: 0x2a3118, light: 0x8fa05c, detail: 0x1c1c1f },
+    drive: {
+      speed: 85,
+      damage: 2,
+      pushSpeed: 520,
+      scale: 1.8,
+      wheels: { xs: [-50, -25, 0, 25, 50], up: 10, radius: 9 },
+      seat: { x: -2, up: 37, inFront: false },
+      blast: { radius: 240, damage: 4, pushSpeed: 820 },
+      hull: 12,
+      cannon: {
+        x: 70,
+        up: 46,
+        tooClose: 150,
+        gun: {
+          range: 760,
+          damage: 0,
+          everyMs: 2400,
+          autoMs: 2400,
+          bulletSpeed: 640,
+          muzzle: { x: 0, y: 0 },
+          barrelUp: 0,
+          shell: {
+            blast: { radius: 105, damage: 3, pushSpeed: 620 },
+            width: 18,
+            height: 8,
+            color: 0x26282b,
+          },
+        },
+      },
     },
   },
   bike: {
@@ -1241,6 +1345,30 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       blast: { radius: 140, damage: 3, pushSpeed: 650 },
     },
   },
+  boss: {
+    halfWidth: 58,
+    height: 168,
+    menuScale: 0.45,
+    colors: { fill: 0x6a1b9a, dark: 0x2a0a3f, light: 0xb86fe0, detail: 0xffd54f },
+    // The big one: 30 bullets, a stomp that takes 3 lives, a laser that takes 2
+    monster: {
+      attack: 'laser',
+      range: 640,
+      everyMs: 2200,
+      damage: 2,
+      pushSpeed: 420,
+      speed: 60,
+      blast: { radius: 260, damage: 4, pushSpeed: 900 },
+      boss: {
+        hull: 30,
+        blastHits: 5,
+        eyes: { x: 16, up: 141 },
+        reach: 70,
+        stomp: { everyMs: 1500, damage: 3, pushSpeed: 760, hopMs: 280, hop: 20 },
+        smashEveryMs: 550,
+      },
+    },
+  },
   helicopter: {
     halfWidth: 96,
     height: 92,
@@ -1323,6 +1451,8 @@ export interface GunDef {
   /** A shotgun: this many bullets at once, fanned out over `spread` (radians). */
   pellets?: number;
   spread?: number;
+  /** A cannon: its bullet is a big shell that goes off with this blast where it hits. */
+  shell?: { blast: BlastDef; width: number; height: number; color: number };
 }
 
 /**
@@ -1612,6 +1742,7 @@ export const BUILD_KINDS: readonly BuildKind[] = [
   'girder',
   'pillar',
   'glass',
+  'trampoline',
   'barrel',
   'tnt',
 ];
@@ -1624,10 +1755,12 @@ export const MONSTER_KINDS: readonly MonsterKind[] = [
   'ghost',
   'batMonster',
   'ufo',
+  'boss',
 ];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'car',
   'truck',
+  'tank',
   'bike',
   'skateboard',
   'helicopter',
@@ -1848,6 +1981,10 @@ export const SOUND = {
   /** A ghost scaring a doll: an eerie rising howl. */
   spook: {
     tone: { wave: 'sine', from: 260, to: 720, seconds: 0.35, volume: 0.3 },
+  },
+  /** A trampoline: a springy tone that jumps up. */
+  boing: {
+    tone: { wave: 'sine', from: 170, to: 560, seconds: 0.2, volume: 0.45 },
   },
   /** Thunder: a long low boom under a sharp crack. */
   thunder: {

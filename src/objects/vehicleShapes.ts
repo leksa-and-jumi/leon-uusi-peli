@@ -18,6 +18,8 @@ export function drawVehicle(g: Graphics, kind: VehicleKind): Graphics {
       return drawCar(g, def);
     case 'truck':
       return drawTruck(g, def);
+    case 'tank':
+      return drawTank(g, def);
     case 'bike':
       return drawBike(g, def);
     case 'skateboard':
@@ -282,6 +284,49 @@ function drawTruck(g: Graphics, def: BlockDef): Graphics {
 }
 
 /** A motorbike: frame, engine, tank, seat, handlebar and a headlight. */
+/**
+ * A tank: a long track with the road wheels in it, an armored hull with a slanted
+ * front, a turret with a hatch, and a long cannon.
+ */
+function drawTank(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // The cannon, behind the turret, with a thicker end
+  box(g, shade(fill, -0.2), dark, 18, -49, 50, 6, 2);
+  box(g, shade(fill, -0.35), dark, 62, -51, 8, 10, 2);
+  // Turret and hatch
+  box(g, fill, dark, -28, -53, 50, 18, 6);
+  g.fillStyle(light, 0.6);
+  g.fillRoundedRect(-24, -51, 42, 3, 1.5);
+  box(g, shade(fill, -0.15), dark, -12, -57, 20, 5, 2);
+  // Hull
+  shape(g, fill, dark, [
+    [-64, -21],
+    [66, -21],
+    [56, -36],
+    [-58, -36],
+  ]);
+  g.fillStyle(light, 0.55);
+  g.fillRect(-55, -34.5, 108, 2.5);
+  g.fillStyle(dark, 0.45);
+  for (const x of [-40, -10, 20]) {
+    g.fillRect(x, -31, 2, 8);
+  }
+  // A plain white star on the side
+  g.fillStyle(0xffffff, 0.85);
+  g.fillTriangle(-30, -32, -26.5, -24, -33.5, -24);
+  g.fillTriangle(-35, -29.5, -25, -29.5, -30, -25.5);
+  // The track: a dark band all around the wheels
+  box(g, detail, dark, -65, -21, 130, 21, 10);
+  g.fillStyle(shade(detail, 0.25));
+  g.fillRoundedRect(-62, -18.5, 124, 16, 8);
+  g.fillStyle(detail);
+  for (let x = -60; x < 62; x += 8) {
+    g.fillRect(x, -21, 3, 2.5);
+    g.fillRect(x, -2.5, 3, 2.5);
+  }
+  return g;
+}
+
 function drawBike(g: Graphics, def: BlockDef): Graphics {
   const { fill, dark, light, detail } = def.colors;
   // Frame and fork

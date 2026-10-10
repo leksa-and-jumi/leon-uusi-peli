@@ -82,6 +82,12 @@ export class Sfx {
     this.tone(SOUND.spook.tone);
   }
 
+  /** Something bounces off a trampoline. */
+  boing(): void {
+    if (!this.ready('boing')) return;
+    this.tone(SOUND.boing.tone);
+  }
+
   /** Lightning strikes. */
   thunder(): void {
     if (!this.ready('thunder')) return;

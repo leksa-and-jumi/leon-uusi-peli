@@ -1,5 +1,5 @@
 import { PHYSICS, PICK_PADDING, THROW, type ActionId } from '../config';
-import { ceilingBounce, fallStep } from '../logic/fall';
+import { ceilingBounce, fallStep, springSpeed } from '../logic/fall';
 import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
 import { boxAround, groundBelow, liftOut, type Box } from '../logic/ground';
 import type { Spot } from '../logic/pick';
@@ -39,6 +39,8 @@ export abstract class Body {
    * ends up on top of anything; a doll only steps up onto low things.
    */
   protected readonly climbsOnlyLow: boolean = false;
+  /** A trampoline never stops bouncing it (a doll); other things bounce lower and lower. */
+  protected readonly lively: boolean = false;
   /** How fast it was falling when it last hit the ground (pixels per second). */
   protected lastImpact = 0;
   private fallSpeed = 0;
@@ -196,10 +198,17 @@ export abstract class Body {
     const below = ceilingBounce(fall.y, fall.speed, height, world.area.top, PHYSICS.ceilingBounce);
     this.y = below.y;
     this.fallSpeed = below.speed;
-    if (fall.landed) {
-      this.lastImpact =
-        this.fallSpeedBefore + PHYSICS.gravity * this.gravityScale * (deltaMs / 1000);
+    if (!fall.landed) return 'falling';
+    const impact = this.fallSpeedBefore + PHYSICS.gravity * this.gravityScale * (deltaMs / 1000);
+    // Landed on a trampoline: it throws the thing back up
+    const spring = world.spring(this.x - halfWidth, this.x + halfWidth, ground);
+    const back = spring ? springSpeed(impact, spring, this.lively) : 0;
+    if (back > 0) {
+      this.y = ground - 1;
+      this.fallSpeed = -back;
+      return 'falling';
     }
-    return fall.landed ? 'resting' : 'falling';
+    this.lastImpact = impact;
+    return 'resting';
   }
 }

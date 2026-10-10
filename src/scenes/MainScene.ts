@@ -21,8 +21,10 @@ import {
   LASER,
   MENU,
   PERSON,
+  PHYSICS,
   PICK_PADDING,
   PICK_PADDING_TOUCH,
+  QUAKE,
   RIDE_GAP,
   SEVER,
   SMOKE,
@@ -192,6 +194,26 @@ export class MainScene extends Phaser.Scene {
       },
       thunder: (source, spare) => {
         this.thunder(source, spare);
+      },
+      spring: (left, right, groundY) => {
+        const trampoline = this.blocks.find((block) => {
+          const box = block.box;
+          const under = Math.abs(box.top - groundY) <= PHYSICS.groundSlack;
+          return block.def.spring && block.carries && under && box.left < right && box.right > left;
+        });
+        if (!trampoline?.def.spring) return null;
+        trampoline.boing();
+        this.sfx.boing();
+        return trampoline.def.spring;
+      },
+      smash: (thing, direction) => {
+        this.crumble(thing, direction * DEBRIS.blastPush, -DEBRIS.blastLift);
+        this.sfx.crumble();
+        this.doomed.push(thing);
+      },
+      quake: () => {
+        this.cameras.main.shake(QUAKE.ms, QUAKE.strength);
+        this.sfx.thud(1);
       },
       smoke: (x, y) => {
         this.puff(x, y);
@@ -628,9 +650,11 @@ export class MainScene extends Phaser.Scene {
   ): void {
     this.sfx.shot();
     // A shotgun sends several bullets out at once, fanned out
+    // A cannon's shell is bigger and darker than a bullet
+    const look = gun.shell ?? BULLET;
     for (const way of fan(aim, gun.pellets ?? 1, gun.spread ?? 0)) {
       const picture = this.add
-        .rectangle(x, y, BULLET.width, BULLET.height, BULLET.color)
+        .rectangle(x, y, look.width, look.height, look.color)
         .setDepth(DEPTH.bullet);
       picture.rotation = Math.atan2(way.y, way.x);
       this.bullets.push({ x, y, aim: way, from, direction, gun, shooter, picture });
@@ -667,6 +691,15 @@ export class MainScene extends Phaser.Scene {
         bullet.y > AREA.floorY;
       if (hit === null && !flownOut) return true;
 
+      const { shell } = bullet.gun;
+      if (shell) {
+        // A shell goes off where it hits. It doesn't hurt the tank it came out of.
+        const atX = Phaser.Math.Clamp(bullet.x, AREA.left, AREA.right);
+        const atY = Phaser.Math.Clamp(bullet.y, AREA.top, AREA.floorY);
+        this.blastAt(atX, atY, shell.blast, null, bullet.from);
+        bullet.picture.destroy();
+        return false;
+      }
       const struck = hit === null ? undefined : solids[hit]?.body;
       const victim = hit === null ? undefined : targets[hit - solids.length];
       if (struck instanceof Block) {
@@ -714,9 +747,24 @@ export class MainScene extends Phaser.Scene {
    */
   private explode(source: Body, blast: BlastDef): void {
     const { x, y } = source.feet;
-    const middleY = y - source.size.height / 2;
+    this.blastAt(x, y - source.size.height / 2, blast, source, null);
+  }
+
+  /**
+   * A blast at this spot. `source` is the thing that blew up, if any: it bursts to
+   * pieces. `spare` is a thing the blast leaves alone, with whoever sits in it: the
+   * tank that fired the shell.
+   */
+  private blastAt(
+    x: number,
+    y: number,
+    blast: BlastDef,
+    source: Body | null,
+    spare: Body | null,
+  ): void {
+    const rider = spare instanceof Block ? spare.rider : null;
     const caught = (body: Body): boolean =>
-      body !== source && inBlast(x, middleY, body.box, blast.radius);
+      body !== source && body !== spare && body !== rider && inBlast(x, y, body.box, blast.radius);
 
     for (const person of this.people) {
       if (!person.canBePicked || !caught(person)) continue;
@@ -738,11 +786,11 @@ export class MainScene extends Phaser.Scene {
       const away = blastDirection(x, body.feet.x) * DEBRIS.blastPush;
       this.crumble(body, away, -DEBRIS.blastLift);
     }
-    this.crumble(source, 0, -DEBRIS.blastLift);
+    if (source) this.crumble(source, 0, -DEBRIS.blastLift);
     this.forget(destroyed);
 
     this.sfx.blast();
-    this.popUp(x, middleY, BLAST.emoji, BLAST.fontSize, BLAST.ms, BLAST.grow);
+    this.popUp(x, y, BLAST.emoji, BLAST.fontSize, BLAST.ms, BLAST.grow);
     this.cameras.main.shake(BLAST.ms / 2, 0.012);
   }
 

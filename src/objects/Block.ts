@@ -4,6 +4,8 @@ import {
   BLAST,
   BLOCK_LOOK,
   BLOCKS,
+  BOING,
+  BOSS_BAR,
   BULLET_HOLE,
   CHOMPER,
   DEPTH,
@@ -39,7 +41,7 @@ import { clamp } from '../logic/bounds';
 import { floatStep } from '../logic/chase';
 import { shade } from '../logic/color';
 import { blockedX, boxAround, liftOut, overlaps, type Box } from '../logic/ground';
-import { segmentHit } from '../logic/shot';
+import { aimAt, segmentHit } from '../logic/shot';
 import type { Spot } from '../logic/pick';
 import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
@@ -112,6 +114,15 @@ export class Block extends Body {
   private fried = false;
   private smokeWaitMs = 0;
   private burnOutMs: number | null = null;
+  /** A trampoline that has just thrown something up: time left of being squashed. */
+  private boingMs = 0;
+  /** A tank: time left until its cannon can fire again. */
+  private cannonWaitMs = 0;
+  /** A boss: the bar that shows how much more it takes, and the waits between its moves. */
+  private readonly bar: Phaser.GameObjects.Graphics | null = null;
+  private stompWaitMs = 0;
+  private smashWaitMs = 0;
+  private hopMs = 0;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
@@ -137,6 +148,11 @@ export class Block extends Body {
     if (hazard?.flames) {
       this.flames = blank();
       parts.unshift(this.flames);
+    }
+    this.hull = drive?.hull ?? monster?.boss?.hull ?? VEHICLE_HULL;
+    if (monster?.boss) {
+      this.bar = blank().setPosition(0, -this.def.height - BOSS_BAR.up);
+      parts.push(this.bar);
     }
     if (monster && !monster.head && !monster.ghost) {
       this.holes = blank();
@@ -173,6 +189,7 @@ export class Block extends Body {
     picture.setScale(drive?.scale ?? 1);
     this.display = scene.add.container(x, y, [picture]).setDepth(DEPTH.block);
     if (ghost) this.display.setAlpha(ghost.alpha).setDepth(DEPTH.ghost);
+    this.showHull();
   }
 
   get size(): PersonSize {
@@ -203,6 +220,16 @@ export class Block extends Body {
   /** A vehicle with a seat that nobody sits in, standing where a doll can get in. */
   get seatFree(): boolean {
     return this.def.drive?.seat !== undefined && this.driver === null && this.carries;
+  }
+
+  /** The doll sitting in it, or `null`. */
+  get rider(): Person | null {
+    return this.driver;
+  }
+
+  /** A trampoline has thrown something up: it is squashed flat for a moment. */
+  boing(): void {
+    this.boingMs = BOING.ms;
   }
 
   /** Which way a vehicle points: 1 right, -1 left. */
@@ -267,6 +294,7 @@ export class Block extends Body {
     }
     if (this.exploded) return;
     this.hull -= 1;
+    this.showHull();
     // The hole goes where the bullet hit, measured on its own drawing
     const scale = drive?.scale ?? 1;
     const across = this.def.halfWidth / scale;
@@ -283,6 +311,19 @@ export class Block extends Body {
     } else {
       world.breakApart(this, 0, -200);
     }
+  }
+
+  /** Draw the bar above a boss: how much of what it can take is left. */
+  private showHull(): void {
+    const boss = this.def.monster?.boss;
+    if (!this.bar || !boss) return;
+    const { width, height, back, full, low, lowShare } = BOSS_BAR;
+    const left = Math.max(0, this.hull) / boss.hull;
+    this.bar.clear();
+    this.bar.fillStyle(back);
+    this.bar.fillRoundedRect(-width / 2 - 2, -2, width + 4, height + 4, 3);
+    this.bar.fillStyle(left < lowShare ? low : full);
+    this.bar.fillRect(-width / 2, 0, width * left, height);
   }
 
   /** Glass breaks into pieces with a crash. */
@@ -353,6 +394,13 @@ export class Block extends Body {
   /** Hit by a bullet or caught in a blast: a barrel explodes at most `ms` from now. */
   setOff(ms: number): void {
     if (!this.explosive || this.exploded) return;
+    const boss = this.def.monster?.boss;
+    if (boss) {
+      // A boss doesn't go up in one blast: it only takes a few hits from it
+      this.hull -= boss.blastHits;
+      this.showHull();
+      if (this.hull > 0) return;
+    }
     this.fuseMs = Math.min(this.fuseMs ?? ms, ms);
   }
 
@@ -479,6 +527,7 @@ export class Block extends Body {
     this.hunt(deltaMs, world, state);
     this.haunt(deltaMs, world, state);
     this.patrol(deltaMs, world, state);
+    this.rampage(deltaMs, world, state);
     this.trap(deltaMs, world, state);
     const steady = this.tipping !== null || this.prop !== null;
     const balancing = this.solid && !this.hovering && state === 'resting' && !steady;
@@ -538,6 +587,7 @@ export class Block extends Body {
       world.shove(this.box, this.facing);
       this.turn();
     }
+    this.fireCannon(deltaMs, world);
 
     for (const person of world.people) {
       if (!person.canBeHit || !overlaps(this.box, person.box)) continue;
@@ -545,6 +595,115 @@ export class Block extends Body {
       const deadly = person.hit(this.facing, solids, drive.damage, drive.pushSpeed, 'bruise');
       world.hitEffect(person.feet.x, person.feet.y - PERSON.height / 2, deadly, 'punch');
     }
+  }
+
+  /**
+   * A tank's cannon fires at the closest doll in front of it: a shell that goes off
+   * where it hits. It leaves the dolls of its driver's color alone.
+   */
+  private fireCannon(deltaMs: number, world: World): void {
+    const drive = this.def.drive;
+    const cannon = drive?.cannon;
+    if (!drive || !cannon) return;
+    this.cannonWaitMs = Math.max(0, this.cannonWaitMs - deltaMs);
+    if (this.cannonWaitMs > 0) return;
+    const fromX = this.x + this.facing * cannon.x * drive.scale;
+    const fromY = this.y - cannon.up * drive.scale;
+    let target: { x: number; y: number } | null = null;
+    let closest: number = cannon.gun.range;
+    for (const person of world.people) {
+      if (person.dead || person.seated || !person.canBePicked) continue;
+      const body = person.hitBox;
+      const atX = (body.left + body.right) / 2;
+      const ahead = (atX - this.x) * this.facing;
+      if (ahead < cannon.tooClose + this.shape.halfWidth || ahead >= closest) continue;
+      target = { x: atX, y: (body.top + body.bottom) / 2 };
+      closest = ahead;
+    }
+    if (!target) return;
+    this.cannonWaitMs = cannon.gun.everyMs;
+    const aim = aimAt(fromX, fromY, target.x, target.y, this.facing);
+    world.shoot(this.driver, fromX, fromY, this.facing, cannon.gun, aim, this);
+  }
+
+  /**
+   * A boss goes for the closest living doll. It stomps every doll that is near it,
+   * shoots its laser at the one it is after when nothing is in the way, and smashes
+   * the things that are.
+   */
+  private rampage(deltaMs: number, world: World, state: BodyState): void {
+    const monster = this.def.monster;
+    const boss = monster?.boss;
+    if (!monster || !boss) return;
+    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    this.stompWaitMs = Math.max(0, this.stompWaitMs - deltaMs);
+    this.smashWaitMs = Math.max(0, this.smashWaitMs - deltaMs);
+    this.hopMs = Math.max(0, this.hopMs - deltaMs);
+    if (state !== 'resting') return;
+    const eyesY = this.y - boss.eyes.up;
+    const victim = this.closestDoll(world, eyesY, monster.range, null, false);
+    if (!victim) return;
+
+    const body = victim.hitBox;
+    const atX = (body.left + body.right) / 2;
+    const atY = (body.top + body.bottom) / 2;
+    this.facing = atX < this.x ? -1 : 1;
+    const { halfWidth, height } = this.shape;
+    const pieces = world.pieces(this);
+    const own = this.box;
+    const near = {
+      left: own.left - boss.reach,
+      right: own.right + boss.reach,
+      top: own.top,
+      bottom: own.bottom + 2,
+    };
+
+    if (!overlaps(near, body)) {
+      // Walk toward the doll, and smash what stands in the way
+      const from = this.x;
+      const wanted = from + this.facing * monster.speed * (deltaMs / 1000);
+      const inside = clamp(wanted, world.area.left + halfWidth, world.area.right - halfWidth);
+      this.x = blockedX(from, inside, halfWidth, this.y, height, pieces, PHYSICS.stepUp);
+      world.carry(this, this.x - from);
+      if (this.x !== inside && this.smashWaitMs <= 0) {
+        const thing = world
+          .things(this)
+          .find(
+            (other) => other instanceof Block && !other.def.monster && overlaps(near, other.box),
+          );
+        if (thing) {
+          this.smashWaitMs = boss.smashEveryMs;
+          this.hopMs = boss.stomp.hopMs;
+          world.smash(thing, this.facing);
+        }
+      }
+    }
+
+    if (this.stompWaitMs <= 0) {
+      const underFoot = world.people.filter(
+        (person) =>
+          !person.dead && !person.seated && person.canBePicked && overlaps(near, person.hitBox),
+      );
+      if (underFoot.length > 0) {
+        this.stompWaitMs = boss.stomp.everyMs;
+        this.hopMs = boss.stomp.hopMs;
+        world.quake();
+        for (const person of underFoot) {
+          const away: Facing = person.feet.x < this.x ? -1 : 1;
+          const solids = world.solidBoxes(person);
+          const { damage, pushSpeed } = boss.stomp;
+          const deadly = person.hit(away, solids, damage, pushSpeed, 'bruise');
+          const box = person.hitBox;
+          world.hitEffect((box.left + box.right) / 2, (box.top + box.bottom) / 2, deadly, 'punch');
+        }
+        return;
+      }
+    }
+
+    const eyesX = this.x + this.facing * boss.eyes.x;
+    if (this.zapWaitMs > 0 || segmentHit(eyesX, eyesY, atX, atY, pieces) !== null) return;
+    this.zapWaitMs = monster.everyMs;
+    world.zap(eyesX, eyesY, victim, monster.damage, monster.pushSpeed);
   }
 
   /**
@@ -863,7 +1022,12 @@ export class Block extends Body {
     const pivotX = this.prop?.pivotX ?? this.x - this.fallen * (height / 2);
     // A ghost bobs up and down in the air
     const ghost = this.def.monster?.ghost;
-    const bob = ghost && state === 'resting' ? ghost.bob * Math.sin(this.clockMs / ghost.bobMs) : 0;
+    const floats =
+      ghost && state === 'resting' ? ghost.bob * Math.sin(this.clockMs / ghost.bobMs) : 0;
+    // A boss hops when it stomps or smashes something
+    const stomp = this.def.monster?.boss?.stomp;
+    const hop = stomp ? stomp.hop * Math.sin((this.hopMs / stomp.hopMs) * Math.PI) : 0;
+    const bob = floats - hop;
     this.display.setPosition(
       this.fallen === 0 ? this.x : pivotX - this.fallen * halfWidth * Math.cos(tilt),
       (this.fallen === 0 ? this.y : this.y - halfWidth * Math.sin(tilt)) + bob,
@@ -877,7 +1041,10 @@ export class Block extends Body {
     // A bat flaps its wings: its picture is squeezed flat and let go again, fast
     const flapMs = ghost?.flapMs;
     const flap = flapMs ? 1 - 0.35 * Math.abs(Math.sin((this.clockMs / flapMs) * Math.PI)) : 1;
-    this.display.setScale(this.facing, flap);
+    // A trampoline is squashed flat for a moment when it throws something up
+    this.boingMs = Math.max(0, this.boingMs - deltaMs);
+    const squash = 1 - BOING.squash * Math.sin((this.boingMs / BOING.ms) * Math.PI);
+    this.display.setScale(this.facing, flap * squash);
   }
 }
 
@@ -924,6 +1091,8 @@ export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
       return drawTnt(g, BLOCKS.tnt);
     case 'pillar':
       return drawPillar(g, BLOCKS.pillar);
+    case 'trampoline':
+      return drawTrampoline(g, BLOCKS.trampoline);
     default:
       return drawJunk(g, kind);
   }
@@ -1226,5 +1395,36 @@ function drawPillar(g: Graphics, def: BlockDef): Graphics {
     g.fillStyle(colors.light, 0.8);
     g.fillRect(left + 2.5, y + 1.5, width - 5, 1.6);
   }
+  return g;
+}
+
+/** A trampoline: a dark, springy mat in a blue padded frame, on bent metal legs. */
+function drawTrampoline(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const left = -halfWidth;
+  const top = -height;
+
+  // Legs: two bent tubes
+  g.lineStyle(3.5, shade(colors.detail, 0.55));
+  for (const side of [-1, 1]) {
+    const x = side * (halfWidth - 12);
+    g.lineBetween(x, top + 7, x + side * 7, 0);
+    g.lineBetween(x - side * 12, top + 7, x - side * 5, -1);
+  }
+  g.lineBetween(-halfWidth + 5, -1, halfWidth - 5, -1);
+  // The springs between the frame and the mat
+  g.lineStyle(1.5, colors.light);
+  for (let x = left + 9; x < halfWidth - 8; x += 7) {
+    g.lineBetween(x, top + 5, x + 2.5, top + 9);
+  }
+  // Frame and mat
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(left, top, halfWidth * 2, 9, 4.5);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(left + 1.5, top + 1.5, halfWidth * 2 - 3, 6, 3);
+  g.fillStyle(colors.light, 0.8);
+  g.fillRoundedRect(left + 5, top + 2.3, halfWidth * 2 - 10, 1.6, 0.8);
+  g.fillStyle(colors.detail);
+  g.fillRoundedRect(left + 12, top + 1.5, halfWidth * 2 - 24, 4.5, 2);
   return g;
 }
