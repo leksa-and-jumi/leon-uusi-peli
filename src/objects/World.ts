@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import type { BlastDef, GunDef } from '../config';
+import type { Spring } from '../logic/fall';
 import type { Box } from '../logic/ground';
 import type { Spot } from '../logic/pick';
 import type { PlaceArea } from '../logic/place';
@@ -68,6 +69,15 @@ export interface World {
    * floor is out, except `spare`, the doll that slammed it down.
    */
   thunder: (source: Body, spare?: Body) => void;
+  /**
+   * Something has landed at height `groundY`, reaching from `left` to `right`: the
+   * trampoline right under it, or `null`. The trampoline gets squashed.
+   */
+  spring: (left: number, right: number, groundY: number) => Spring | null;
+  /** A boss smashes this thing to pieces, which fly off the way it faces. */
+  smash: (thing: Body, direction: Facing) => void;
+  /** The ground shakes under a stomp. */
+  quake: () => void;
   /** A puff of smoke rises from this spot. */
   smoke: (x: number, y: number) => void;
   /** A little spark flies off something at this spot. */

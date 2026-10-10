@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import {
   BLOCKS,
+  BOSS_LOOK,
   CHOMPER,
   SKIBIDI,
   type BlockDef,
@@ -57,6 +58,8 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
       return drawBatMonster(g, def);
     case 'ufo':
       return drawUfo(g, def);
+    case 'boss':
+      return drawBoss(g, def);
     case 'cone':
       return drawCone(g, def);
     case 'tire':
@@ -377,6 +380,80 @@ function drawTire(g: Graphics, def: BlockDef): Graphics {
   for (let i = 0; i < 5; i++) {
     const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
     g.fillCircle(Math.cos(angle) * 7.5, middleY + Math.sin(angle) * 7.5, 1.4);
+  }
+  return g;
+}
+
+/**
+ * The boss: a huge purple brute with horns, glowing eyes, a jaw full of teeth, thick
+ * arms with fists and two heavy legs. Its bottom middle is at (0, 0), and it looks right.
+ */
+function drawBoss(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const c = BOSS_LOOK;
+  // The arm at the back, then the legs
+  box(g, shade(fill, -0.25), dark, -58, -122, 22, 66, 10);
+  g.fillStyle(dark);
+  g.fillCircle(-47, -52, 15);
+  g.fillStyle(shade(fill, -0.25));
+  g.fillCircle(-47, -52, 13.4);
+  for (const x of [-36, 8]) {
+    box(g, shade(fill, -0.12), dark, x, -56, 28, 52, 8);
+    box(g, shade(fill, -0.3), dark, x - 4, -12, 38, 12, 5);
+  }
+  // Body, with a paler belly and a belt of spikes
+  box(g, fill, dark, -46, -132, 92, 86, 24);
+  g.fillStyle(light, 0.35);
+  g.fillEllipse(6, -84, 54, 50);
+  box(g, dark, dark, -46, -58, 92, 9, 3);
+  g.fillStyle(detail);
+  for (const x of [-34, -17, 0, 17, 34]) {
+    g.fillTriangle(x - 5, -58, x + 5, -58, x, -68);
+  }
+  // Horns, behind the head
+  shape(g, detail, dark, [
+    [-20, -152],
+    [-34, -176],
+    [-8, -160],
+  ]);
+  shape(g, detail, dark, [
+    [26, -154],
+    [42, -176],
+    [34, -148],
+  ]);
+  // Head
+  g.fillStyle(dark);
+  g.fillCircle(6, -140, 29);
+  g.fillStyle(fill);
+  g.fillCircle(6, -140, 27.4);
+  g.fillStyle(light, 0.4);
+  g.fillEllipse(0, -156, 30, 12);
+  // Glowing eyes under heavy brows
+  for (const x of [8, 25]) {
+    g.fillStyle(c.glow);
+    g.fillCircle(x, -143, 6);
+    g.fillStyle(c.eye);
+    g.fillCircle(x + 1, -143, 3.4);
+  }
+  g.lineStyle(4, dark);
+  g.lineBetween(0, -153, 15, -148);
+  g.lineBetween(34, -153, 19, -148);
+  // A wide jaw with teeth
+  box(g, c.mouth, dark, -4, -133, 34, 14, 5);
+  g.fillStyle(c.teeth);
+  for (const x of [-1, 6, 13, 20]) {
+    g.fillTriangle(x, -132.5, x + 6, -132.5, x + 3, -126);
+    g.fillTriangle(x + 2, -119.5, x + 8, -119.5, x + 5, -125.5);
+  }
+  // The arm in front, with its fist
+  box(g, shade(fill, 0.08), dark, 34, -124, 24, 68, 11);
+  g.fillStyle(dark);
+  g.fillCircle(46, -52, 16);
+  g.fillStyle(shade(fill, 0.08));
+  g.fillCircle(46, -52, 14.4);
+  g.lineStyle(1.6, dark, 0.8);
+  for (const x of [40, 46, 52]) {
+    g.lineBetween(x, -44, x, -39);
   }
   return g;
 }
