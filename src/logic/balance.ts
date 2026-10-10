@@ -104,3 +104,108 @@ export function topplePose(
     rotation,
   };
 }
+
+/**
+ * A tall piece falls over around its bottom corner at (`pivotX`, `pivotY`), toward
+ * `direction`. How far over does it get before something solid stops it? The answer
+ * is an angle: 0 is still standing, a quarter turn (π/2) is flat on its side.
+ * Either its side comes down on the top corner of something, or its tip runs into
+ * the side of something. `length` is how tall the piece stood. Things it would have
+ * to turn back up to reach (closer to standing than `atLeast`) don't count: they sit
+ * on top of it, not under it.
+ */
+export function leanAngle(
+  pivotX: number,
+  pivotY: number,
+  direction: 1 | -1,
+  length: number,
+  solids: readonly Box[],
+  atLeast = 0,
+): number {
+  let angle = Math.PI / 2;
+  for (const solid of solids) {
+    const rise = pivotY - solid.top;
+    const near = direction > 0 ? solid.left : solid.right;
+    const far = direction > 0 ? solid.right : solid.left;
+    // Not higher than where the piece stands, or all of it behind the corner it turns on
+    if (rise <= 1 || direction * (far - pivotX) <= 0) continue;
+    const reach = Math.max(0, direction * (near - pivotX));
+    let stopsAt: number | null = null;
+    if (Math.hypot(reach, rise) <= length) {
+      stopsAt = Math.atan2(reach, rise);
+    } else if (reach <= length) {
+      // The tip swings down in a circle: does it meet the near side of the thing?
+      const tipY = pivotY - Math.sqrt(length * length - reach * reach);
+      if (tipY >= solid.top && tipY <= solid.bottom) stopsAt = Math.asin(reach / length);
+    }
+    if (stopsAt !== null && stopsAt >= atLeast) angle = Math.min(angle, stopsAt);
+  }
+  return angle;
+}
+
+/**
+ * The space a piece takes up when it has fallen `angle` of the way over (0 standing,
+ * π/2 flat) around the corner at `pivotX`: where its middle is, and how wide and
+ * tall the box around it is. `halfWidth` and `height` are its size standing up.
+ */
+export function leaningShape(
+  pivotX: number,
+  direction: 1 | -1,
+  halfWidth: number,
+  height: number,
+  angle: number,
+): Standing {
+  const thick = halfWidth * 2;
+  const sin = Math.sin(angle);
+  const cos = Math.cos(angle);
+  const wide = height * sin + thick * cos;
+  return {
+    x: pivotX + (direction * (height * sin - thick * cos)) / 2,
+    halfWidth: wide / 2,
+    height: height * cos + thick * sin,
+  };
+}
+
+/**
+ * A leaning piece as a flight of steps, so that others can stand on its slope and
+ * walk up it: boxes side by side from its low end to its high end, none more than
+ * `stepHeight` higher than the one before (and never more than `most` of them).
+ * Each reaches from the top side of the piece down to its underside.
+ */
+export function rampSteps(
+  pivotX: number,
+  pivotY: number,
+  direction: 1 | -1,
+  halfWidth: number,
+  height: number,
+  angle: number,
+  stepHeight: number,
+  most: number,
+): Box[] {
+  const thick = halfWidth * 2;
+  const sin = Math.sin(angle);
+  const cos = Math.cos(angle);
+  // Measured from the corner it turns on, as if it had fallen to the right
+  const low = -thick * cos;
+  const high = height * sin;
+  const rise = height * cos;
+  // The top side is shorter than the whole piece is wide, so it climbs a bit faster
+  const stretch = high === 0 ? 1 : (high - low) / high;
+  const count = Math.min(most, Math.max(1, Math.ceil((rise / stepHeight) * stretch)));
+  const steps: Box[] = [];
+  for (let i = 0; i < count; i++) {
+    const from = low + ((high - low) * i) / count;
+    const to = low + ((high - low) * (i + 1)) / count;
+    const middle = (from + to) / 2;
+    // How far along the top side this step is, and how far along the underside
+    const along = high === 0 ? 1 : Math.min(1, Math.max(0, (middle - low) / high));
+    const under = middle <= 0 || high === 0 ? 0 : Math.min(1, middle / high);
+    steps.push({
+      left: pivotX + (direction > 0 ? from : -to),
+      right: pivotX + (direction > 0 ? to : -from),
+      top: pivotY - (thick * sin + rise * along),
+      bottom: pivotY - rise * under,
+    });
+  }
+  return steps;
+}

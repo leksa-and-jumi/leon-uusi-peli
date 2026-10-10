@@ -25,6 +25,7 @@ import {
   PICK_PADDING_TOUCH,
   RIDE_GAP,
   SEVER,
+  SMOKE,
   SOUND,
   SPARK,
   SWING,
@@ -192,6 +193,9 @@ export class MainScene extends Phaser.Scene {
       thunder: (source, spare) => {
         this.thunder(source, spare);
       },
+      smoke: (x, y) => {
+        this.puff(x, y);
+      },
       spark: (x, y) => {
         const reach = (): number => (Math.random() * 2 - 1) * THUNDER.sparkReach;
         this.bolt(x, y, x + reach(), y + reach(), SPARK);
@@ -257,9 +261,10 @@ export class MainScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.world.people = this.people;
+    // A piece that leans on something is a flight of steps: several boxes for one body
     this.solids = this.blocks
       .filter((block) => block.carries)
-      .map((block) => ({ body: block, box: block.box }));
+      .flatMap((block) => block.solidParts.map((box) => ({ body: block, box })));
 
     this.downDolls = this.people.filter((person) => person.isDown).map((p) => p.hitBox);
 
@@ -805,7 +810,8 @@ export class MainScene extends Phaser.Scene {
    * The thunder hammer strikes the floor: lightning comes down on it and runs along
    * the whole floor. Every doll that touches the floor is out, except `spare`, the
    * doll that slammed it down; a doll standing up on something is safe. Nothing
-   * breaks, but electric things standing on the floor go haywire.
+   * breaks, but electric things standing on the floor go haywire, and vehicles on
+   * the floor are fried.
    */
   private thunder(source: Body, spare?: Body): void {
     if (this.time.now - this.lastThunderMs < THUNDER.cooldownMs) return;
@@ -828,8 +834,32 @@ export class MainScene extends Phaser.Scene {
       person.hit(away, this.solidBoxes(person), THUNDER.damage, THUNDER.pushSpeed, 'burn');
     }
     for (const block of this.blocks) {
-      if (block.canBePicked && touchesFloor(block.box)) block.goHaywire(THUNDER.haywireMs);
+      if (!block.canBePicked || !touchesFloor(block.box)) continue;
+      block.goHaywire(THUNDER.haywireMs);
+      block.fry();
     }
+  }
+
+  /** A puff of smoke: a gray ball that rises, grows and fades away. */
+  private puff(x: number, y: number): void {
+    const between = (range: { min: number; max: number }): number =>
+      range.min + Math.random() * (range.max - range.min);
+    const color = SMOKE.colors[Math.floor(Math.random() * SMOKE.colors.length)] ?? 0;
+    const startX = x + (Math.random() * 2 - 1) * SMOKE.spread;
+    const ball = this.add
+      .circle(startX, y, between(SMOKE.radius), color, SMOKE.alpha)
+      .setDepth(SMOKE.depth);
+    this.tweens.add({
+      targets: ball,
+      y: y - between(SMOKE.rise),
+      x: startX + (Math.random() * 2 - 1) * SMOKE.spread,
+      scale: SMOKE.grow,
+      alpha: 0,
+      duration: SMOKE.ms,
+      onComplete: () => {
+        ball.destroy();
+      },
+    });
   }
 
   /**

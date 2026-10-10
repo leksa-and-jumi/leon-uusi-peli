@@ -24,11 +24,21 @@ import {
   type TrapKind,
   type VehicleKind,
 } from '../config';
-import { isTall, leaning, overhang, supportSpan, toppled, topplePose } from '../logic/balance';
+import {
+  isTall,
+  leanAngle,
+  leaning,
+  leaningShape,
+  overhang,
+  rampSteps,
+  supportSpan,
+  toppled,
+  topplePose,
+} from '../logic/balance';
 import { clamp } from '../logic/bounds';
 import { floatStep } from '../logic/chase';
 import { shade } from '../logic/color';
-import { blockedX, liftOut, overlaps, type Box } from '../logic/ground';
+import { blockedX, boxAround, liftOut, overlaps, type Box } from '../logic/ground';
 import { segmentHit } from '../logic/shot';
 import type { Spot } from '../logic/pick';
 import type { PersonSize, PlaceArea } from '../logic/place';
@@ -91,6 +101,17 @@ export class Block extends Body {
   /** An electric thing hit by lightning: time left of going haywire, and until its next spark. */
   private haywireMs = 0;
   private sparkWaitMs = 0;
+  /**
+   * Fallen onto something and leaning on it: the bottom corner it turned on, and how
+   * far over it is (0 standing, a quarter turn flat).
+   */
+  private prop: { pivotX: number; angle: number } | null = null;
+  /** How far over a fallen piece is drawn right now: the picture eases to where the piece is. */
+  private tiltShown = Math.PI / 2;
+  /** A vehicle fried by lightning: it smokes and never drives again. Some blow up later. */
+  private fried = false;
+  private smokeWaitMs = 0;
+  private burnOutMs: number | null = null;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
@@ -167,6 +188,18 @@ export class Block extends Body {
     return this.blast !== undefined;
   }
 
+  /**
+   * The boxes others stand on and bump into: the one around it, or a flight of steps
+   * up its slope when it leans on something.
+   */
+  get solidParts(): Box[] {
+    if (!this.prop || this.fallen === 0) return [this.box];
+    const { halfWidth, height } = this.def;
+    const { pivotX, angle } = this.prop;
+    const { stepHeight, maxSteps } = TOPPLE;
+    return rampSteps(pivotX, this.y, this.fallen, halfWidth, height, angle, stepHeight, maxSteps);
+  }
+
   /** A vehicle with a seat that nobody sits in, standing where a doll can get in. */
   get seatFree(): boolean {
     return this.def.drive?.seat !== undefined && this.driver === null && this.carries;
@@ -193,7 +226,7 @@ export class Block extends Body {
   /** A doll sits down in it: the vehicle drives off. */
   takeDriver(person: Person): void {
     this.driver = person;
-    this.setDriving(true);
+    if (!this.fried) this.setDriving(true);
   }
 
   /** The doll in it has left: the vehicle stops. */
@@ -264,6 +297,19 @@ export class Block extends Body {
     super.throwAway(area);
   }
 
+  /**
+   * Lightning has run into a vehicle: it starts to smoke and never drives again, and
+   * some of them blow up a while later.
+   */
+  fry(): void {
+    if (!this.def.drive || this.fried || this.exploded) return;
+    this.fried = true;
+    this.setDriving(false);
+    const { explodeChance, explodeAfterMs } = THUNDER.fried;
+    if (!this.blast || Math.random() >= explodeChance) return;
+    this.burnOutMs = explodeAfterMs.min + Math.random() * (explodeAfterMs.max - explodeAfterMs.min);
+  }
+
   /** Lightning has run into it: an electric thing goes haywire for this long. */
   goHaywire(ms: number): void {
     if (this.def.electric) this.haywireMs = ms;
@@ -283,7 +329,7 @@ export class Block extends Body {
 
   /** Make a vehicle drive, or stop it again. */
   toggleDrive(): void {
-    if (!this.def.drive) return;
+    if (!this.def.drive || this.fried) return;
     this.setDriving(!this.driving);
   }
 
@@ -311,6 +357,8 @@ export class Block extends Body {
   }
 
   override grab(px: number, py: number): void {
+    // Picked up, a leaning piece is simply a piece lying on its side
+    this.layFlat();
     super.grab(px, py);
     this.tipping = null;
     this.slideSpeed = 0;
@@ -329,7 +377,25 @@ export class Block extends Body {
       return;
     }
     const lying = toppled({ x: this.x, ...this.shape }, direction);
+    // What it falls onto: a block stops it half way, and it stays leaning there
+    const pivotX = this.x + direction * this.def.halfWidth;
+    const angle = leanAngle(pivotX, this.y, direction, this.def.height, this.inTheWay(world));
+    if (angle < Math.PI / 2 - TOPPLE.flatSlack) {
+      // On its way down already, so that what it knocks over doesn't knock it over in turn
+      this.fallen = direction;
+      world.shove(boxAround(lying.x, this.y, lying.halfWidth, lying.height), direction);
+      if (angle < TOPPLE.minLean) {
+        // Hardly any room to fall: it stays standing
+        this.fallen = 0;
+        return;
+      }
+      this.tiltShown = 0;
+      this.slideSpeed = 0;
+      this.leanAt(pivotX, angle);
+      return;
+    }
     this.tipping = { fromX: this.x, fromY: this.y, ms: 0 };
+    this.tiltShown = Math.PI / 2;
     this.fallen = direction;
     this.shape = { halfWidth: lying.halfWidth, height: lying.height };
     const { left, right } = world.area;
@@ -339,9 +405,72 @@ export class Block extends Body {
     this.y = liftOut(this.box, world.solidBoxes(this));
   }
 
+  /** Everything a falling piece can come to lean on: the other pieces, and the sides of the area. */
+  private inTheWay(world: World): Box[] {
+    const { left, right, top, floorY } = world.area;
+    const wall = { top: top - this.def.height, bottom: floorY };
+    return [
+      ...world.pieces(this),
+      { ...wall, left: left - 1, right: left },
+      { ...wall, left: right, right: right + 1 },
+    ];
+  }
+
+  /** Lean this far over, around the corner at `pivotX`. */
+  private leanAt(pivotX: number, angle: number): void {
+    if (this.fallen === 0) return;
+    const { halfWidth, height } = this.def;
+    const shape = leaningShape(pivotX, this.fallen, halfWidth, height, angle);
+    this.x = shape.x;
+    this.shape = { halfWidth: shape.halfWidth, height: shape.height };
+    this.prop = { pivotX, angle };
+  }
+
+  /** What it leaned on is gone, or it was picked up: from now on it lies flat on its side. */
+  private layFlat(): void {
+    if (!this.prop || this.fallen === 0) return;
+    this.leanAt(this.prop.pivotX, Math.PI / 2);
+    this.prop = null;
+  }
+
+  /**
+   * A leaning piece stays where it is as long as it is held up. When what it leans
+   * on moves away it comes down further, onto the next thing or flat onto the floor.
+   */
+  private holdLean(world: World, state: BodyState): void {
+    if (!this.prop || this.fallen === 0) return;
+    if (state !== 'resting') {
+      this.layFlat();
+      return;
+    }
+    const { pivotX, angle } = this.prop;
+    const from = angle - TOPPLE.flatSlack;
+    const now = leanAngle(pivotX, this.y, this.fallen, this.def.height, this.inTheWay(world), from);
+    if (now >= Math.PI / 2 - TOPPLE.flatSlack) this.layFlat();
+    else if (now !== angle) this.leanAt(pivotX, now);
+  }
+
+  /** A fried vehicle smokes, and maybe blows up in the end. */
+  private smolder(deltaMs: number, world: World): void {
+    if (!this.fried || this.exploded) return;
+    this.smokeWaitMs -= deltaMs;
+    if (this.smokeWaitMs <= 0) {
+      this.smokeWaitMs = THUNDER.fried.smokeEveryMs;
+      world.smoke(this.x + this.facing * this.shape.halfWidth * 0.45, this.y - this.shape.height);
+    }
+    if (this.burnOutMs === null || !this.blast) return;
+    this.burnOutMs -= deltaMs;
+    if (this.burnOutMs > 0) return;
+    this.ejectDriver();
+    this.exploded = true;
+    world.explode(this, this.blast);
+  }
+
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
     const state = this.physics(deltaMs, world);
+    this.holdLean(world, state);
+    this.smolder(deltaMs, world);
     // A flying machine can be switched on in the air too, while it is sinking
     if (state === 'resting' || (state === 'falling' && this.def.drive?.flies)) {
       this.drive(deltaMs, world);
@@ -351,7 +480,8 @@ export class Block extends Body {
     this.haunt(deltaMs, world, state);
     this.patrol(deltaMs, world, state);
     this.trap(deltaMs, world, state);
-    const balancing = this.solid && !this.hovering && state === 'resting' && !this.tipping;
+    const steady = this.tipping !== null || this.prop !== null;
+    const balancing = this.solid && !this.hovering && state === 'resting' && !steady;
     const tip = balancing ? this.keepBalance(deltaMs, world) : 0;
     if (tip === 0) this.slideSpeed = 0;
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
@@ -724,16 +854,21 @@ export class Block extends Body {
       }
       this.tipping = null;
     }
-    // A piece lying on its side is drawn turned, around the bottom edge it stood on
-    const turned = this.fallen * (Math.PI / 2);
+    // A piece that has fallen is drawn turned around the bottom corner it fell over:
+    // a quarter turn when it lies flat, less when it leans on something
+    const target = this.prop?.angle ?? Math.PI / 2;
+    this.tiltShown += (target - this.tiltShown) * Math.min(1, deltaMs / TOPPLE.settleMs);
+    const tilt = this.fallen === 0 ? 0 : this.tiltShown;
+    const { halfWidth, height } = this.def;
+    const pivotX = this.prop?.pivotX ?? this.x - this.fallen * (height / 2);
     // A ghost bobs up and down in the air
     const ghost = this.def.monster?.ghost;
     const bob = ghost && state === 'resting' ? ghost.bob * Math.sin(this.clockMs / ghost.bobMs) : 0;
     this.display.setPosition(
-      this.x - this.fallen * (this.def.height / 2),
-      (this.fallen === 0 ? this.y : this.y - this.def.halfWidth) + bob,
+      this.fallen === 0 ? this.x : pivotX - this.fallen * halfWidth * Math.cos(tilt),
+      (this.fallen === 0 ? this.y : this.y - halfWidth * Math.sin(tilt)) + bob,
     );
-    this.display.rotation = turned + (state === 'flying' ? this.spin : this.lean);
+    this.display.rotation = this.fallen * tilt + (state === 'flying' ? this.spin : this.lean);
     if (this.haywireMs > 0 && state === 'resting') {
       // A haywire thing shakes on the spot
       const shake = (): number => (Math.random() * 2 - 1) * THUNDER.jitter;
