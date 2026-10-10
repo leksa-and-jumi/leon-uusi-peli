@@ -82,6 +82,12 @@ export class Sfx {
     this.tone(SOUND.spook.tone);
   }
 
+  /** Something falls into water. */
+  splash(): void {
+    if (!this.ready('splash')) return;
+    this.burst(SOUND.splash.hiss);
+  }
+
   /** Something bounces off a trampoline. */
   boing(): void {
     if (!this.ready('boing')) return;

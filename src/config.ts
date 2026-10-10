@@ -1,4 +1,5 @@
 import type { Spring } from './logic/fall';
+import type { Pull } from './logic/pull';
 /** Shared game constants. Tweak values here instead of inside scenes. */
 export const GAME_WIDTH = 1120;
 export const GAME_HEIGHT = 660;
@@ -58,6 +59,8 @@ export const DEPTH = {
   rider: 11,
   person: 20,
   item: 30,
+  /** Water and lava are in front of what is in them. */
+  liquid: 32,
   bullet: 40,
   /** A ghost floats in front of everything else in the area. */
   ghost: 45,
@@ -555,6 +558,13 @@ export interface BlockDef {
   electric?: boolean;
   /** It is a trampoline: what lands on it is thrown back up. */
   spring?: Spring;
+  /**
+   * It is a pool of something. Nothing stands on it: things go into it, and it is
+   * drawn in front of them. Dolls float in `water`; `lava` burns up loose items.
+   */
+  liquid?: 'water' | 'lava';
+  /** It is a black hole: it pulls everything around it in, and it turns this fast (radians per second). */
+  hole?: Pull & { spin: number };
 }
 
 /** The pieces on the building page. */
@@ -587,7 +597,10 @@ export type MonsterKind =
   | 'boss';
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
 export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine';
-export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind;
+/** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
+export type ElementKind = 'lava' | 'water' | 'blackHole';
+export type BlockKind =
+  BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind | ElementKind;
 
 /**
  * A trap. One that hurts by `touch` gets every doll that touches it, a `zap` trap
@@ -849,6 +862,25 @@ export const THUNDER = {
   shake: { ms: 320, strength: 0.016 },
 } as const;
 
+/**
+ * Water. A standing doll floats with its feet `standDepth` under the surface, and a
+ * doll lying limp floats `lieDepth` under it. Deeper than that, it comes up this
+ * fast. Falling in faster than `splashSpeed` makes a splash of this many drops.
+ */
+export const WATER = {
+  standDepth: 60,
+  lieDepth: 16,
+  riseSpeed: 150,
+  splashSpeed: 220,
+  splashDrops: 14,
+  alpha: 0.58,
+  /** The waves on top: this high, this long, and one comes by in this many milliseconds. */
+  wave: { height: 3, length: 34, ms: 900 },
+} as const;
+
+/** Lava glows and bubbles: its bright patches drift, one way and back in this long. */
+export const LAVA = { alpha: 0.95, driftMs: 2600, bubbleMs: 700 } as const;
+
 /** The bar above a boss that shows how much more it can take. */
 export const BOSS_BAR = {
   width: 76,
@@ -874,6 +906,17 @@ export const BOING = { ms: 180, squash: 0.35 } as const;
 
 /** The ground shakes when a boss stomps. */
 export const QUAKE = { ms: 200, strength: 0.01 } as const;
+
+/** A doll that fire has finished off is a black skeleton: charred bones, with embers in its eyes. */
+export const CHARRED = {
+  bone: 0x1c1a19,
+  shine: 0x4a4542,
+  socket: 0x000000,
+  ember: 0xff8a1e,
+  /** How thick a bone is, and how big the knobs at its ends are. */
+  thick: 4,
+  knob: 3.2,
+} as const;
 
 /** A puff of smoke: a gray ball that rises, grows and fades. */
 export const SMOKE = {
@@ -1076,6 +1119,38 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 0.9,
     colors: { fill: 0x1e88e5, dark: 0x0d3c73, light: 0x90caf9, detail: 0x23272b },
     spring: { minSpeed: 140, keep: 0.85, boost: 150, dull: 0.55, most: 1100 },
+  },
+  // A doll in it burns again and again, and loose items burn up. Pieces can bridge it.
+  lava: {
+    halfWidth: 64,
+    height: 18,
+    menuScale: 0.9,
+    colors: { fill: 0xff5722, dark: 0x8a1c00, light: 0xffc107, detail: 0xffee58 },
+    liquid: 'lava',
+    hazard: {
+      kind: 'touch',
+      damage: 1,
+      pushSpeed: 60,
+      wound: 'burn',
+      sound: 'none',
+      everyMs: 420,
+      side: 0,
+      up: 4,
+    },
+  },
+  water: {
+    halfWidth: 84,
+    height: 96,
+    menuScale: 0.6,
+    colors: { fill: 0x29b6f6, dark: 0x0277bd, light: 0xb3e5fc, detail: 0xffffff },
+    liquid: 'water',
+  },
+  blackHole: {
+    halfWidth: 28,
+    height: 56,
+    menuScale: 1,
+    colors: { fill: 0x050208, dark: 0x4a148c, light: 0xff9800, detail: 0xffe082 },
+    hole: { radius: 260, speed: 560, least: 28, eat: 30, spin: 3.2 },
   },
   toilet: {
     halfWidth: 25,
@@ -1726,7 +1801,7 @@ export const WEAPON_KINDS: readonly WeaponKind[] = [
 ];
 /** The traps page: the traps, and the things with a fuse. */
 export const TRAP_KINDS: readonly (
-  { type: 'block'; kind: TrapKind } | { type: 'item'; kind: WeaponKind }
+  { type: 'block'; kind: TrapKind | ElementKind } | { type: 'item'; kind: WeaponKind }
 )[] = [
   { type: 'block', kind: 'spikes' },
   { type: 'block', kind: 'saw' },
@@ -1735,6 +1810,9 @@ export const TRAP_KINDS: readonly (
   { type: 'block', kind: 'mine' },
   { type: 'item', kind: 'bomb' },
   { type: 'item', kind: 'dynamite' },
+  { type: 'block', kind: 'lava' },
+  { type: 'block', kind: 'water' },
+  { type: 'block', kind: 'blackHole' },
 ];
 export const BUILD_KINDS: readonly BuildKind[] = [
   'crate',
@@ -1983,6 +2061,10 @@ export const SOUND = {
   /** A ghost scaring a doll: an eerie rising howl. */
   spook: {
     tone: { wave: 'sine', from: 260, to: 720, seconds: 0.35, volume: 0.3 },
+  },
+  /** Something falls into water: a soft, wet splash. */
+  splash: {
+    hiss: { from: 3200, to: 500, seconds: 0.28, volume: 0.5 },
   },
   /** A trampoline: a springy tone that jumps up. */
   boing: {

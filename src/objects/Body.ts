@@ -1,4 +1,4 @@
-import { PHYSICS, PICK_PADDING, THROW, type ActionId } from '../config';
+import { PHYSICS, PICK_PADDING, THROW, WATER, type ActionId } from '../config';
 import { ceilingBounce, fallStep, springSpeed } from '../logic/fall';
 import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
 import { boxAround, groundBelow, liftOut, type Box } from '../logic/ground';
@@ -39,6 +39,14 @@ export abstract class Body {
    * ends up on top of anything; a doll only steps up onto low things.
    */
   protected readonly climbsOnlyLow: boolean = false;
+  /**
+   * How deep under the surface its bottom is when it floats in water. `null` for
+   * things that sink, which is everything but the dolls.
+   */
+  protected get floatDepth(): number | null {
+    return null;
+  }
+
   /** A trampoline never stops bouncing it (a doll); other things bounce lower and lower. */
   protected readonly lively: boolean = false;
   /** How fast it was falling when it last hit the ground (pixels per second). */
@@ -87,6 +95,17 @@ export abstract class Body {
   /** Standing on something and not in anybody's hand: it rides along when that thing drives. */
   get riding(): boolean {
     return this.state === 'resting' && !this.held;
+  }
+
+  /**
+   * Pulled this far by a black hole. Nothing else moves it meanwhile: it doesn't
+   * fall, and it goes through whatever is in the way. It stays inside the area.
+   */
+  tug(dx: number, dy: number, area: PlaceArea): void {
+    const feet = clampFeet(this.x + dx, this.y + dy, area, this.size);
+    this.x = feet.x;
+    this.y = feet.y;
+    this.fallSpeed = 0;
   }
 
   /** Carried sideways by the vehicle it stands on. */
@@ -174,7 +193,7 @@ export abstract class Body {
       const climbable = this.climbsOnlyLow ? solids.filter((box) => box.top >= low) : solids;
       this.y = liftOut(boxAround(this.x, this.y, halfWidth - 1, height), climbable);
     }
-    const ground = groundBelow(
+    const solidGround = groundBelow(
       this.x - halfWidth,
       this.x + halfWidth,
       this.y,
@@ -182,6 +201,17 @@ export abstract class Body {
       world.area.floorY,
       PHYSICS.groundSlack,
     );
+    // In water, a thing that floats doesn't get down to the ground under it
+    const depth = this.floatDepth;
+    const afloat = depth === null ? null : world.floatLine(this.x, depth);
+    const floats = afloat !== null && afloat < solidGround;
+    if (floats && this.y > afloat) {
+      // Deeper than it floats: it comes up
+      this.y = Math.max(afloat, this.y - WATER.riseSpeed * (deltaMs / 1000));
+      this.fallSpeed = 0;
+      return 'resting';
+    }
+    const ground = floats ? afloat : solidGround;
     if (this.y >= ground) {
       this.y = ground;
       this.fallSpeed = 0;
@@ -200,6 +230,12 @@ export abstract class Body {
     this.fallSpeed = below.speed;
     if (!fall.landed) return 'falling';
     const impact = this.fallSpeedBefore + PHYSICS.gravity * this.gravityScale * (deltaMs / 1000);
+    if (floats && depth !== null) {
+      // Into the water: it stays afloat there, with a splash if it came in fast
+      if (impact >= WATER.splashSpeed) world.splash(this.x, ground - depth);
+      this.lastImpact = 0;
+      return 'resting';
+    }
     // Landed on a trampoline: it throws the thing back up
     const spring = world.spring(this.x - halfWidth, this.x + halfWidth, ground);
     const back = spring ? springSpeed(impact, spring, this.lively) : 0;

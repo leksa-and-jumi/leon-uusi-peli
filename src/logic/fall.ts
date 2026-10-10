@@ -58,3 +58,27 @@ export function springSpeed(impact: number, spring: Spring, lively: boolean): nu
   const speed = lively ? impact * spring.keep + spring.boost : impact * spring.dull;
   return Math.min(speed, spring.most);
 }
+
+/** A pool of water: where its sides are, where its surface is and where its bottom is. */
+export interface Pool {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * How high something at `x` floats: the height where its bottom is when it floats
+ * `depth` under the surface of the pool it is in. `null` when it is in no pool, or in
+ * one too shallow to float in. In several pools at once, the highest one counts.
+ */
+export function floatLine(x: number, depth: number, pools: readonly Pool[]): number | null {
+  let line: number | null = null;
+  for (const pool of pools) {
+    if (x < pool.left || x > pool.right) continue;
+    const here = pool.top + depth;
+    if (here >= pool.bottom) continue;
+    if (line === null || here < line) line = here;
+  }
+  return line;
+}

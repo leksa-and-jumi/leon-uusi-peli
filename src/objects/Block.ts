@@ -7,6 +7,7 @@ import {
   BOING,
   BOSS_BAR,
   BULLET_HOLE,
+  LAVA,
   CHOMPER,
   DEPTH,
   PERSON,
@@ -19,11 +20,13 @@ import {
   TOPPLE,
   VEHICLE_ACTIONS,
   VEHICLE_HULL,
+  WATER,
   WRECK_ACTIONS,
   type ActionId,
   type BlastDef,
   type BlockDef,
   type BlockKind,
+  type ElementKind,
   type TrapKind,
   type VehicleKind,
 } from '../config';
@@ -48,6 +51,7 @@ import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
+import { drawElement, drawLiquid, drawSwirl } from './elementShapes';
 import { drawJunk, drawMonsterHead } from './junkShapes';
 import { drawFlames, drawSawBlade, drawTrap } from './trapShapes';
 import { drawTvHaywire, drawTvProgram } from './tvScreen';
@@ -115,6 +119,9 @@ export class Block extends Body {
   private fried = false;
   private smokeWaitMs = 0;
   private burnOutMs: number | null = null;
+  /** A pool: its picture, drawn again every frame. A black hole: its rings, which turn. */
+  private readonly waves: Phaser.GameObjects.Graphics | null = null;
+  private readonly swirl: Phaser.GameObjects.Graphics | null = null;
   /** A trampoline that has just thrown something up: time left of being squashed. */
   private boingMs = 0;
   /** A tank: time left until its cannon can fire again. */
@@ -129,9 +136,11 @@ export class Block extends Body {
     super(x, y);
     this.def = BLOCKS[kind];
     const ghost = this.def.monster?.ghost;
-    this.solid = !ghost;
-    // A ghost and a flying saucer hold themselves up in the air
-    this.hovering = ghost !== undefined || this.def.monster?.saucer !== undefined;
+    const { liquid, hole } = this.def;
+    // A ghost, a pool and a black hole aren't solid: things go right into them
+    this.solid = !ghost && !liquid && !hole;
+    // A ghost, a flying saucer and a black hole hold themselves up in the air
+    this.hovering = Boolean(ghost ?? this.def.monster?.saucer ?? hole);
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
     const { blast, drive } = this.def;
     this.usualActions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
@@ -190,6 +199,15 @@ export class Block extends Body {
     picture.setScale(drive?.scale ?? 1);
     this.display = scene.add.container(x, y, [picture]).setDepth(DEPTH.block);
     if (ghost) this.display.setAlpha(ghost.alpha).setDepth(DEPTH.ghost);
+    if (liquid) {
+      this.waves = blank();
+      picture.add(this.waves);
+      this.display.setAlpha(liquid === 'water' ? WATER.alpha : LAVA.alpha).setDepth(DEPTH.liquid);
+    }
+    if (hole) {
+      this.swirl = drawSwirl(blank(), this.def).setPosition(0, -this.def.height / 2);
+      picture.add(this.swirl);
+    }
     this.showHull();
   }
 
@@ -534,6 +552,7 @@ export class Block extends Body {
     this.haunt(deltaMs, world, state);
     this.patrol(deltaMs, world, state);
     this.rampage(deltaMs, world, state);
+    this.flow(deltaMs, world, state);
     this.trap(deltaMs, world, state);
     const steady = this.tipping !== null || this.prop !== null;
     const balancing = this.solid && !this.hovering && state === 'resting' && !steady;
@@ -876,6 +895,22 @@ export class Block extends Body {
     world.zap(this.x, this.y, victim, monster.damage, monster.pushSpeed);
   }
 
+  /**
+   * A pool keeps moving: waves roll over water, lava glows and bubbles, and lava
+   * burns up the loose items that get into it. A black hole keeps turning.
+   */
+  private flow(deltaMs: number, world: World, state: BodyState): void {
+    const { liquid, hole } = this.def;
+    if (this.swirl && hole) this.swirl.rotation += hole.spin * (deltaMs / 1000);
+    if (!this.waves || !liquid) return;
+    drawLiquid(this.waves.clear(), liquid, this.clockMs, this.def);
+    if (liquid !== 'lava' || state !== 'resting') return;
+    const own = this.box;
+    for (const thing of world.things(this)) {
+      if (!(thing instanceof Block) && overlaps(own, thing.box)) world.burn(thing);
+    }
+  }
+
   /** While it is haywire, sparks keep flying off it. */
   private fizz(deltaMs: number, world: World): void {
     if (this.haywireMs <= 0) return;
@@ -921,9 +956,14 @@ export class Block extends Body {
       bottom: own.bottom,
     };
     for (const person of world.people) {
-      if (person.dead || person.seated || !person.canBePicked) continue;
+      if (person.seated || !person.canBePicked) continue;
       const body = person.hitBox;
       if (!overlaps(zone, body)) continue;
+      if (person.dead) {
+        // Fire burns what is left of a doll down to its bones
+        if (hazard.kind === 'touch' && hazard.wound === 'burn') person.scorch();
+        continue;
+      }
       if (hazard.kind === 'mine') {
         if (state === 'resting') this.setOff(0);
         return;
@@ -1060,8 +1100,12 @@ function isVehicle(kind: BlockKind): kind is VehicleKind {
   return BLOCKS[kind].drive !== undefined;
 }
 
+function isElement(kind: BlockKind): kind is ElementKind {
+  return BLOCKS[kind].liquid !== undefined || BLOCKS[kind].hole !== undefined;
+}
+
 function isTrap(kind: BlockKind): kind is TrapKind {
-  return BLOCKS[kind].hazard !== undefined;
+  return BLOCKS[kind].hazard !== undefined && !isElement(kind);
 }
 
 /**
@@ -1069,6 +1113,7 @@ function isTrap(kind: BlockKind): kind is TrapKind {
  * only: its head is a picture of its own, so that it can pop in and out.
  */
 function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
+  if (isElement(kind)) return drawElement(g, kind, false);
   if (isTrap(kind)) return drawTrap(g, kind, false);
   const body = BLOCKS[kind].monster?.body;
   return body ? drawJunk(g, body) : drawBlock(g, kind);
@@ -1077,6 +1122,7 @@ function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
 export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
   if (isVehicle(kind)) return drawParkedVehicle(g, kind);
+  if (isElement(kind)) return drawElement(g, kind, true);
   if (isTrap(kind)) return drawTrap(g, kind, true);
   switch (kind) {
     case 'crate':

@@ -18,6 +18,7 @@ import {
   THUNDER,
   TOSS,
   WALK,
+  WATER,
   type ActionId,
   type GunDef,
   type PersonLook,
@@ -117,6 +118,12 @@ export class Person extends Body {
   /** A doll steps up onto low things, but a tall thing that lands on it squashes it. */
   protected override readonly climbsOnlyLow = true;
   protected override readonly lively = true;
+
+  /** A doll floats: upright with its head out of the water, or flat on top when it is limp. */
+  protected override get floatDepth(): number {
+    return this.ragdoll ? WATER.lieDepth : WATER.standDepth;
+  }
+
   /** Its colors. Dolls of the same color are on the same side. */
   readonly look: PersonLook;
   activity: Activity = 'idle';
@@ -288,6 +295,14 @@ export class Person extends Body {
 
   isOn(action: ActionId): boolean {
     return this.activity === action;
+  }
+
+  /** Fire gets at a doll with no lives left: it burns down to a black skeleton, and bleeds no more. */
+  scorch(): void {
+    if (!this.dead) return;
+    this.figure.burnToBones();
+    this.spray = 0;
+    this.bleedMs = 0;
   }
 
   /** Switch walking, dancing or angry mode on, or off if it's already on. */
@@ -468,6 +483,8 @@ export class Person extends Body {
     this.activity = 'idle';
     this.figure.setAngry(false);
     this.figure.setDead(true);
+    // Fire, a blast, a laser or lightning finished it off: only charred bones are left
+    if (wound === 'burn') this.scorch();
     this.dropItem(solids);
     return true;
   }

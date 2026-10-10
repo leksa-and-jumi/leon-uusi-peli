@@ -1,5 +1,13 @@
 import type Phaser from 'phaser';
-import { BLOOD, DOLL, EXTRA_COLORS, PERSON, type PersonLook, type WoundKind } from '../config';
+import {
+  BLOOD,
+  CHARRED,
+  DOLL,
+  EXTRA_COLORS,
+  PERSON,
+  type PersonLook,
+  type WoundKind,
+} from '../config';
 import { shade } from '../logic/color';
 import { STAND, type Pose } from '../logic/pose';
 
@@ -81,6 +89,9 @@ export class PersonFigure {
   /** The part a blade has cut off, which isn't this doll's to move any more. */
   private severed: BodyPart | null = null;
   private readonly scene: Phaser.Scene;
+  /** Burnt down to a black skeleton. What draws each of its parts again as bones. */
+  private charred = false;
+  private readonly toBones: readonly (() => void)[];
 
   constructor(scene: Phaser.Scene, look: PersonLook) {
     this.scene = scene;
@@ -119,6 +130,23 @@ export class PersonFigure {
       paint.hips(),
       this.upperBody,
     ]);
+    this.toBones = paint.toBones;
+  }
+
+  /**
+   * Fire has finished the doll off: all that is left is a black skeleton. Every part
+   * is drawn again as charred bone, the head as a skull, and the wounds are gone.
+   */
+  burnToBones(): void {
+    if (this.charred) return;
+    this.charred = true;
+    this.toBones.forEach((redraw) => {
+      redraw();
+    });
+    this.wounds.clear();
+    this.eyes.setVisible(false);
+    this.deadEyes.setVisible(false);
+    this.brows.setVisible(false);
   }
 
   /** The pose the doll is in right now. */
@@ -210,11 +238,12 @@ export class PersonFigure {
 
   /** Angry eyebrows on or off. */
   setAngry(angry: boolean): void {
-    this.brows.setVisible(angry && !this.faceless);
+    this.brows.setVisible(angry && !this.faceless && !this.charred);
   }
 
   /** A doll with no lives left gets crosses for eyes. */
   setDead(dead: boolean): void {
+    if (this.charred) return;
     this.eyes.setVisible(!dead && !this.faceless);
     this.deadEyes.setVisible(dead && !this.faceless);
     if (dead) this.brows.setVisible(false);
@@ -225,7 +254,7 @@ export class PersonFigure {
    * slash, a stab wound, a bullet hole or a burn.
    */
   addWound(kind: WoundKind, random: () => number = Math.random): void {
-    if (this.woundCount >= BLOOD.maxWounds) return;
+    if (this.charred || this.woundCount >= BLOOD.maxWounds) return;
     this.woundCount += 1;
     const { chest } = SHAPE;
     const x = chest.x + 6 + random() * (chest.width - 12);
@@ -336,6 +365,8 @@ export class PersonFigure {
 
 /** Draws the parts of one doll in its colors. */
 class Painter {
+  /** For every part it has drawn: how to draw that part again as a charred bone. */
+  readonly toBones: (() => void)[] = [];
   private readonly rim: number;
   private readonly shine: number;
   private readonly jointRim: number;
@@ -359,6 +390,13 @@ class Painter {
     const upperShape = this.blank();
     this.tube(upperShape, thigh.width, thigh.length);
     this.ball(upperShape, 0, 0, SHAPE.jointRadius + 1);
+    this.toBones.push(() => {
+      this.bone(upperShape, thigh.length);
+      this.bone(lowerShape, shin.length);
+      // The bones of the foot
+      lowerShape.fillStyle(CHARRED.bone);
+      lowerShape.fillRoundedRect(-foot.back + 3, shin.length, foot.length - 5, 3.5, 1.7);
+    });
     return this.limb(hipX, hipY, upperShape, thigh.length, lowerShape);
   }
 
@@ -370,6 +408,12 @@ class Painter {
     const upperShape = this.blank();
     this.tube(upperShape, upperArm.width, upperArm.length);
     this.ball(upperShape, 0, 0, SHAPE.jointRadius + 0.5);
+    this.toBones.push(() => {
+      this.bone(upperShape, upperArm.length);
+      this.bone(lowerShape, forearm.length);
+      lowerShape.fillStyle(CHARRED.bone);
+      lowerShape.fillCircle(0, forearm.length + 2, hand.radius - 1.5);
+    });
     return this.limb(shoulderX, shoulderY, upperShape, upperArm.length, lowerShape);
   }
 
@@ -377,6 +421,14 @@ class Painter {
     const g = this.blank();
     const { hips } = SHAPE;
     this.block(g, hips.x, hips.y, hips.width, hips.height, hips.round);
+    this.toBones.push(() => {
+      // The pelvis: a narrow bar with a knob at each hip
+      g.clear();
+      g.fillStyle(CHARRED.bone);
+      g.fillRoundedRect(hips.x + 4, hips.y + 3, hips.width - 8, 5, 2.5);
+      g.fillCircle(-SHAPE.hip.x, SHAPE.hip.y, CHARRED.knob + 0.6);
+      g.fillCircle(SHAPE.hip.x, SHAPE.hip.y, CHARRED.knob + 0.6);
+    });
     return g;
   }
 
@@ -394,6 +446,22 @@ class Painter {
       g.fillCircle(chest.x + 7, chest.y + 20, 2.5);
     }
     this.ball(g, 0, neck.y, neck.radius);
+    this.toBones.push(() => {
+      // A spine from the waist to the neck, with ribs and shoulders across it
+      g.clear();
+      g.fillStyle(CHARRED.bone);
+      g.fillRoundedRect(-CHARRED.thick / 2, neck.y, CHARRED.thick, waist.y - neck.y, 2);
+      g.fillRoundedRect(-SHAPE.shoulder.x, SHAPE.shoulder.y - 2, SHAPE.shoulder.x * 2, 3.5, 1.7);
+      g.lineStyle(2.2, CHARRED.bone);
+      for (let rib = 0; rib < 4; rib++) {
+        const y = chest.y + 9 + rib * 5;
+        const half = chest.width / 2 - 2 - rib * 1.6;
+        g.lineBetween(-half, y + 1.5, 0, y - 1);
+        g.lineBetween(0, y - 1, half, y + 1.5);
+      }
+      g.fillStyle(CHARRED.shine, 0.6);
+      g.fillRect(-0.6, neck.y + 3, 1.2, waist.y - neck.y - 6);
+    });
     return g;
   }
 
@@ -446,6 +514,29 @@ class Painter {
       g.fillStyle(EXTRA_COLORS.helmet.visor);
       g.fillRoundedRect(-4, head.y - 3.5, head.radius + 3, 5, 2);
     }
+    this.toBones.push(() => {
+      // A skull: a round top, a jaw with teeth, and embers still glowing in the eye holes
+      const { eye } = SHAPE;
+      g.clear();
+      g.fillStyle(CHARRED.bone);
+      g.fillCircle(0, head.y - 1, head.radius - 2);
+      g.fillRoundedRect(-6, head.y + 5, 15, 9, 3);
+      g.fillStyle(CHARRED.shine, 0.55);
+      g.fillEllipse(-2, head.y - head.radius * 0.5, head.radius * 0.9, head.radius * 0.45);
+      g.fillStyle(CHARRED.socket);
+      g.fillEllipse(eye.back, eye.y + 1, 5.5, 6.5);
+      g.fillEllipse(eye.front, eye.y + 1, 5.5, 6.5);
+      g.fillTriangle(4, head.y + 3, 7, head.y + 3, 5.5, head.y + 0.5);
+      g.fillStyle(CHARRED.ember);
+      g.fillCircle(eye.back + 0.4, eye.y + 1.4, 1.1);
+      g.fillCircle(eye.front + 0.4, eye.y + 1.4, 1.1);
+      g.fillStyle(CHARRED.shine);
+      g.fillRect(-3, head.y + 9, 11, 2);
+      g.fillStyle(CHARRED.socket);
+      for (const x of [-0.5, 2.5, 5.5]) {
+        g.fillRect(x, head.y + 9, 0.8, 2);
+      }
+    });
     return g;
   }
 
@@ -500,9 +591,24 @@ class Painter {
   ): Limb {
     const joint = this.blank();
     this.ball(joint, 0, 0, SHAPE.jointRadius);
+    this.toBones.push(() => {
+      joint.clear();
+    });
     const lower = this.scene.make.container({ x: 0, y: length }, false).add([lowerShape, joint]);
     const upper = this.scene.make.container({ x, y }, false).add([upperShape, lower]);
     return { upper, lower };
+  }
+
+  /** Draw a part again as a charred bone hanging down from (0, 0), with a knob at each end. */
+  private bone(g: Graphics, length: number): void {
+    const { thick, knob } = CHARRED;
+    g.clear();
+    g.fillStyle(CHARRED.bone);
+    g.fillRoundedRect(-thick / 2, 0, thick, length, thick / 2);
+    g.fillCircle(0, 0, knob);
+    g.fillCircle(0, length, knob);
+    g.fillStyle(CHARRED.shine, 0.6);
+    g.fillRect(-0.6, 3, 1.2, length - 6);
   }
 
   /** A round tube hanging down from (0, 0): dark rim, body color, bright stripe. */
