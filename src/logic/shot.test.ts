@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aimAt, canSee, segmentHit, sweepHit } from './shot';
+import { aimAt, canSee, fan, segmentHit, sweepHit } from './shot';
 
 const near = { left: 200, right: 240, top: 380, bottom: 500 };
 const far = { left: 400, right: 440, top: 380, bottom: 500 };
@@ -75,5 +75,27 @@ describe('aimAt', () => {
 
   it('points straight ahead when there is nowhere to aim', () => {
     expect(aimAt(5, 5, 5, 5, -1)).toEqual({ x: -1, y: 0 });
+  });
+});
+
+describe('fan', () => {
+  it('lets a single bullet fly straight', () => {
+    const [only] = fan({ x: -1, y: 0 }, 1, 0.5);
+    expect(only?.x).toBeCloseTo(-1);
+    expect(only?.y).toBeCloseTo(0);
+  });
+
+  it('fans several bullets out evenly around the aim', () => {
+    const ways = fan({ x: 1, y: 0 }, 3, 1);
+    expect(ways).toHaveLength(3);
+    expect(ways[0]?.y).toBeCloseTo(Math.sin(-0.5));
+    expect(ways[1]?.y).toBeCloseTo(0);
+    expect(ways[2]?.y).toBeCloseTo(Math.sin(0.5));
+  });
+
+  it('keeps every arrow at length 1', () => {
+    for (const way of fan({ x: 0.6, y: -0.8 }, 5, 0.34)) {
+      expect(Math.hypot(way.x, way.y)).toBeCloseTo(1);
+    }
   });
 });

@@ -38,6 +38,7 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
     case 'skibidi':
     case 'skibidiToilet':
     case 'skibidiCone':
+    case 'skibidiTv':
     case 'chomper': {
       // In the menu the head is drawn popped out, behind the thing it lives in
       const { head, body, face } = def.monster ?? {};
@@ -52,6 +53,10 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
     }
     case 'ghost':
       return drawGhost(g, def);
+    case 'batMonster':
+      return drawBatMonster(g, def);
+    case 'ufo':
+      return drawUfo(g, def);
     case 'cone':
       return drawCone(g, def);
     case 'tire':
@@ -375,6 +380,82 @@ function drawTire(g: Graphics, def: BlockDef): Graphics {
   }
   return g;
 }
+
+/**
+ * A bat: a small dark body with pointed ears, red eyes and two fangs, between two
+ * wings with scalloped edges. Its bottom middle is at (0, 0).
+ */
+function drawBatMonster(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  for (const side of [-1, 1]) {
+    shape(g, fill, dark, [
+      [side * 5, -18],
+      [side * 15, -25],
+      [side * 24, -17],
+      [side * 21, -9],
+      [side * 16, -12],
+      [side * 11, -7],
+      [side * 5, -9],
+    ]);
+    shape(g, light, dark, [
+      [side * 6, -19],
+      [side * 4, -27],
+      [side * 1, -20],
+    ]);
+  }
+  g.fillStyle(dark);
+  g.fillEllipse(0, -12, 16, 20);
+  g.fillStyle(light);
+  g.fillEllipse(0, -12, 13.5, 17.5);
+  g.fillStyle(detail);
+  g.fillCircle(-2.5, -15, 2);
+  g.fillCircle(3.5, -15, 2);
+  g.fillStyle(0xffffff);
+  g.fillTriangle(-2, -10, 0, -10, -1, -6.5);
+  g.fillTriangle(2, -10, 4, -10, 3, -6.5);
+  return g;
+}
+
+/**
+ * A flying saucer: a wide metal disc with lights along its edge, a glass dome on top
+ * with a green alien looking out, and the hole in its belly where the laser comes out.
+ * Its bottom middle is at (0, 0).
+ */
+function drawUfo(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // The dome and the alien in it
+  g.fillStyle(dark);
+  g.fillCircle(0, -20, 17);
+  g.fillStyle(UFO_LOOK.glass, 0.85);
+  g.fillCircle(0, -20, 15.5);
+  g.fillStyle(detail);
+  g.fillEllipse(0, -22, 15, 17);
+  g.fillStyle(UFO_LOOK.eyes);
+  g.fillEllipse(-3, -23, 4.5, 6.5);
+  g.fillEllipse(4, -23, 4.5, 6.5);
+  g.fillStyle(0xffffff, 0.5);
+  g.fillEllipse(-6, -29, 8, 4);
+  // The disc
+  g.fillStyle(dark);
+  g.fillEllipse(0, -11, def.halfWidth * 2, 20);
+  g.fillStyle(fill);
+  g.fillEllipse(0, -11.5, def.halfWidth * 2 - 3, 17);
+  g.fillStyle(light, 0.8);
+  g.fillEllipse(-8, -15, 60, 5);
+  g.fillStyle(UFO_LOOK.lights);
+  for (const x of [-32, -16, 0, 16, 32]) {
+    g.fillCircle(x, -9.5 - Math.abs(x) / 16, 2.6);
+  }
+  // The belly
+  g.fillStyle(dark);
+  g.fillEllipse(0, -3.5, 30, 7);
+  g.fillStyle(detail);
+  g.fillEllipse(0, -3, 16, 4);
+  return g;
+}
+
+/** The colors of a flying saucer that aren't its metal: the glass, the alien's eyes, the lights. */
+const UFO_LOOK = { glass: 0xbfe9ff, eyes: 0x10201a, lights: 0xffeb3b };
 
 type HeadDef = NonNullable<MonsterDef['head']>;
 

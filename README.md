@@ -18,6 +18,10 @@
 
 🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥! Pudota pala nuken päälle, niin se litistää nuken: pää painuu alas, nukke jää palan alle ja pysyy siellä, kunnes otat palan pois (elämiä se ei menetä).
 
+🇬🇧 **More building pieces 🧱:** a tall concrete **pillar** that falls over like a domino, a **glass wall** that shatters when a bullet hits it or when it falls over, and a **TNT crate** 🧨: like the barrel, but with a much bigger bang (double-click it and press 🔥, or shoot it).
+
+🇫🇮 **Lisää rakennuspaloja 🧱:** korkea betoni**pilari**, joka kaatuu kuin dominopalikka, **lasiseinä**, joka särkyy, kun siihen osuu luoti tai kun se kaatuu, ja **TNT-laatikko** 🧨: kuin tynnyri, mutta paljon isommalla pamauksella (tuplaklikkaa sitä ja paina 🔥, tai ammu sitä).
+
 🇬🇧 **Gravity ⚖️:** pieces have to balance. A beam or a crate whose middle hangs out past what it stands on tips toward its heavy side and slides off. Tall pieces (brick walls and fridges) fall over onto their side when they lose their balance, or when you throw or swing a doll into them or throw a weapon at them, and they knock over the next tall piece like dominoes. A doll knocked down beside a piece lies next to it, not through it.
 
 🇫🇮 **Painovoima ⚖️:** palojen pitää pysyä tasapainossa. Palkki tai laatikko, jonka keskikohta roikkuu tuen ohi, kallistuu painavamman puolensa suuntaan ja liukuu pois. Korkeat palat (tiiliseinät ja jääkaapit) kaatuvat kyljelleen, kun ne menettävät tasapainonsa tai kun heität tai heilautat nuken niitä päin tai heität niitä aseella, ja ne kaatavat seuraavan korkean palan kuin dominot. Palan viereen kaadettu nukke makaa sen vieressä eikä sen läpi.
@@ -62,6 +66,10 @@
 
 🇫🇮 **Lisää hirviöitä 👾:** hirviösivulla on kolme uutta. **Skibidi-tötterö** on pieni ja nopea, ja sen laser ampuu koko ajan, mutta vie vain 1 elämän kerralla. **Roskishotkijalla** 🗑️ on vihreä pää, yksi iso silmä ja torahampaat: se haistaa jokaisen nuken alueella, juoksee sen luo ja nielaisee sen kokonaisena 😋, kuolleetkin nuket (voit myös syöttää sitä raahaamalla nuken siihen). Se ei osaa kiivetä, joten laatikon päällä nukke on siltä turvassa. **Kummitus** 👻 leijuu seinien ja kaiken muun läpi suoraan lähimmän elävän nuken luo ja säikäyttää sen: nukke kaatuu ja menettää 1 elämän. Luodit lentävät kummituksen läpi; heitä se pois 🚀-pallolla tai räjäytä se.
 
+🇬🇧 **Even more monsters 👾:** the **skibidi TV** 📺 has its TV on all the time, and its laser takes 2 lives. The **bat** 🦇 is small and quick: it flies through everything like the ghost and bites, 1 life a bite. The **UFO** 🛸 hovers up under the ceiling, flies over the closest doll it can see and shoots its laser straight down: 2 lives a shot. With no doll in sight it burns everything else to ash. Three bullets blow the UFO up, and dolls can ride on top of it.
+
+🇫🇮 **Vielä lisää hirviöitä 👾:** **skibidi-telkkarissa** 📺 on telkkari koko ajan päällä, ja sen laser vie 2 elämää. **Lepakko** 🦇 on pieni ja nopea: se lentää kaiken läpi kuin kummitus ja puree, 1 elämä per purema. **Ufo** 🛸 leijuu ylhäällä katon alla, lentää lähimmän näkemänsä nuken yläpuolelle ja ampuu laserilla suoraan alas: 2 elämää per laukaus. Kun nukkeja ei näy, se polttaa kaiken muun tuhkaksi. Kolme luotia räjäyttää ufon, ja nuket voivat matkustaa sen päällä.
+
 🇬🇧 **On a phone or a tablet 📱:** the game works with a finger just like with the mouse: tap the menu, tap the gray area to put things in, drag with your finger, and double-tap for the action bubbles. Hold the phone sideways. The ⛶ button makes the game fill the whole screen. You can also add the game to the home screen (in the browser's menu: "Add to Home Screen"), and then it opens like an app.
 
 🇫🇮 **Puhelimella tai tabletilla 📱:** peli toimii sormella samalla tavalla kuin hiirellä: napauta valikkoa, napauta harmaata aluetta, niin tavara tulee paikalle, raahaa sormella, ja tuplanapauta, niin toimintopallot aukeavat. Pidä puhelinta vaakasuorassa. ⛶-napista peli täyttää koko näytön. Voit myös lisätä pelin kotinäytölle (selaimen valikosta: ”Lisää Koti-valikkoon”), niin se aukeaa kuin sovellus.
@@ -74,15 +82,19 @@
 
 🇫🇮 **Räsynuket 🪆:** kaadettu, nostettu tai heitetty nukke menee täysin lötköksi. Nosta se, niin se roikkuu kädestäsi kädet, jalat ja pää roikkuen; heiluta sitä, niin ne heiluvat kuin oikealla ihmisellä; pidä sitä paikallaan, niin ne roikkuvat paikallaan (tartu jalasta, niin se roikkuu pää alaspäin!). Heitetty nukke, joka osuu seinään, pysähtyy siihen ja putoaa alas. Maassa se lötkähtää litteäksi: yksikään käsi tai jalka ei jää pystyyn ilmaan. Elävä nukke nousee hetken päästä ylös; nukke, jolla ei ole elämiä, jää lötköksi. Heiluta nukkea kädessäsi, niin se kaataa nuket, joihin se osuu. Päästä irti, kun hiiri liikkuu, niin heität sen: nuket, joihin se osuu, kaatuvat ja nousevat ylös menettämättä elämiä.
 
-| Item / Tavara  | 🇬🇧                                        | 🇫🇮                                            |
-| -------------- | ----------------------------------------- | --------------------------------------------- |
-| 🔫 pistol      | shoots slowly from far away, takes 1 life | ampuu hitaasti kaukaa, vie 1 elämän           |
-| 🔫 machine gun | shoots very fast, takes 1 life per bullet | ampuu tosi nopeasti, vie 1 elämän per luoti   |
-| 🗡️ sword       | reaches further than a fist, takes 1 life | yltää nyrkkiä pidemmälle, vie 1 elämän        |
-| 🪓 axe         | takes 2 lives                             | vie 2 elämää                                  |
-| 🔱 spear       | reaches very far, takes 1 life            | yltää tosi kauas, vie 1 elämän                |
-| 🏏 bat         | takes 1 life and sends the doll flying    | vie 1 elämän ja lennättää nuken kauas         |
-| 💣 bomb        | double-click it and press 🔥 to light it  | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
+| Item / Tavara  | 🇬🇧                                         | 🇫🇮                                            |
+| -------------- | ------------------------------------------ | --------------------------------------------- |
+| 🔫 pistol      | shoots slowly from far away, takes 1 life  | ampuu hitaasti kaukaa, vie 1 elämän           |
+| 🔫 machine gun | shoots very fast, takes 1 life per bullet  | ampuu tosi nopeasti, vie 1 elämän per luoti   |
+| 🔫 shotgun     | five bullets at once, but not far          | viisi luotia kerralla, mutta ei kauas         |
+| 🗡️ sword       | reaches further than a fist, takes 1 life  | yltää nyrkkiä pidemmälle, vie 1 elämän        |
+| 🪓 axe         | takes 2 lives                              | vie 2 elämää                                  |
+| 🔱 spear       | reaches very far, takes 1 life             | yltää tosi kauas, vie 1 elämän                |
+| 🏏 bat         | takes 1 life and sends the doll flying     | vie 1 elämän ja lennättää nuken kauas         |
+| 🔨 hammer      | heavy: takes 2 lives, sends dolls flying   | painava: vie 2 elämää, nuket lentävät         |
+| 🔪 knife       | short, takes 1 life, sticks in when thrown | lyhyt, vie 1 elämän, jää kiinni heitettäessä  |
+| 💣 bomb        | double-click it and press 🔥 to light it   | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
+| 🧨 dynamite    | like the bomb: 3 seconds, a huge blast     | kuin pommi: 3 sekuntia, valtava räjähdys      |
 
 🇬🇧 Double-click a doll to open its action bubbles. A pressed bubble glows, and pressing it again stops it.
 

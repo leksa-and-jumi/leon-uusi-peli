@@ -93,3 +93,21 @@ export function aimAt(
   const length = Math.hypot(dx, dy);
   return length === 0 ? { x: facing, y: 0 } : { x: dx / length, y: dy / length };
 }
+
+/**
+ * The ways the bullets of one shot fly: `count` arrows of length 1, fanned out evenly
+ * over `spread` radians around the way the gun is aimed. One bullet flies straight.
+ */
+export function fan(
+  aim: { x: number; y: number },
+  count: number,
+  spread: number,
+): { x: number; y: number }[] {
+  const straight = Math.atan2(aim.y, aim.x);
+  const ways: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const turn = count <= 1 ? 0 : (i / (count - 1) - 0.5) * spread;
+    ways.push({ x: Math.cos(straight + turn), y: Math.sin(straight + turn) });
+  }
+  return ways;
+}
