@@ -81,7 +81,7 @@ export interface World {
   floatLine: (x: number, depth: number) => number | null;
   /** Something falls into water at this spot: drops fly up. */
   splash: (x: number, y: number) => void;
-  /** Lava burns this thing up: it turns to ash. */
+  /** Fire burns this thing up completely: it turns to ash. */
   burn: (thing: Body) => void;
   /** A boss smashes this thing to pieces, which fly off the way it faces. */
   smash: (thing: Body, direction: Facing) => void;

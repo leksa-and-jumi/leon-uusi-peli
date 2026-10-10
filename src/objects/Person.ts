@@ -13,6 +13,7 @@ import {
   PHYSICS,
   PUNCH_DAMAGE,
   SEAT_GUN,
+  SHORT_CIRCUIT,
   STUCK,
   TOPPLE,
   THUNDER,
@@ -25,6 +26,7 @@ import {
   type WoundKind,
 } from '../config';
 import { clamp } from '../logic/bounds';
+import { shade } from '../logic/color';
 import { chaseStep, nearestIndex } from '../logic/chase';
 import {
   dangleStep,
@@ -114,7 +116,7 @@ export class Person extends Body {
   }
 
   /** Dolls don't break into pieces. */
-  readonly crumbs: readonly number[] = [];
+  readonly crumbs: readonly number[];
   /** A doll steps up onto low things, but a tall thing that lands on it squashes it. */
   protected override readonly climbsOnlyLow = true;
   protected override readonly lively = true;
@@ -153,6 +155,16 @@ export class Person extends Body {
   private jumpFromX = 0;
   /** Time left before it tries another jump, after one that got it nowhere. */
   private noJumpMs = 0;
+  /**
+   * A robot that lightning has run through: time left until it blows up, and until its
+   * next spark and its next twitch. `blown` once it has gone off; `ashPending` when
+   * fire has finished it off and it burns up on its next turn.
+   */
+  private shortMs = 0;
+  private sparkWaitMs = 0;
+  private twitchWaitMs = 0;
+  private blown = false;
+  private ashPending = false;
   /** A blade has just gone right through it: a part comes off on its next turn. */
   private cutPending = false;
 
@@ -199,6 +211,8 @@ export class Person extends Body {
   constructor(scene: Phaser.Scene, look: PersonLook, x: number, feetY: number) {
     super(x, feetY);
     this.look = look;
+    // Only a robot is made of pieces that fly off when it blows up
+    this.crumbs = look.machine ? [look.body, look.joint, shade(look.body, 0.3)] : [];
     this.lives = look.lives ?? PERSON.lives;
     this.last = { x, y: feetY };
     this.figure = new PersonFigure(scene, look);
@@ -208,6 +222,29 @@ export class Person extends Body {
       this.figure.setAngry(true);
     }
     this.draw('held', 0);
+  }
+
+  /** A robot that has blown up is gone. */
+  override get gone(): boolean {
+    return super.gone || this.blown;
+  }
+
+  /** Is it a machine (a robot)? Lightning doesn't just knock those out. */
+  get machine(): boolean {
+    return this.look.machine === true;
+  }
+
+  /**
+   * Lightning runs through a robot: it falls over and short-circuits, and after a
+   * few seconds of twitching and sparking it blows up.
+   */
+  shortCircuit(direction: Facing): void {
+    if (!this.machine || this.shortMs > 0 || this.blown) return;
+    const { min, max } = SHORT_CIRCUIT.ms;
+    this.shortMs = randomBetween(min, max);
+    this.activity = 'idle';
+    this.figure.setAngry(false);
+    this.knockOver(direction, SHORT_CIRCUIT.skid.min);
   }
 
   /** No lives left: stays limp and does nothing any more. */
@@ -300,6 +337,11 @@ export class Person extends Body {
   /** Fire gets at a doll with no lives left: it burns down to a black skeleton, and bleeds no more. */
   scorch(): void {
     if (!this.dead) return;
+    if (this.machine) {
+      // A robot has no bones to leave: it burns up completely
+      this.ashPending = true;
+      return;
+    }
     this.figure.burnToBones();
     this.spray = 0;
     this.bleedMs = 0;
@@ -722,6 +764,37 @@ export class Person extends Body {
     return hitSomeone;
   }
 
+  /**
+   * A short-circuiting robot can't get up. Sparks fly off it, and again and again its
+   * joints are kicked about and it skids or hops. When its time is up, it blows up.
+   */
+  private fizzle(deltaMs: number, world: World): void {
+    if (this.shortMs <= 0 || this.blown) return;
+    const short = SHORT_CIRCUIT;
+    this.shortMs -= deltaMs;
+    this.sparkWaitMs -= deltaMs;
+    this.twitchWaitMs -= deltaMs;
+    const body = this.hitBox;
+    if (this.sparkWaitMs <= 0) {
+      this.sparkWaitMs = short.sparkEveryMs;
+      world.spark(randomBetween(body.left, body.right), randomBetween(body.top, body.bottom));
+    }
+    const loose = this.state !== 'held' && this.state !== 'flying' && this.seat === null;
+    if (this.twitchWaitMs <= 0 && loose) {
+      this.twitchWaitMs = short.twitchEveryMs;
+      if (!this.ragdoll) this.knockOver(this.facing, 0);
+      this.downMs = 0;
+      this.limbSpeeds = kickJoints(this.limbSpeeds, short.kick);
+      const side = Math.random() < 0.5 ? -1 : 1;
+      this.vx = side * randomBetween(short.skid.min, short.skid.max);
+      if (this.state === 'resting' && Math.random() < short.hopChance) this.hop(short.hop);
+    }
+    if (this.shortMs > 0) return;
+    this.leaveSeat();
+    this.blown = true;
+    world.explode(this, short.blast);
+  }
+
   /** A part comes off, a different one every time, and flies away. Blood sprays from the cut. */
   private comeApart(world: World): void {
     const part = BODY_PARTS[Math.floor(Math.random() * BODY_PARTS.length)] ?? 'head';
@@ -733,6 +806,11 @@ export class Person extends Body {
 
   /** Spray and drip blood from where the wounds are. */
   private bleed(deltaMs: number, world: World): void {
+    this.fizzle(deltaMs, world);
+    if (this.ashPending) {
+      this.ashPending = false;
+      world.burn(this);
+    }
     if (this.cutPending) {
       this.cutPending = false;
       this.comeApart(world);

@@ -166,6 +166,11 @@ export interface PersonLook {
   angry?: boolean;
   /** What it bleeds, when not red blood: oil for a robot, slime for a zombie. */
   blood?: number;
+  /**
+   * It is a machine. Fire burns it up completely instead of leaving a skeleton, and
+   * lightning makes it short-circuit: it twitches, sparks, and blows up in the end.
+   */
+  machine?: boolean;
 }
 
 /**
@@ -186,6 +191,7 @@ export const PEOPLE: readonly PersonLook[] = [
     joint: 0x263238,
     eye: 0xff1744,
     extra: 'antenna',
+    machine: true,
     lives: 5,
     punch: 2,
     speed: 0.9,
@@ -906,6 +912,22 @@ export const BOING = { ms: 180, squash: 0.35 } as const;
 
 /** The ground shakes when a boss stomps. */
 export const QUAKE = { ms: 200, strength: 0.01 } as const;
+
+/**
+ * A robot that lightning has run through short-circuits. For somewhere between `ms.min`
+ * and `ms.max` it lies there twitching: sparks fly off it, its joints are kicked about,
+ * it skids this fast to one side or the other and now and then it hops. Then it blows up.
+ */
+export const SHORT_CIRCUIT = {
+  ms: { min: 2500, max: 5500 },
+  sparkEveryMs: 130,
+  twitchEveryMs: 130,
+  kick: 7,
+  skid: { min: 110, max: 330 },
+  hop: 240,
+  hopChance: 0.3,
+  blast: { radius: 160, damage: 3, pushSpeed: 720 },
+} as const;
 
 /** A doll that fire has finished off is a black skeleton: charred bones, with embers in its eyes. */
 export const CHARRED = {
