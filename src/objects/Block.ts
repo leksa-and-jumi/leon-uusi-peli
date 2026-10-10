@@ -12,6 +12,7 @@ import {
   PHYSICS,
   SKIBIDI,
   TESLA,
+  THUNDER,
   THING_ACTIONS,
   TOPPLE,
   VEHICLE_ACTIONS,
@@ -36,7 +37,7 @@ import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
 import { drawJunk, drawMonsterHead } from './junkShapes';
 import { drawFlames, drawSawBlade, drawTrap } from './trapShapes';
-import { drawTvProgram } from './tvScreen';
+import { drawTvHaywire, drawTvProgram } from './tvScreen';
 import { drawParkedVehicle, drawRotor, drawVehicle, drawWheel } from './vehicleShapes';
 import type { World } from './World';
 
@@ -87,6 +88,9 @@ export class Block extends Body {
   private readonly blade: Phaser.GameObjects.Graphics | null = null;
   private readonly flames: Phaser.GameObjects.Graphics | null = null;
   private readonly lastHurt = new WeakMap<Person, number>();
+  /** An electric thing hit by lightning: time left of going haywire, and until its next spark. */
+  private haywireMs = 0;
+  private sparkWaitMs = 0;
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
@@ -166,11 +170,6 @@ export class Block extends Body {
   /** A vehicle with a seat that nobody sits in, standing where a doll can get in. */
   get seatFree(): boolean {
     return this.def.drive?.seat !== undefined && this.driver === null && this.carries;
-  }
-
-  /** The doll sitting in it, or `null`. */
-  get rider(): Person | null {
-    return this.driver;
   }
 
   /** Which way a vehicle points: 1 right, -1 left. */
@@ -265,6 +264,11 @@ export class Block extends Body {
     super.throwAway(area);
   }
 
+  /** Lightning has run into it: an electric thing goes haywire for this long. */
+  goHaywire(ms: number): void {
+    if (this.def.electric) this.haywireMs = ms;
+  }
+
   /** Standing up, staying put, and tall enough to fall over onto its side. */
   get canTopple(): boolean {
     const { halfWidth, height } = this.def;
@@ -352,7 +356,9 @@ export class Block extends Body {
     if (tip === 0) this.slideSpeed = 0;
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
     this.draw(state, deltaMs);
-    if (this.screen) drawTvProgram(this.screen, this.clockMs);
+    this.fizz(deltaMs, world);
+    if (this.screen && this.haywireMs > 0) drawTvHaywire(this.screen, this.clockMs);
+    else if (this.screen) drawTvProgram(this.screen, this.clockMs);
 
     if (this.fuseMs === null || !this.blast) return;
     this.fuseMs -= deltaMs;
@@ -449,6 +455,14 @@ export class Block extends Body {
     const head = monster?.head;
     if (!monster || !head || !this.head) return;
     this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    if (this.haywireMs > 0) {
+      // Haywire: its head pops out and shakes wildly, and it can't do anything else
+      const { sway, ms } = THUNDER.headShake;
+      this.headOut += (1 - this.headOut) * Math.min(1, deltaMs / head.popMs);
+      this.head.y = -(head.inUp + (head.outUp - head.inUp) * this.headOut);
+      this.head.rotation = sway * Math.sin(this.clockMs / ms);
+      return;
+    }
     const bites = monster.attack === 'bite';
     const eyesUp = SKIBIDI.eyes.up * (head.scale ?? 1);
     const eyesY = this.y - head.outUp - eyesUp;
@@ -565,6 +579,17 @@ export class Block extends Body {
     if (this.zapWaitMs > 0 || Math.abs(atX - this.x) > saucer.aim) return;
     this.zapWaitMs = monster.everyMs;
     world.zap(this.x, this.y, victim, monster.damage, monster.pushSpeed);
+  }
+
+  /** While it is haywire, sparks keep flying off it. */
+  private fizz(deltaMs: number, world: World): void {
+    if (this.haywireMs <= 0) return;
+    this.haywireMs -= deltaMs;
+    this.sparkWaitMs -= deltaMs;
+    if (this.sparkWaitMs > 0) return;
+    this.sparkWaitMs = THUNDER.sparkEveryMs;
+    const { halfWidth, height } = this.shape;
+    world.spark(this.x + (Math.random() * 2 - 1) * halfWidth, this.y - Math.random() * height);
   }
 
   /**
@@ -709,6 +734,11 @@ export class Block extends Body {
       (this.fallen === 0 ? this.y : this.y - this.def.halfWidth) + bob,
     );
     this.display.rotation = turned + (state === 'flying' ? this.spin : this.lean);
+    if (this.haywireMs > 0 && state === 'resting') {
+      // A haywire thing shakes on the spot
+      const shake = (): number => (Math.random() * 2 - 1) * THUNDER.jitter;
+      this.display.setPosition(this.display.x + shake(), this.display.y + shake());
+    }
     // A bat flaps its wings: its picture is squeezed flat and let go again, fast
     const flapMs = ghost?.flapMs;
     const flap = flapMs ? 1 - 0.35 * Math.abs(Math.sin((this.clockMs / flapMs) * Math.PI)) : 1;

@@ -104,6 +104,11 @@ export function blockedX(
   return x;
 }
 
+/** Does it touch the floor (and not stand up on something)? `slack` is how close counts. */
+export function onFloor(box: Box, floorY: number, slack: number): boolean {
+  return box.bottom >= floorY - slack;
+}
+
 /**
  * Walking the way `direction` says (1 right, -1 left) with something solid right in
  * front: how high you have to jump to get onto it, measured from your feet. `null`

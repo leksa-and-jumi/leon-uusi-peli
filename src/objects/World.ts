@@ -64,10 +64,12 @@ export interface World {
   /** A part cut off a doll flies off this way and lies around. `lift` keeps it on top of the floor. */
   sever: (picture: Phaser.GameObjects.Container, lift: number, direction: Facing) => void;
   /**
-   * Lightning strikes this thing and runs along the floor: everything on the ground is
-   * destroyed, except `spare`, the doll that slammed it down.
+   * Lightning strikes this thing and runs along the floor: every doll that touches the
+   * floor is out, except `spare`, the doll that slammed it down.
    */
   thunder: (source: Body, spare?: Body) => void;
+  /** A little spark flies off something at this spot. */
+  spark: (x: number, y: number) => void;
   /** A ghost scares this doll: an eerie sound. */
   spook: () => void;
   /** Something smashes to pieces, which fly off with this push (pixels per second). */
