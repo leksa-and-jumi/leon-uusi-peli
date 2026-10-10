@@ -126,6 +126,10 @@
 
 🇫🇮 Tuplaklikkaa nukkea, niin sen toimintopallot aukeavat. Painettu pallo hohtaa, ja toinen painallus lopettaa sen.
 
+🇬🇧 The bubbles only show what the thing can still do. A doll with no lives left, and a vehicle fried by the thunder hammer, only have 🚀 left: you can throw them away, nothing else. The robot, the ninja, the knight and the zombie start out angry, but you can make them walk and dance too; when you stop that, they are angry again. Press their 😡 to calm them down.
+
+🇫🇮 Pallot näyttävät vain sen, mihin juttu vielä pystyy. Nukella, jolla ei ole elämiä jäljellä, ja ukkosvasaran kärventämällä ajoneuvolla on jäljellä vain 🚀: ne voi heittää pois, ei muuta. Robotti, ninja, ritari ja zombi ovat aluksi vihaisia, mutta nekin saa kävelemään ja tanssimaan; kun lopetat sen, ne ovat taas vihaisia. Paina niiden 😡-palloa, niin ne rauhoittuvat.
+
 | Bubble / Pallo | 🇬🇧                                                         | 🇫🇮                                                   |
 | -------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
 | 🚀             | throw this person away                                     | heitä tämä tyyppi pois                               |

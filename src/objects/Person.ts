@@ -9,6 +9,7 @@ import {
   LIMP,
   PERSON,
   PERSON_ACTIONS,
+  WRECK_ACTIONS,
   PHYSICS,
   PUNCH_DAMAGE,
   SEAT_GUN,
@@ -66,6 +67,7 @@ import type { Block } from './Block';
 import { Body, type BodyState } from './Body';
 import type { Item } from './Item';
 import { BODY_PARTS, PersonFigure } from './personShape';
+import { pressActivity, type Activity } from '../logic/activity';
 import type { World } from './World';
 
 /** How loosely each joint of a limp doll swings. */
@@ -88,7 +90,7 @@ const GROUND_JOINTS = Object.fromEntries(
 ) as Record<JointKey, Joint>;
 
 /** What a doll keeps doing until it is switched off. */
-export type Activity = 'idle' | 'walk' | 'dance' | 'angry';
+export type { Activity };
 
 /** Getting back up from the ground: from how it lay, to standing. */
 interface Rise {
@@ -105,7 +107,11 @@ interface Rise {
  */
 export class Person extends Body {
   readonly size = PERSON;
-  readonly actions = PERSON_ACTIONS;
+  /** A doll with no lives left can't do anything any more: it can only be thrown away. */
+  get actions(): readonly ActionId[] {
+    return this.dead ? WRECK_ACTIONS : PERSON_ACTIONS;
+  }
+
   /** Dolls don't break into pieces. */
   readonly crumbs: readonly number[] = [];
   /** A doll steps up onto low things, but a tall thing that lands on it squashes it. */
@@ -286,9 +292,8 @@ export class Person extends Body {
 
   /** Switch walking, dancing or angry mode on, or off if it's already on. */
   toggle(activity: Exclude<Activity, 'idle'>): void {
-    // A doll that is always angry can't be made to do anything else
-    if (this.dead || this.look.angry) return;
-    this.activity = this.activity === activity ? 'idle' : activity;
+    if (this.dead) return;
+    this.activity = pressActivity(this.activity, activity, this.look.angry === true);
     this.figure.setAngry(this.activity === 'angry');
     this.punchMs = 0;
     this.slamMs = 0;
