@@ -937,6 +937,11 @@ export class MainScene extends Phaser.Scene {
       const body = person.hitBox;
       if (!touchesFloor(body) && !wet.some((pool) => overlaps(pool, body))) continue;
       const away: Facing = person.feet.x < x ? -1 : 1;
+      if (person.machine) {
+        // A robot isn't knocked out by lightning: it short-circuits, and blows up later
+        person.shortCircuit(away);
+        continue;
+      }
       person.hit(away, this.solidBoxes(person), THUNDER.damage, THUNDER.pushSpeed, 'burn');
     }
     for (const block of this.blocks) {
