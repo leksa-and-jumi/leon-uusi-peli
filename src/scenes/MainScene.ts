@@ -33,6 +33,7 @@ import {
   SWING,
   THINGS_MAX,
   THUNDER,
+  WATER,
   TOPPLE,
   TOSS,
   type ActionId,
@@ -44,6 +45,8 @@ import { Sfx } from '../audio/Sfx';
 import { blastDirection, inBlast } from '../logic/blast';
 import { addDrop, wipe, type Stain } from '../logic/blood';
 import { jagged } from '../logic/bolt';
+import { floatLine } from '../logic/fall';
+import { pullStep } from '../logic/pull';
 import {
   crumbAlpha,
   crumbCount,
@@ -206,6 +209,17 @@ export class MainScene extends Phaser.Scene {
         this.sfx.boing();
         return trampoline.def.spring;
       },
+      floatLine: (x, depth) => floatLine(x, depth, this.pools()),
+      splash: (x, y) => {
+        this.bleed(x, y, WATER.splashDrops, BLOCKS.water.colors.fill, true);
+        this.sfx.splash();
+      },
+      burn: (thing) => {
+        if (this.doomed.includes(thing)) return;
+        this.burnToAsh(thing);
+        this.sfx.crumble();
+        this.doomed.push(thing);
+      },
       smash: (thing, direction) => {
         this.crumble(thing, direction * DEBRIS.blastPush, -DEBRIS.blastLift);
         this.sfx.crumble();
@@ -293,6 +307,7 @@ export class MainScene extends Phaser.Scene {
     for (const body of this.everything()) {
       body.update(delta, this.world);
     }
+    this.pullIn(delta);
     this.forget(this.doomed);
     this.doomed = [];
     this.chant(delta);
@@ -327,6 +342,46 @@ export class MainScene extends Phaser.Scene {
       return over && sunk > 0 && sunk <= CRUSH.sink ? { ...doll, top: own.bottom } : doll;
     });
     return [...boxes, ...dolls];
+  }
+
+  /** The pools of water that have come to rest: dolls float in them. */
+  private pools(): Box[] {
+    return this.blocks
+      .filter((block) => block.def.liquid === 'water' && block.riding)
+      .map((block) => block.box);
+  }
+
+  /**
+   * Every black hole pulls in what is around it: dolls, items, pieces, vehicles and
+   * monsters alike. What gets right to it is swallowed and gone. It leaves alone
+   * what you are holding, other black holes, and things in a doll's hand or seat
+   * (those come along with the doll or the vehicle).
+   */
+  private pullIn(delta: number): void {
+    for (const hole of this.blocks) {
+      const pull = hole.def.hole;
+      if (!pull || !hole.canBePicked || hole === this.dragged) continue;
+      const at = hole.box;
+      const holeX = (at.left + at.right) / 2;
+      const holeY = (at.top + at.bottom) / 2;
+      for (const body of this.everything()) {
+        if (body === this.dragged || !body.canBePicked || this.doomed.includes(body)) continue;
+        if (body instanceof Block && body.def.hole) continue;
+        if (body instanceof Item && body.isHeld) continue;
+        if (body instanceof Person && body.seated) continue;
+        const box = body instanceof Person ? body.hitBox : body.box;
+        const middleX = (box.left + box.right) / 2;
+        const middleY = (box.top + box.bottom) / 2;
+        const step = pullStep(middleX, middleY, holeX, holeY, pull, delta);
+        if (step === null) continue;
+        if (step === 'eaten') {
+          this.doomed.push(body);
+          this.sfx.gulp();
+        } else {
+          body.tug(step.dx, step.dy, AREA);
+        }
+      }
+    }
   }
 
   /** Is a building piece lying on top of this doll (not just standing beside it)? */
@@ -875,9 +930,12 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.shake(THUNDER.shake.ms, THUNDER.shake.strength);
 
     const touchesFloor = (box: Box): boolean => onFloor(box, AREA.floorY, THUNDER.groundSlack);
+    // Water on the floor carries the lightning to whoever floats in it
+    const wet = this.pools().filter(touchesFloor);
     for (const person of this.people) {
       if (person === spare || person.seated || !person.canBePicked) continue;
-      if (!touchesFloor(person.hitBox)) continue;
+      const body = person.hitBox;
+      if (!touchesFloor(body) && !wet.some((pool) => overlaps(pool, body))) continue;
       const away: Facing = person.feet.x < x ? -1 : 1;
       person.hit(away, this.solidBoxes(person), THUNDER.damage, THUNDER.pushSpeed, 'burn');
     }

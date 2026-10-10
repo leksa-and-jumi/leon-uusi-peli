@@ -74,6 +74,15 @@ export interface World {
    * trampoline right under it, or `null`. The trampoline gets squashed.
    */
   spring: (left: number, right: number, groundY: number) => Spring | null;
+  /**
+   * How high something at `x` floats, with its bottom `depth` under the surface of
+   * the water it is in. `null` when it is in no water.
+   */
+  floatLine: (x: number, depth: number) => number | null;
+  /** Something falls into water at this spot: drops fly up. */
+  splash: (x: number, y: number) => void;
+  /** Lava burns this thing up: it turns to ash. */
+  burn: (thing: Body) => void;
   /** A boss smashes this thing to pieces, which fly off the way it faces. */
   smash: (thing: Body, direction: Facing) => void;
   /** The ground shakes under a stomp. */
