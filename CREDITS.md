@@ -8,6 +8,7 @@
 
 - All graphics are drawn with code from Leo's ideas (no image files). / Kaikki grafiikat on piirretty koodilla Leon ideoista (ei kuvatiedostoja).
 - All sounds are made with code (Web Audio), no sound files. / Kaikki äänet on tehty koodilla (Web Audio), ei äänitiedostoja.
+- The app icon is our own drawing, made with code. / Sovelluskuvake on oma, koodilla tehty piirros.
 - The skibidis' tune and faces are our own, made for this game; no existing song or picture is copied. / Skibidien sävelmä ja naamat ovat omia, tätä peliä varten tehtyjä; mitään olemassa olevaa laulua tai kuvaa ei ole kopioitu.
 
 <!-- Format / Muoto: - Name – author – license – link -->

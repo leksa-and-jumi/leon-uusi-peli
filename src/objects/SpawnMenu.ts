@@ -51,6 +51,8 @@ export class SpawnMenu {
   private readonly panel: Phaser.GameObjects.Graphics;
   private readonly highlight: Phaser.GameObjects.Graphics;
   private readonly soundLabel: Phaser.GameObjects.Text;
+  /** Can this browser fill the whole screen? Without that there is no button for it. */
+  private readonly canGoFull: boolean;
   /** The pictures in the slots of the open page. */
   private pictures: Phaser.GameObjects.GameObject[] = [];
   private tab: TabId = 'people';
@@ -58,6 +60,7 @@ export class SpawnMenu {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    this.canGoFull = scene.scale.fullscreen.available;
     this.panel = scene.add.graphics().setDepth(MENU.depth);
     this.highlight = scene.add.graphics().setDepth(MENU.depth);
 
@@ -86,6 +89,16 @@ export class SpawnMenu {
       .setOrigin(0.5)
       .setDepth(MENU.depth + 1);
 
+    const full = slotRect(MENU.full, 0);
+    scene.add
+      .text(full.x + full.width / 2, full.y + full.height / 2, MENU.fullEmoji, {
+        fontSize: MENU.soundFontSize,
+        color: '#ffffff',
+      })
+      .setOrigin(0.5)
+      .setDepth(MENU.depth + 1)
+      .setVisible(this.canGoFull);
+
     this.showPage();
   }
 
@@ -110,11 +123,12 @@ export class SpawnMenu {
 
   /**
    * A click on the menu: switch the page, or pick the thing in the slot under it.
-   * Says `'clear'` or `'sound'` when one of those buttons was pressed.
+   * Says `'clear'`, `'sound'` or `'full'` when one of those buttons was pressed.
    */
-  click(px: number, py: number): 'clear' | 'sound' | null {
+  click(px: number, py: number): 'clear' | 'sound' | 'full' | null {
     if (slotAt(MENU.clear, 1, px, py) !== null) return 'clear';
     if (slotAt(MENU.sound, 1, px, py) !== null) return 'sound';
+    if (this.canGoFull && slotAt(MENU.full, 1, px, py) !== null) return 'full';
 
     const tab = TABS[slotAt(MENU.tabs, TABS.length, px, py) ?? -1];
     if (tab) {
@@ -155,9 +169,11 @@ export class SpawnMenu {
     const clear = slotRect(MENU.clear, 0);
     panel.fillStyle(MENU.clearColor);
     panel.fillRoundedRect(clear.x, clear.y, clear.width, clear.height, MENU.slotRadius);
-    const sound = slotRect(MENU.sound, 0);
-    panel.fillStyle(MENU.soundColor);
-    panel.fillRoundedRect(sound.x, sound.y, sound.width, sound.height, MENU.slotRadius);
+    const buttons = this.canGoFull ? [MENU.sound, MENU.full] : [MENU.sound];
+    for (const button of buttons.map((row) => slotRect(row, 0))) {
+      panel.fillStyle(MENU.soundColor);
+      panel.fillRoundedRect(button.x, button.y, button.width, button.height, MENU.slotRadius);
+    }
 
     CHOICES[this.tab].forEach((choice, index) => {
       const slot = slotRect(MENU.slots, index);

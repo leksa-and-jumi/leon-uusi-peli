@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chaseStep, nearestIndex } from './chase';
+import { chaseStep, floatStep, nearestIndex } from './chase';
 
 describe('nearestIndex', () => {
   it('finds the closest one', () => {
@@ -30,5 +30,21 @@ describe('chaseStep', () => {
 
   it('keeps facing the same way when standing on the same spot', () => {
     expect(chaseStep(100, -1, 100, 50, 100, 1000).facing).toBe(-1);
+  });
+});
+
+describe('floatStep', () => {
+  it('floats straight toward the spot, sideways and up at once', () => {
+    const next = floatStep(0, 0, 300, -400, 100, 1000);
+    expect(next.x).toBeCloseTo(60);
+    expect(next.y).toBeCloseTo(-80);
+  });
+
+  it('stops on the spot and does not float past it', () => {
+    expect(floatStep(0, 0, 3, 4, 100, 1000)).toEqual({ x: 3, y: 4 });
+  });
+
+  it('stays where it is when it is there already', () => {
+    expect(floatStep(50, 60, 50, 60, 100, 16)).toEqual({ x: 50, y: 60 });
   });
 });

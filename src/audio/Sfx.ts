@@ -69,6 +69,19 @@ export class Sfx {
     this.tone({ wave, from: pitch, to: pitch * 0.97, seconds, volume });
   }
 
+  /** A doll being swallowed. */
+  gulp(): void {
+    if (!this.ready('gulp')) return;
+    this.tone(SOUND.gulp.tone);
+    this.burst(SOUND.gulp.hiss);
+  }
+
+  /** A ghost scaring a doll. */
+  spook(): void {
+    if (!this.ready('spook')) return;
+    this.tone(SOUND.spook.tone);
+  }
+
   /** A laser going off. */
   zap(): void {
     if (!this.ready('zap')) return;

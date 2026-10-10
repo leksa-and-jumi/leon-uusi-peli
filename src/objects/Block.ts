@@ -5,6 +5,7 @@ import {
   BLOCK_LOOK,
   BLOCKS,
   BULLET_HOLE,
+  CHOMPER,
   DEPTH,
   PERSON,
   ROTOR,
@@ -22,15 +23,16 @@ import {
 } from '../config';
 import { isTall, leaning, supportSpan, toppled, topplePose } from '../logic/balance';
 import { clamp } from '../logic/bounds';
+import { floatStep } from '../logic/chase';
 import { shade } from '../logic/color';
-import { blockedX, liftOut, overlaps } from '../logic/ground';
+import { blockedX, liftOut, overlaps, type Box } from '../logic/ground';
 import { segmentHit } from '../logic/shot';
 import type { Spot } from '../logic/pick';
 import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
-import { drawJunk, drawSkibidiHead } from './junkShapes';
+import { drawJunk, drawMonsterHead } from './junkShapes';
 import { drawTvProgram } from './tvScreen';
 import { drawParkedVehicle, drawRotor, drawVehicle, drawWheel } from './vehicleShapes';
 import type { World } from './World';
@@ -40,10 +42,10 @@ import type { World } from './World';
  * a piece of junk (toilet, TV, fridge and so on). They stack, and dolls can stand on
  * them. They have to balance: a piece whose middle isn't over what holds it up slides
  * off, and a tall one falls over onto its side. A barrel explodes when a bullet or a
- * blast hits it.
+ * blast hits it. A ghost is the one piece that isn't solid: it floats through everything.
  */
 export class Block extends Body {
-  override readonly solid = true;
+  override readonly solid: boolean;
   readonly def: BlockDef;
   readonly actions: readonly ActionId[];
   readonly crumbs: readonly number[];
@@ -74,7 +76,7 @@ export class Block extends Body {
   private readonly holes: Phaser.GameObjects.Graphics | null = null;
   /** The doll sitting in a vehicle, driving it. */
   private driver: Person | null = null;
-  /** A monster: its head, how far out it is (0 to 1), and the time left until its next laser. */
+  /** A monster: its head, how far out it is (0 to 1), and the time left until its next attack. */
   private readonly head: Phaser.GameObjects.Graphics | null = null;
   private headOut = 0;
   private zapWaitMs = 0;
@@ -82,6 +84,9 @@ export class Block extends Body {
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
     this.def = BLOCKS[kind];
+    const ghost = this.def.monster?.ghost;
+    this.solid = !ghost;
+    this.hovering = ghost !== undefined;
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
     const { blast, drive } = this.def;
     this.actions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
@@ -90,10 +95,11 @@ export class Block extends Body {
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
     const { monster } = this.def;
     const parts = [isVehicle(kind) ? drawVehicle(blank(), kind) : drawJunkOrPiece(blank(), kind)];
-    if (monster) {
+    if (monster?.head) {
       // The head goes behind the fridge, so that it comes up out of its top
-      this.head = drawSkibidiHead(blank(), monster.head.radius);
+      this.head = drawMonsterHead(blank(), monster.face, monster.head);
       this.head.setPosition(monster.head.x, -monster.head.inUp);
+      this.head.setScale(monster.head.scale ?? 1);
       parts.unshift(this.head);
       this.holes = blank();
       parts.push(this.holes);
@@ -119,6 +125,7 @@ export class Block extends Body {
     const picture = scene.make.container({ x: 0, y: 0 }, false).add(parts);
     picture.setScale(drive?.scale ?? 1);
     this.display = scene.add.container(x, y, [picture]).setDepth(DEPTH.block);
+    if (ghost) this.display.setAlpha(ghost.alpha).setDepth(DEPTH.ghost);
   }
 
   get size(): PersonSize {
@@ -294,7 +301,9 @@ export class Block extends Body {
     }
     this.spinRotor();
     this.hunt(deltaMs, world, state);
-    const tip = state === 'resting' && !this.tipping ? this.keepBalance(deltaMs, world) : 0;
+    this.haunt(deltaMs, world, state);
+    const balancing = this.solid && state === 'resting' && !this.tipping;
+    const tip = balancing ? this.keepBalance(deltaMs, world) : 0;
     if (tip === 0) this.slideSpeed = 0;
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
     this.draw(state, deltaMs);
@@ -358,41 +367,64 @@ export class Block extends Body {
   }
 
   /**
-   * A monster is always angry. It looks for the closest living doll it can see, pops
-   * its head out, scoots toward the doll and zaps it with a laser from its eyes.
-   * With nobody in sight its head bobs up and down, peeking.
+   * The closest doll a monster can go after, or `null`. Nothing solid may hide it when
+   * `sight` is given, and only one that bites goes after dolls that are dead already.
    */
-  private hunt(deltaMs: number, world: World, state: BodyState): void {
-    const monster = this.def.monster;
-    if (!monster || !this.head) return;
-    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
-    const { head } = monster;
-    const eyesY = this.y - head.outUp - SKIBIDI.eyes.up;
-    const pieces = world.pieces(this);
-    const awake = state === 'resting' && this.fallen === 0;
-
-    // The closest living doll in range that nothing solid hides
+  private closestDoll(
+    world: World,
+    fromY: number,
+    range: number,
+    sight: readonly Box[] | null,
+    deadToo: boolean,
+  ): Person | null {
     let victim: Person | null = null;
-    let closest = monster.range;
-    for (const person of awake ? world.people : []) {
-      if (person.dead || person.seated || !person.canBePicked) continue;
+    let closest = range;
+    for (const person of world.people) {
+      if (person.seated || !person.canBePicked || (person.dead && !deadToo)) continue;
       const body = person.hitBox;
       const atX = (body.left + body.right) / 2;
       const atY = (body.top + body.bottom) / 2;
-      const distance = Math.hypot(atX - this.x, atY - eyesY);
+      const distance = Math.hypot(atX - this.x, atY - fromY);
       if (distance >= closest) continue;
-      if (segmentHit(this.x, eyesY, atX, atY, pieces) !== null) continue;
+      if (sight && segmentHit(this.x, fromY, atX, atY, sight) !== null) continue;
       victim = person;
       closest = distance;
     }
+    return victim;
+  }
 
+  /**
+   * A monster is always angry. It looks for the closest doll, pops its head out and
+   * scoots toward the doll. One with a laser zaps the doll from its eyes as soon as it
+   * sees it; one that bites runs all the way there and swallows the doll whole.
+   * With nobody around its head bobs up and down, peeking.
+   */
+  private hunt(deltaMs: number, world: World, state: BodyState): void {
+    const monster = this.def.monster;
+    const head = monster?.head;
+    if (!monster || !head || !this.head) return;
+    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    const bites = monster.attack === 'bite';
+    const eyesUp = SKIBIDI.eyes.up * (head.scale ?? 1);
+    const eyesY = this.y - head.outUp - eyesUp;
+    const pieces = world.pieces(this);
+    const awake = state === 'resting' && this.fallen === 0;
+    // One that bites smells the dolls through walls, and eats the dead ones too
+    const victim = awake
+      ? this.closestDoll(world, eyesY, monster.range, bites ? null : pieces, bites)
+      : null;
+
+    const chewing = bites && this.zapWaitMs > 0;
     const peeking = 0.3 + 0.3 * Math.sin(this.clockMs / 420);
-    const wanted = victim ? 1 : awake ? peeking : 0;
+    const chew = 0.55 + 0.45 * Math.sin((this.clockMs / CHOMPER.chewMs) * Math.PI * 2);
+    const wanted = chewing ? chew : victim ? 1 : awake ? peeking : 0;
     this.headOut += (wanted - this.headOut) * Math.min(1, deltaMs / head.popMs);
     this.head.y = -(head.inUp + (head.outUp - head.inUp) * this.headOut);
     this.head.rotation = SKIBIDI.sway * Math.sin(this.clockMs / SKIBIDI.swayMs);
+    // It stands still while it chews what it has just swallowed
+    if (chewing) return;
     if (!victim) {
-      if (awake) this.smash(monster.range, eyesY, world);
+      if (awake && !bites) this.smash(monster.range, eyesY, world);
       return;
     }
 
@@ -402,14 +434,55 @@ export class Block extends Body {
     const { halfWidth, height } = this.shape;
     const from = this.x;
     const step = this.facing * monster.speed * (deltaMs / 1000);
-    const inside = clamp(from + step, world.area.left + halfWidth, world.area.right - halfWidth);
+    const goal = bites
+      ? clamp(target.x, from - Math.abs(step), from + Math.abs(step))
+      : from + step;
+    const inside = clamp(goal, world.area.left + halfWidth, world.area.right - halfWidth);
     this.x = blockedX(from, inside, halfWidth, this.y, height, pieces, 0);
     world.carry(this, this.x - from);
 
+    if (bites) {
+      const own = this.box;
+      const mouth = { ...own, left: own.left - CHOMPER.reach, right: own.right + CHOMPER.reach };
+      if (!overlaps(mouth, victim.hitBox)) return;
+      this.zapWaitMs = monster.everyMs;
+      world.swallow(this, victim);
+      return;
+    }
     if (this.zapWaitMs > 0 || this.headOut < 0.9) return;
     this.zapWaitMs = monster.everyMs;
-    const eyesX = this.x + this.facing * (head.x + SKIBIDI.eyes.x);
+    const eyesX = this.x + this.facing * (head.x + SKIBIDI.eyes.x * (head.scale ?? 1));
     world.zap(eyesX, eyesY, victim, monster.damage, monster.pushSpeed);
+  }
+
+  /**
+   * A ghost floats straight toward the closest living doll, through walls and all.
+   * When it gets there it scares the doll, which falls over and loses a life.
+   */
+  private haunt(deltaMs: number, world: World, state: BodyState): void {
+    const monster = this.def.monster;
+    if (!monster?.ghost) return;
+    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    if (state !== 'resting') return;
+    const { halfWidth, height } = this.shape;
+    const victim = this.closestDoll(world, this.y - height / 2, monster.range, null, false);
+    if (!victim) return;
+
+    const body = victim.hitBox;
+    const atX = (body.left + body.right) / 2;
+    const atY = (body.top + body.bottom) / 2;
+    if (Math.abs(atX - this.x) > 1) this.facing = atX < this.x ? -1 : 1;
+    const next = floatStep(this.x, this.y, atX, atY + height / 2, monster.speed, deltaMs);
+    const { left, right, top, floorY } = world.area;
+    this.x = clamp(next.x, left + halfWidth, right - halfWidth);
+    this.y = clamp(next.y, top + height, floorY);
+
+    if (this.zapWaitMs > 0 || !overlaps(this.box, body)) return;
+    this.zapWaitMs = monster.everyMs;
+    const solids = world.solidBoxes(victim);
+    const deadly = victim.hit(this.facing, solids, monster.damage, monster.pushSpeed, 'bruise');
+    world.hitEffect(atX, atY, deadly, 'none');
+    world.spook();
   }
 
   /**
@@ -417,7 +490,8 @@ export class Block extends Body {
    * junk, vehicles and loose items. Not other monsters.
    */
   private smash(range: number, eyesY: number, world: World): void {
-    if (this.zapWaitMs > 0) return;
+    const head = this.def.monster?.head;
+    if (this.zapWaitMs > 0 || !head) return;
     let thing: Body | null = null;
     let closest = range;
     for (const other of world.things(this)) {
@@ -433,7 +507,7 @@ export class Block extends Body {
     if (!thing) return;
     this.zapWaitMs = this.def.monster?.everyMs ?? 0;
     this.facing = thing.feet.x < this.x ? -1 : 1;
-    const eyesX = this.x + this.facing * ((this.def.monster?.head.x ?? 0) + SKIBIDI.eyes.x);
+    const eyesX = this.x + this.facing * (head.x + SKIBIDI.eyes.x * (head.scale ?? 1));
     world.zapThing(eyesX, eyesY, thing);
   }
 
@@ -491,9 +565,12 @@ export class Block extends Body {
     }
     // A piece lying on its side is drawn turned, around the bottom edge it stood on
     const turned = this.fallen * (Math.PI / 2);
+    // A ghost bobs up and down in the air
+    const ghost = this.def.monster?.ghost;
+    const bob = ghost && state === 'resting' ? ghost.bob * Math.sin(this.clockMs / ghost.bobMs) : 0;
     this.display.setPosition(
       this.x - this.fallen * (this.def.height / 2),
-      this.fallen === 0 ? this.y : this.y - this.def.halfWidth,
+      (this.fallen === 0 ? this.y : this.y - this.def.halfWidth) + bob,
     );
     this.display.rotation = turned + (state === 'flying' ? this.spin : this.lean);
     this.display.setScale(this.facing, 1);
@@ -507,12 +584,12 @@ function isVehicle(kind: BlockKind): kind is VehicleKind {
 }
 
 /**
- * Draws a piece for the area. A monster gets its fridge only: its head is a picture
- * of its own, so that it can pop in and out.
+ * Draws a piece for the area. A monster that lives in a piece of junk gets that piece
+ * only: its head is a picture of its own, so that it can pop in and out.
  */
 function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
-  const monster = BLOCKS[kind].monster;
-  return monster ? drawJunk(g, monster.body) : drawBlock(g, kind);
+  const body = BLOCKS[kind].monster?.body;
+  return body ? drawJunk(g, body) : drawBlock(g, kind);
 }
 
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
