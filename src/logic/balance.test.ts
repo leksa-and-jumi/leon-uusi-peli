@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTall, leaning, supportSpan, toppled, topplePose } from './balance';
+import { isTall, leaning, overhang, supportSpan, toppled, topplePose } from './balance';
 
 const wall = { left: 100, right: 140, top: 400, bottom: 500 };
 
@@ -97,5 +97,20 @@ describe('topplePose', () => {
 
   it('does not go past flat', () => {
     expect(topplePose(100, 500, 500, 20, 1, 3).rotation).toBeCloseTo(Math.PI / 2);
+  });
+});
+
+describe('overhang', () => {
+  it('lets a long, flat piece hang far out', () => {
+    expect(overhang(64, 34, 1, 1.6, 0.7)).toBeCloseTo(44.8);
+  });
+
+  it('gives a piece that is not long only the usual little bit', () => {
+    expect(overhang(28, 56, 1, 1.6, 0.7)).toBe(1);
+    expect(overhang(17, 128, 1, 1.6, 0.7)).toBe(1);
+  });
+
+  it('never gives less than the usual little bit', () => {
+    expect(overhang(2, 1, 5, 1.6, 0.7)).toBe(5);
   });
 });

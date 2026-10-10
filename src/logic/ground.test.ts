@@ -3,6 +3,7 @@ import {
   blockedX,
   boxAround,
   groundBelow,
+  hurdle,
   liftOut,
   lyingRoom,
   overlaps,
@@ -211,5 +212,38 @@ describe('standsOn', () => {
     const rider = { left: 201, right: 241, top: 340, bottom: 460 };
     expect(standsOn(rider, car, 3)).toBe(false);
     expect(standsOn(rider, car, 3, 4)).toBe(true);
+  });
+});
+
+describe('hurdle', () => {
+  const crate = { left: 120, right: 176, top: 444, bottom: 500 };
+
+  it('says how high a low thing right in front is', () => {
+    expect(hurdle(100, 500, 1, 20, 100, [crate], 20, 70)).toBe(56);
+  });
+
+  it('works the same way walking left', () => {
+    expect(hurdle(196, 500, -1, 20, 100, [crate], 20, 70)).toBe(56);
+  });
+
+  it('finds nothing to jump when the way is free', () => {
+    expect(hurdle(50, 500, 1, 20, 100, [crate], 20, 70)).toBeNull();
+    expect(hurdle(100, 500, -1, 20, 100, [crate], 20, 70)).toBeNull();
+  });
+
+  it('can not jump onto something too tall', () => {
+    const wall = { left: 120, right: 154, top: 372, bottom: 500 };
+    expect(hurdle(100, 500, 1, 20, 100, [wall], 20, 70)).toBeNull();
+  });
+
+  it('counts the top of a pile, not just its lowest piece', () => {
+    const upper = { left: 120, right: 176, top: 388, bottom: 444 };
+    expect(hurdle(100, 500, 1, 20, 100, [crate, upper], 20, 70)).toBeNull();
+    expect(hurdle(100, 500, 1, 20, 100, [crate, upper], 20, 120)).toBe(112);
+  });
+
+  it('leaves alone what can simply be stepped onto', () => {
+    const plank = { left: 120, right: 260, top: 482, bottom: 500 };
+    expect(hurdle(100, 500, 1, 20, 100, [plank], 20, 70)).toBeNull();
   });
 });

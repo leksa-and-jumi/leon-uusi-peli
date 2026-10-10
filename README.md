@@ -10,13 +10,13 @@
 
 ## How to play / Miten pelataan
 
-🇬🇧 The menu at the top has six pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces, 🚽 junk, 🚗 vehicles and 👾 monsters. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it. Every page starts with an empty box: with that picked, a click on the gray area puts nothing in.
+🇬🇧 The menu at the top has seven pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces, 🚽 junk, 🚗 vehicles, 👾 monsters and ⚠️ traps. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it. Every page starts with an empty box: with that picked, a click on the gray area puts nothing in.
 
-🇫🇮 Ylävalikossa on kuusi sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat, 🚽 krääsä, 🚗 ajoneuvot ja 👾 hirviöt. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi. Jokainen sivu alkaa tyhjällä ruudulla: kun se on valittuna, harmaan alueen klikkaus ei laita mitään paikalle.
+🇫🇮 Ylävalikossa on seitsemän sivua: 🧍 nuket, 🔫 aseet, 🧱 rakennuspalat, 🚽 krääsä, 🚗 ajoneuvot, 👾 hirviöt ja ⚠️ ansat. Valitse jotain 👆 ja klikkaa harmaata aluetta: se putoaa paikalle ja laskeutuu mustalle lattialle. Raahaa tavaroita hiirellä 🖐️. Punainen 🗑️-nappi vie kaiken pois. Harmaalla alueella on katto: mikään ei lennä sen ohi. Jokainen sivu alkaa tyhjällä ruudulla: kun se on valittuna, harmaan alueen klikkaus ei laita mitään paikalle.
 
-🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets; dolls step up onto low ones. The red barrel explodes when a bullet or a blast hits it, or when you double-click it and press 🔥! Drop a piece on a doll and it squashes the doll: its head bends down, it goes down under the piece and stays there until you take the piece away (it doesn't lose lives).
+🇬🇧 **Building 🧱:** crates, brick walls, planks, stone blocks and steel beams stack on top of each other, and dolls can stand on them. Tall pieces stop walking dolls and bullets. A walking or running doll hops onto a low thing in its way (a crate, a fallen wall, a barrel) and goes on from there; things taller than that it can't jump, so it turns around. A long piece lying flat, like a fallen wall, a plank or a beam, stays lying on top of a single block even when it sticks out far over the edge. The red barrel explodes when a bullet or a blast hits it, or when you double-click it and press 🔥! Drop a piece on a doll and it squashes the doll: its head bends down, it goes down under the piece and stays there until you take the piece away (it doesn't lose lives).
 
-🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit; matalien päälle nuket astuvat. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥! Pudota pala nuken päälle, niin se litistää nuken: pää painuu alas, nukke jää palan alle ja pysyy siellä, kunnes otat palan pois (elämiä se ei menetä).
+🇫🇮 **Rakentaminen 🧱:** laatikot, tiiliseinät, lankut, kivilohkareet ja teräspalkit pinoutuvat päällekkäin, ja nuket voivat seistä niiden päällä. Korkeat palat pysäyttävät kävelevät nuket ja luodit. Kävelevä tai juokseva nukke hyppää tiellään olevan matalan esteen päälle (laatikko, kaatunut seinä, tynnyri) ja jatkaa siitä; sitä korkeampien yli se ei pääse, vaan kääntyy takaisin. Vaakatasossa makaava pitkä pala, kuten kaatunut seinä, lankku tai palkki, pysyy yhden blokin päällä, vaikka se työntyisi pitkälle reunan yli. Punainen tynnyri räjähtää, kun siihen osuu luoti tai räjähdys, tai kun tuplaklikkaat sitä ja painat 🔥! Pudota pala nuken päälle, niin se litistää nuken: pää painuu alas, nukke jää palan alle ja pysyy siellä, kunnes otat palan pois (elämiä se ei menetä).
 
 🇬🇧 **More building pieces 🧱:** a tall concrete **pillar** that falls over like a domino, a **glass wall** that shatters when a bullet hits it or when it falls over, and a **TNT crate** 🧨: like the barrel, but with a much bigger bang (double-click it and press 🔥, or shoot it).
 
@@ -37,6 +37,18 @@
 🇬🇧 **Weapons 🔫:** drop a weapon onto a doll, or drag it there, and the doll takes it in its hand. In 😡 angry mode the doll uses it. Double-click a gun and press 💥: it fires nonstop, also while you drag it around, so you can shoot the dolls yourself (🔄 turns it around). A lit 💣 bomb goes off after 4 seconds: it hurts the dolls nearby and blows up everything else in its blast: building pieces and loose weapons. Other bombs and barrels in the blast go off too!
 
 🇫🇮 **Aseet 🔫:** pudota ase nuken päälle tai raahaa se siihen, niin nukke ottaa sen käteensä. 😡 Vihaisessa modissa nukke käyttää sitä. Tuplaklikkaa pyssyä ja paina 💥: se ampuu taukoamatta, myös kun raahaat sitä, joten voit itse ampua nukkeja (🔄 kääntää sen). Sytytetty 💣 pommi räjähtää 4 sekunnin päästä: se satuttaa lähellä olevia nukkeja ja räjäyttää kaiken muun räjähdyksen alueelta: rakennuspalat ja irtoaseet. Muut pommit ja tynnyrit räjähdyksen alueella räjähtävät myös!
+
+🇬🇧 **Traps ⚠️:** things that take lives from the dolls. **Spikes**: a doll that stands, falls or lies on them loses 1 life again and again. The **saw** takes 2 lives and flings the doll away. The **burner** burns whoever is in its flames. The **lightning coil** shoots a spark at the closest doll around it. The **mine** blows up when a doll touches it. You can also grab a trap and push it into the dolls yourself. The 💣 bomb and the 🧨 dynamite are on this page too.
+
+🇫🇮 **Ansat ⚠️:** juttuja, jotka vievät nukeilta elämää. **Piikit**: nukke, joka seisoo, putoaa tai makaa niiden päällä, menettää 1 elämän yhä uudestaan. **Sirkkeli** vie 2 elämää ja lennättää nuken pois. **Poltin** polttaa sen, joka on sen liekeissä. **Salamakela** ampuu kipinän lähimpään nukkeen. **Miina** räjähtää, kun nukke koskee siihen. Voit myös tarttua ansaan ja työntää sen itse nukkeihin. 💣 Pommi ja 🧨 dynamiitti ovat myös tällä sivulla.
+
+🇬🇧 **Thunder hammer ⚡:** grab it and slam it down onto the floor (or throw it down hard): lightning strikes it and runs along the whole floor. Every doll is out and every thing turns to ash. Only what flies is safe: a helicopter or plane in the air and its pilot, the ghost, the bat and the UFO. Give it to a doll and make the doll 😡 angry: it crouches and slams the hammer into the floor by itself, and the lightning gets everybody except the doll that slammed it.
+
+🇫🇮 **Ukkosvasara ⚡:** tartu siihen ja iske se lattiaan (tai heitä se kovaa alas): salama iskee siihen ja kulkee koko lattiaa pitkin. Jokainen nukke on poissa pelistä ja jokainen tavara muuttuu tuhkaksi. Vain lentävät ovat turvassa: ilmassa oleva helikopteri tai lentokone ja sen lentäjä, kummitus, lepakko ja ufo. Anna se nukelle ja tee nukesta 😡 vihainen: se kyykistyy ja iskee vasaran itse lattiaan, ja salama osuu kaikkiin paitsi nukkeen, joka iski.
+
+🇬🇧 **Samurai sword ⚔️:** so sharp that one swing goes right through: a part of the doll comes off (a different one every time: the head, an arm, a leg or the whole upper body), the doll is out at once, and a lot of blood sprays out. One part per doll. An 😡 angry doll with the sword in its hand slices the other dolls the same way.
+
+🇫🇮 **Samuraimiekka ⚔️:** niin terävä, että yksi huitaisu menee suoraan läpi: nukesta irtoaa osa (joka kerta eri: pää, käsi, jalka tai koko yläruumis), nukke on heti poissa pelistä ja verta roiskuu paljon. Yksi osa per nukke. 😡 Vihainen nukke, jolla on miekka kädessä, viipaloi muut nuket samalla tavalla.
 
 🇬🇧 **Swing it yourself 🗡️:** grab a sword or a bat and drag it fast into a doll: the doll loses a life and falls over. Carrying it slowly doesn't hurt anybody. A sword, an axe or a spear that you swing or throw into a doll sinks in and stays stuck where it hit. The doll bleeds for as long as it is in there. Grab the weapon to pull it out.
 
@@ -82,19 +94,21 @@
 
 🇫🇮 **Räsynuket 🪆:** kaadettu, nostettu tai heitetty nukke menee täysin lötköksi. Nosta se, niin se roikkuu kädestäsi kädet, jalat ja pää roikkuen; heiluta sitä, niin ne heiluvat kuin oikealla ihmisellä; pidä sitä paikallaan, niin ne roikkuvat paikallaan (tartu jalasta, niin se roikkuu pää alaspäin!). Heitetty nukke, joka osuu seinään, pysähtyy siihen ja putoaa alas. Maassa se lötkähtää litteäksi: yksikään käsi tai jalka ei jää pystyyn ilmaan. Elävä nukke nousee hetken päästä ylös; nukke, jolla ei ole elämiä, jää lötköksi. Heiluta nukkea kädessäsi, niin se kaataa nuket, joihin se osuu. Päästä irti, kun hiiri liikkuu, niin heität sen: nuket, joihin se osuu, kaatuvat ja nousevat ylös menettämättä elämiä.
 
-| Item / Tavara  | 🇬🇧                                         | 🇫🇮                                            |
-| -------------- | ------------------------------------------ | --------------------------------------------- |
-| 🔫 pistol      | shoots slowly from far away, takes 1 life  | ampuu hitaasti kaukaa, vie 1 elämän           |
-| 🔫 machine gun | shoots very fast, takes 1 life per bullet  | ampuu tosi nopeasti, vie 1 elämän per luoti   |
-| 🔫 shotgun     | five bullets at once, but not far          | viisi luotia kerralla, mutta ei kauas         |
-| 🗡️ sword       | reaches further than a fist, takes 1 life  | yltää nyrkkiä pidemmälle, vie 1 elämän        |
-| 🪓 axe         | takes 2 lives                              | vie 2 elämää                                  |
-| 🔱 spear       | reaches very far, takes 1 life             | yltää tosi kauas, vie 1 elämän                |
-| 🏏 bat         | takes 1 life and sends the doll flying     | vie 1 elämän ja lennättää nuken kauas         |
-| 🔨 hammer      | heavy: takes 2 lives, sends dolls flying   | painava: vie 2 elämää, nuket lentävät         |
-| 🔪 knife       | short, takes 1 life, sticks in when thrown | lyhyt, vie 1 elämän, jää kiinni heitettäessä  |
-| 💣 bomb        | double-click it and press 🔥 to light it   | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
-| 🧨 dynamite    | like the bomb: 3 seconds, a huge blast     | kuin pommi: 3 sekuntia, valtava räjähdys      |
+| Item / Tavara         | 🇬🇧                                         | 🇫🇮                                            |
+| --------------------- | ------------------------------------------ | --------------------------------------------- |
+| 🔫 pistol             | shoots slowly from far away, takes 1 life  | ampuu hitaasti kaukaa, vie 1 elämän           |
+| 🔫 machine gun        | shoots very fast, takes 1 life per bullet  | ampuu tosi nopeasti, vie 1 elämän per luoti   |
+| 🔫 shotgun            | five bullets at once, but not far          | viisi luotia kerralla, mutta ei kauas         |
+| 🗡️ sword              | reaches further than a fist, takes 1 life  | yltää nyrkkiä pidemmälle, vie 1 elämän        |
+| ⚔️ samurai sword      | one swing cuts a part off the doll         | yksi huitaisu irrottaa nukesta osan           |
+| 🪓 axe                | takes 2 lives                              | vie 2 elämää                                  |
+| 🔱 spear              | reaches very far, takes 1 life             | yltää tosi kauas, vie 1 elämän                |
+| 🏏 bat                | takes 1 life and sends the doll flying     | vie 1 elämän ja lennättää nuken kauas         |
+| 🔨 hammer             | heavy: takes 2 lives, sends dolls flying   | painava: vie 2 elämää, nuket lentävät         |
+| ⚡ thunder hammer     | slam it on the floor: lightning!           | iske se lattiaan: salama!                     |
+| 🔪 knife              | short, takes 1 life, sticks in when thrown | lyhyt, vie 1 elämän, jää kiinni heitettäessä  |
+| 💣 bomb (⚠️ page)     | double-click it and press 🔥 to light it   | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
+| 🧨 dynamite (⚠️ page) | like the bomb: 3 seconds, a huge blast     | kuin pommi: 3 sekuntia, valtava räjähdys      |
 
 🇬🇧 Double-click a doll to open its action bubbles. A pressed bubble glows, and pressing it again stops it.
 

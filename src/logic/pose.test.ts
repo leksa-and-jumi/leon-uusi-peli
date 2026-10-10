@@ -121,3 +121,18 @@ describe('blendPose', () => {
     expect(blendPose(STAND, limp, -3)).toEqual(STAND);
   });
 });
+
+describe('slam pose', () => {
+  it('crouches: both knees bent and the whole doll lower', () => {
+    const pose = poseFor('slam', 0);
+    expect(pose.frontKnee).toBeGreaterThan(1);
+    expect(pose.backKnee).toBeGreaterThan(1);
+    expect(pose.lift).toBeLessThan(0);
+  });
+
+  it('bends forward with the arm down in front', () => {
+    const pose = poseFor('slam', 500);
+    expect(pose.waist).toBeGreaterThan(0);
+    expect(pose.frontArm).toBeLessThan(0);
+  });
+});

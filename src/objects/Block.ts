@@ -11,6 +11,7 @@ import {
   ROTOR,
   PHYSICS,
   SKIBIDI,
+  TESLA,
   THING_ACTIONS,
   TOPPLE,
   VEHICLE_ACTIONS,
@@ -19,9 +20,10 @@ import {
   type BlastDef,
   type BlockDef,
   type BlockKind,
+  type TrapKind,
   type VehicleKind,
 } from '../config';
-import { isTall, leaning, supportSpan, toppled, topplePose } from '../logic/balance';
+import { isTall, leaning, overhang, supportSpan, toppled, topplePose } from '../logic/balance';
 import { clamp } from '../logic/bounds';
 import { floatStep } from '../logic/chase';
 import { shade } from '../logic/color';
@@ -33,6 +35,7 @@ import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
 import { drawJunk, drawMonsterHead } from './junkShapes';
+import { drawFlames, drawSawBlade, drawTrap } from './trapShapes';
 import { drawTvProgram } from './tvScreen';
 import { drawParkedVehicle, drawRotor, drawVehicle, drawWheel } from './vehicleShapes';
 import type { World } from './World';
@@ -80,6 +83,10 @@ export class Block extends Body {
   private readonly head: Phaser.GameObjects.Graphics | null = null;
   private headOut = 0;
   private zapWaitMs = 0;
+  /** A trap: the blade that turns or the flames that flicker, and when it last hurt each doll. */
+  private readonly blade: Phaser.GameObjects.Graphics | null = null;
+  private readonly flames: Phaser.GameObjects.Graphics | null = null;
+  private readonly lastHurt = new WeakMap<Person, number>();
 
   constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
     super(x, y);
@@ -96,6 +103,16 @@ export class Block extends Body {
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
     const { monster } = this.def;
     const parts = [isVehicle(kind) ? drawVehicle(blank(), kind) : drawJunkOrPiece(blank(), kind)];
+    const { hazard } = this.def;
+    if (hazard?.blade) {
+      // The blade goes behind its box, so that only the top of it sticks out
+      this.blade = drawSawBlade(blank(), hazard.blade.radius).setPosition(0, -hazard.blade.up);
+      parts.unshift(this.blade);
+    }
+    if (hazard?.flames) {
+      this.flames = blank();
+      parts.unshift(this.flames);
+    }
     if (monster && !monster.head && !monster.ghost) {
       this.holes = blank();
       parts.push(this.holes);
@@ -149,6 +166,11 @@ export class Block extends Body {
   /** A vehicle with a seat that nobody sits in, standing where a doll can get in. */
   get seatFree(): boolean {
     return this.def.drive?.seat !== undefined && this.driver === null && this.carries;
+  }
+
+  /** The doll sitting in it, or `null`. */
+  get rider(): Person | null {
+    return this.driver;
   }
 
   /** Which way a vehicle points: 1 right, -1 left. */
@@ -324,6 +346,7 @@ export class Block extends Body {
     this.hunt(deltaMs, world, state);
     this.haunt(deltaMs, world, state);
     this.patrol(deltaMs, world, state);
+    this.trap(deltaMs, world, state);
     const balancing = this.solid && !this.hovering && state === 'resting' && !this.tipping;
     const tip = balancing ? this.keepBalance(deltaMs, world) : 0;
     if (tip === 0) this.slideSpeed = 0;
@@ -545,6 +568,57 @@ export class Block extends Body {
   }
 
   /**
+   * A trap hurts the dolls. Most get every doll that touches them, again and again;
+   * a lightning coil shoots at the closest doll around; a mine blows up when a doll
+   * touches it. Its blade keeps turning and its flames keep flickering.
+   */
+  private trap(deltaMs: number, world: World, state: BodyState): void {
+    const hazard = this.def.hazard;
+    if (!hazard) return;
+    if (this.blade && hazard.blade) this.blade.rotation += hazard.blade.speed * (deltaMs / 1000);
+    if (this.flames && hazard.flames) {
+      const { halfWidth, height } = this.def;
+      drawFlames(this.flames.clear(), this.clockMs, halfWidth, -height, hazard.flames.height);
+    }
+    if (state === 'flying') return;
+    const own = this.box;
+
+    if (hazard.kind === 'zap') {
+      this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+      if (this.zapWaitMs > 0 || this.fallen !== 0 || state !== 'resting') return;
+      const ballY = own.top + TESLA.ballDown;
+      const victim = this.closestDoll(world, ballY, hazard.range ?? 0, null, false);
+      if (!victim) return;
+      this.zapWaitMs = hazard.everyMs;
+      world.zap(this.x, ballY, victim, hazard.damage, hazard.pushSpeed, true);
+      return;
+    }
+
+    const zone = {
+      left: own.left - hazard.side,
+      right: own.right + hazard.side,
+      top: own.top - hazard.up,
+      bottom: own.bottom,
+    };
+    for (const person of world.people) {
+      if (person.dead || person.seated || !person.canBePicked) continue;
+      const body = person.hitBox;
+      if (!overlaps(zone, body)) continue;
+      if (hazard.kind === 'mine') {
+        if (state === 'resting') this.setOff(0);
+        return;
+      }
+      if (this.clockMs - (this.lastHurt.get(person) ?? -Infinity) < hazard.everyMs) continue;
+      this.lastHurt.set(person, this.clockMs);
+      const away: Facing = person.feet.x < this.x ? -1 : 1;
+      const solids = world.solidBoxes(person);
+      const deadly = person.hit(away, solids, hazard.damage, hazard.pushSpeed, hazard.wound);
+      const atX = (body.left + body.right) / 2;
+      world.hitEffect(atX, (body.top + body.bottom) / 2, deadly, hazard.sound);
+    }
+  }
+
+  /**
    * With no doll in sight, a monster zaps whatever else is closest: building pieces,
    * junk, vehicles and loose items. Not other monsters. The laser comes from its eyes,
    * or from the belly of one that has no head.
@@ -591,7 +665,9 @@ export class Block extends Body {
   private keepBalance(deltaMs: number, world: World): Facing | 0 {
     const solids = world.solidBoxes(this);
     const span = supportSpan(this.box, solids, world.area.floorY, PHYSICS.groundSlack);
-    const tip = span === 'floor' || span === null ? 0 : leaning(this.x, span, TOPPLE.give);
+    const { give, longRatio, longShare } = TOPPLE;
+    const out = overhang(this.shape.halfWidth, this.shape.height, give, longRatio, longShare);
+    const tip = span === 'floor' || span === null ? 0 : leaning(this.x, span, out);
     if (tip === 0) return 0;
     if (this.canTopple) {
       this.topple(tip, world);
@@ -646,11 +722,16 @@ function isVehicle(kind: BlockKind): kind is VehicleKind {
   return BLOCKS[kind].drive !== undefined;
 }
 
+function isTrap(kind: BlockKind): kind is TrapKind {
+  return BLOCKS[kind].hazard !== undefined;
+}
+
 /**
  * Draws a piece for the area. A monster that lives in a piece of junk gets that piece
  * only: its head is a picture of its own, so that it can pop in and out.
  */
 function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
+  if (isTrap(kind)) return drawTrap(g, kind, false);
   const body = BLOCKS[kind].monster?.body;
   return body ? drawJunk(g, body) : drawBlock(g, kind);
 }
@@ -658,6 +739,7 @@ function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
 export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
   if (isVehicle(kind)) return drawParkedVehicle(g, kind);
+  if (isTrap(kind)) return drawTrap(g, kind, true);
   switch (kind) {
     case 'crate':
       return drawCrate(g, BLOCKS.crate);

@@ -28,6 +28,26 @@ const SHAPE = {
 type Graphics = Phaser.GameObjects.Graphics;
 type Container = Phaser.GameObjects.Container;
 
+/** The parts a blade can cut off a doll. `upperBody` is everything above the waist. */
+export type BodyPart = 'head' | 'frontArm' | 'backArm' | 'frontLeg' | 'backLeg' | 'upperBody';
+export const BODY_PARTS: readonly BodyPart[] = [
+  'head',
+  'frontArm',
+  'backArm',
+  'frontLeg',
+  'backLeg',
+  'upperBody',
+];
+
+/** A part that has been cut off: its picture, loose in the area, and where it is. */
+export interface LoosePart {
+  picture: Container;
+  x: number;
+  y: number;
+  /** How far above the floor its middle is when it lies flat. */
+  lift: number;
+}
+
 /** An arm or a leg: the upper half turns at the shoulder or hip, the lower half at the joint. */
 interface Limb {
   upper: Container;
@@ -58,8 +78,12 @@ export class PersonFigure {
   private readonly faceless: boolean;
   private readonly bloodColor: number;
   private current: Pose = STAND;
+  /** The part a blade has cut off, which isn't this doll's to move any more. */
+  private severed: BodyPart | null = null;
+  private readonly scene: Phaser.Scene;
 
   constructor(scene: Phaser.Scene, look: PersonLook) {
+    this.scene = scene;
     const paint = new Painter(scene, look);
     const { waist, neck, shoulder, hip } = SHAPE;
     this.backLeg = paint.leg(-hip.x, hip.y);
@@ -104,16 +128,78 @@ export class PersonFigure {
 
   setPose(pose: Pose): void {
     this.current = pose;
-    this.frontArm.upper.rotation = pose.frontArm;
-    this.frontArm.lower.rotation = pose.frontElbow;
-    this.backArm.upper.rotation = pose.backArm;
-    this.backArm.lower.rotation = pose.backElbow;
-    this.frontLeg.upper.rotation = pose.frontLeg;
-    this.frontLeg.lower.rotation = pose.frontKnee;
-    this.backLeg.upper.rotation = pose.backLeg;
-    this.backLeg.lower.rotation = pose.backKnee;
-    this.upperBody.rotation = pose.waist;
-    this.headPart.rotation = pose.head;
+    // A part that has been cut off lies where it fell: the doll doesn't move it
+    const loose = this.severed;
+    const top = loose !== 'upperBody';
+    if (top && loose !== 'frontArm') {
+      this.frontArm.upper.rotation = pose.frontArm;
+      this.frontArm.lower.rotation = pose.frontElbow;
+    }
+    if (top && loose !== 'backArm') {
+      this.backArm.upper.rotation = pose.backArm;
+      this.backArm.lower.rotation = pose.backElbow;
+    }
+    if (loose !== 'frontLeg') {
+      this.frontLeg.upper.rotation = pose.frontLeg;
+      this.frontLeg.lower.rotation = pose.frontKnee;
+    }
+    if (loose !== 'backLeg') {
+      this.backLeg.upper.rotation = pose.backLeg;
+      this.backLeg.lower.rotation = pose.backKnee;
+    }
+    if (top) this.upperBody.rotation = pose.waist;
+    if (top && loose !== 'head') this.headPart.rotation = pose.head;
+  }
+
+  /**
+   * A blade goes right through the doll: this part comes off, at its joint. It is
+   * taken out of the doll and put into the area where it was, and both cut ends get
+   * a mark. Only one part ever comes off a doll. Gives `null` when one already has.
+   */
+  cutOff(part: BodyPart): LoosePart | null {
+    if (this.severed) return null;
+    const { picture, lift } = this.partPicture(part);
+    const parent = picture.parentContainer as Container | null;
+    if (!parent) return null;
+    this.severed = part;
+    const at = picture.getWorldTransformMatrix().decomposeMatrix();
+    parent.addAt(this.stump().setPosition(picture.x, picture.y), parent.getIndex(picture));
+    parent.remove(picture);
+    picture.add(this.stump());
+    picture.addToDisplayList();
+    picture.setPosition(at.translateX, at.translateY);
+    picture.setScale(at.scaleX, at.scaleY);
+    picture.setVisible(true);
+    picture.rotation = at.rotation;
+    return { picture, x: at.translateX, y: at.translateY, lift };
+  }
+
+  private partPicture(part: BodyPart): { picture: Container; lift: number } {
+    switch (part) {
+      case 'head':
+        return { picture: this.headPart, lift: SHAPE.head.radius * 0.5 };
+      case 'frontArm':
+        return { picture: this.frontArm.upper, lift: SHAPE.upperArm.width / 2 };
+      case 'backArm':
+        return { picture: this.backArm.upper, lift: SHAPE.upperArm.width / 2 };
+      case 'frontLeg':
+        return { picture: this.frontLeg.upper, lift: SHAPE.thigh.width / 2 };
+      case 'backLeg':
+        return { picture: this.backLeg.upper, lift: SHAPE.thigh.width / 2 };
+      case 'upperBody':
+        return { picture: this.upperBody, lift: SHAPE.chest.width / 2 };
+    }
+  }
+
+  /** The mark on a cut end: a round patch of blood with a dark rim. */
+  private stump(): Graphics {
+    const { radius, rim } = BLOOD.stump;
+    const g = this.scene.make.graphics({}, false);
+    g.fillStyle(shade(this.bloodColor, -rim));
+    g.fillCircle(0, 0, radius);
+    g.fillStyle(this.bloodColor);
+    g.fillCircle(0, 0, radius - 1.6);
+    return g;
   }
 
   /** Hide the legs of a doll sitting inside a vehicle, where they are out of sight anyway. */
@@ -165,6 +251,7 @@ export class PersonFigure {
         g.fillStyle(dark, 0.55);
         g.fillEllipse(x - 1, y - 0.5, 4.5, 3.2);
         break;
+      case 'cut':
       case 'slash': {
         // A long slanted cut, wide open in the middle, with blood running from it
         const lean = random() < 0.5 ? 1 : -1;

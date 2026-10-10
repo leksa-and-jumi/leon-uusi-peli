@@ -105,6 +105,35 @@ export function blockedX(
 }
 
 /**
+ * Walking the way `direction` says (1 right, -1 left) with something solid right in
+ * front: how high you have to jump to get onto it, measured from your feet. `null`
+ * when nothing is in the way there, or when it is more than `most` high.
+ */
+export function hurdle(
+  x: number,
+  feetY: number,
+  direction: 1 | -1,
+  halfWidth: number,
+  height: number,
+  solids: readonly Box[],
+  stepUp: number,
+  most: number,
+): number | null {
+  const front = x + direction * halfWidth;
+  let top = Infinity;
+  for (const solid of solids) {
+    const inTheWay = solid.top < feetY - stepUp && solid.bottom > feetY - height;
+    const near = direction > 0 ? solid.left : solid.right;
+    // Right at the toes, or the toes are already a little way into it
+    if (!inTheWay || Math.abs(near - front) > EDGE + 1) continue;
+    top = Math.min(top, solid.top);
+  }
+  if (top === Infinity) return null;
+  const rise = feetY - top;
+  return rise <= most ? rise : null;
+}
+
+/**
  * The solid thing that is pressing on something from above or has landed in it: the
  * first one that overlaps `box` and is too tall to just step up onto. `undefined`
  * when nothing does.

@@ -9,6 +9,7 @@ import {
   MONSTER_KINDS,
   PEOPLE,
   TABS,
+  TRAP_KINDS,
   VEHICLE_KINDS,
   WEAPON_KINDS,
   type BlockKind,
@@ -38,13 +39,15 @@ const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
   items: [NOTHING, ...WEAPON_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
   build: [NOTHING, ...BUILD_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   junk: [NOTHING, ...JUNK_KINDS],
+  traps: [NOTHING, ...TRAP_KINDS],
   monsters: [NOTHING, ...MONSTER_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   vehicles: [NOTHING, ...VEHICLE_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
 };
 
 /**
- * The menu along the top. The small buttons on the left switch between dolls, weapons,
- * building pieces and junk; the big slots pick what the next click puts into the area.
+ * The menu along the top. The small buttons on the left switch between the pages
+ * (dolls, weapons, building pieces, junk, vehicles, monsters and traps); the big slots
+ * pick what the next click puts into the area.
  */
 export class SpawnMenu {
   private readonly scene: Phaser.Scene;
