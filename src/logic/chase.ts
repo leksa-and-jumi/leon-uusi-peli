@@ -39,3 +39,22 @@ export function chaseStep(
   const step = Math.min(speed * (deltaMs / 1000), distance - reach);
   return { x: x + toward * step, facing: toward, inReach: distance - step <= reach };
 }
+
+/**
+ * Float straight toward a spot, through the air, and stop on it. Gives the new place.
+ */
+export function floatStep(
+  x: number,
+  y: number,
+  targetX: number,
+  targetY: number,
+  speed: number,
+  deltaMs: number,
+): { x: number; y: number } {
+  const gapX = targetX - x;
+  const gapY = targetY - y;
+  const distance = Math.hypot(gapX, gapY);
+  const step = speed * (deltaMs / 1000);
+  if (distance <= step) return { x: targetX, y: targetY };
+  return { x: x + (gapX / distance) * step, y: y + (gapY / distance) * step };
+}

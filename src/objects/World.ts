@@ -48,6 +48,10 @@ export interface World {
   things: (self: Body) => Body[];
   /** A laser from this spot hits this thing: a beam flashes, and the thing is destroyed. */
   zapThing: (fromX: number, fromY: number, thing: Body) => void;
+  /** A monster swallows this doll whole: the doll is gone. */
+  swallow: (by: Body, victim: Person) => void;
+  /** A ghost scares this doll: an eerie sound. */
+  spook: () => void;
   /** Something smashes to pieces, which fly off with this push (pixels per second). */
   breakApart: (body: Body, pushX: number, pushY: number) => void;
   /** Blood sprays or drips from this spot: this many drops of this color. */

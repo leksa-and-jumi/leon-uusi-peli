@@ -6,6 +6,7 @@ import {
   BLOOD,
   BULLET,
   CEILING,
+  CHOMPER,
   COLORS,
   CRUSH,
   DEBRIS,
@@ -20,6 +21,8 @@ import {
   LASER,
   MENU,
   PERSON,
+  PICK_PADDING,
+  PICK_PADDING_TOUCH,
   RIDE_GAP,
   SOUND,
   SWING,
@@ -44,7 +47,7 @@ import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
 import type { Facing } from '../logic/walk';
 import { ActionBubbles } from '../objects/ActionBubbles';
 import { Block } from '../objects/Block';
-import type { Body } from '../objects/Body';
+import { Body } from '../objects/Body';
 import { Item } from '../objects/Item';
 import { Person } from '../objects/Person';
 import { SpawnMenu } from '../objects/SpawnMenu';
@@ -113,6 +116,8 @@ export class MainScene extends Phaser.Scene {
   private downDolls: Box[] = [];
   /** Things destroyed during this frame, waiting to be taken out of the game. */
   private doomed: Body[] = [];
+  /** The full-screen button was pressed: switch when the press is let go. */
+  private fullScreenAsked = false;
   /** Where the monsters' tune is: time into the beat, and which beat. */
   private chantMs = 0;
   private chantBeat = 0;
@@ -170,6 +175,12 @@ export class MainScene extends Phaser.Scene {
       zapThing: (fromX, fromY, thing) => {
         this.zapThing(fromX, fromY, thing);
       },
+      swallow: (by, victim) => {
+        this.swallow(by, victim);
+      },
+      spook: () => {
+        this.sfx.spook();
+      },
       breakApart: (body, pushX, pushY) => {
         this.crumble(body, pushX, pushY);
         this.sfx.shatter();
@@ -179,11 +190,12 @@ export class MainScene extends Phaser.Scene {
       },
     };
 
+    const { touch } = this.sys.game.device.input;
     this.add.rectangle(0, AREA.floorY, GAME_WIDTH, FLOOR.height, FLOOR.color).setOrigin(0);
     this.add.rectangle(0, MENU.height, GAME_WIDTH, CEILING.height, CEILING.color).setOrigin(0);
     this.add.rectangle(0, AREA.top - 2, GAME_WIDTH, 2, CEILING.edge).setOrigin(0);
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - HINT.fromBottom, HINT.text, {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - HINT.fromBottom, touch ? HINT.touchText : HINT.text, {
         fontSize: HINT.fontSize,
         color: COLORS.text,
         align: 'center',
@@ -196,12 +208,18 @@ export class MainScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.sfx.unlock();
+      // A finger is thicker than a mouse pointer: things are easier to grab with it
+      Body.pickPadding = pointer.wasTouch ? PICK_PADDING_TOUCH : PICK_PADDING;
       this.press(pointer.x, pointer.y);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.dragged?.dragTo(pointer.x, pointer.y, AREA);
     });
     this.input.on('pointerup', () => {
+      if (this.fullScreenAsked) {
+        this.fullScreenAsked = false;
+        this.scale.toggleFullscreen();
+      }
       this.letGo();
     });
     this.input.on('pointerupoutside', () => {
@@ -292,6 +310,8 @@ export class MainScene extends Phaser.Scene {
   private press(px: number, py: number): void {
     if (this.menu.covers(py)) {
       const pressed = this.menu.click(px, py);
+      // A browser only goes full screen when a finger or the mouse button lets go
+      if (pressed === 'full') this.fullScreenAsked = true;
       if (pressed === 'sound') {
         this.sfx.muted = !this.sfx.muted;
         this.menu.showSound(!this.sfx.muted);
@@ -742,6 +762,17 @@ export class MainScene extends Phaser.Scene {
     this.doomed.push(thing);
   }
 
+  /** A monster swallows a doll whole: a gulp, and the doll is gone. */
+  private swallow(by: Body, victim: Person): void {
+    const mouth = by.box;
+    this.sfx.gulp();
+    const { gulpEmoji } = CHOMPER;
+    const x = (mouth.left + mouth.right) / 2;
+    this.popUp(x, mouth.top, gulpEmoji, HIT_FX.fontSize, HIT_FX.deadMs, HIT_FX.grow);
+    // The doll is taken out of the game once everything has had its turn this frame
+    this.doomed.push(victim);
+  }
+
   /** Break something into small pieces of its own colors. They fly off with this push. */
   private crumble(body: Body, pushX: number, pushY: number): void {
     const colors = body.crumbs;
@@ -815,7 +846,8 @@ export class MainScene extends Phaser.Scene {
         piece.picture.destroy();
         return false;
       }
-      const alpha = crumbAlpha(ageMs, piece.lieMs, piece.fadeMs);
+      // A drop of blood never fades in the air: it always gets to the floor
+      const alpha = piece.blood === null ? crumbAlpha(ageMs, piece.lieMs, piece.fadeMs) : 1;
       if (alpha <= 0) {
         piece.picture.destroy();
         return false;

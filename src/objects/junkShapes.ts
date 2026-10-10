@@ -1,5 +1,13 @@
 import type Phaser from 'phaser';
-import { BLOCKS, SKIBIDI, type BlockDef, type JunkBlockKind, type MonsterKind } from '../config';
+import {
+  BLOCKS,
+  CHOMPER,
+  SKIBIDI,
+  type BlockDef,
+  type JunkBlockKind,
+  type MonsterDef,
+  type MonsterKind,
+} from '../config';
 import { shade } from '../logic/color';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -28,16 +36,22 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
     case 'fridge':
       return drawFridge(g, def);
     case 'skibidi':
-    case 'skibidiToilet': {
+    case 'skibidiToilet':
+    case 'skibidiCone':
+    case 'chomper': {
       // In the menu the head is drawn popped out, behind the thing it lives in
-      const monster = def.monster;
-      if (!monster) return g;
+      const { head, body, face } = def.monster ?? {};
+      if (!head || !body) return g;
+      const scale = head.scale ?? 1;
       g.save();
-      g.translateCanvas(monster.head.x, -monster.head.outUp);
-      drawSkibidiHead(g, monster.head.radius);
+      g.translateCanvas(head.x, -head.outUp);
+      g.scaleCanvas(scale, scale);
+      drawMonsterHead(g, face, head);
       g.restore();
-      return drawJunk(g, monster.body);
+      return drawJunk(g, body);
     }
+    case 'ghost':
+      return drawGhost(g, def);
     case 'cone':
       return drawCone(g, def);
     case 'tire':
@@ -362,15 +376,111 @@ function drawTire(g: Graphics, def: BlockDef): Graphics {
   return g;
 }
 
+type HeadDef = NonNullable<MonsterDef['head']>;
+
+/**
+ * The head that pops out of a monster, around (0, 0) and looking right. Its neck is
+ * only so long that it doesn't stick out under the monster when the head is in.
+ */
+export function drawMonsterHead(g: Graphics, face: MonsterDef['face'], head: HeadDef): Graphics {
+  const { radius } = head;
+  const room = head.inUp / (head.scale ?? 1) - (radius - NECK.in);
+  const neck = Math.max(0, Math.min(radius * NECK.long, room));
+  return face === 'chomper' ? drawChomperHead(g, radius, neck) : drawSkibidiHead(g, radius, neck);
+}
+
+/** A neck starts this far inside the bottom of the head, and is at most this many head-radiuses long. */
+const NECK = { in: 4, long: 2.4 };
+
+/**
+ * The head of the trash-can chomper: a green ball on a neck, with one big staring eye
+ * and a mouth wide open, full of pointed fangs.
+ */
+function drawChomperHead(g: Graphics, radius: number, neck: number): Graphics {
+  const c = CHOMPER;
+  box(g, c.skin, c.dark, -5, radius - NECK.in, 10, neck, 3);
+  g.fillStyle(c.dark);
+  g.fillCircle(0, 0, radius);
+  g.fillStyle(c.skin);
+  g.fillCircle(0, 0, radius - OUTLINE);
+  g.fillStyle(0xffffff, 0.25);
+  g.fillEllipse(-3, -radius * 0.6, radius, radius * 0.45);
+  // Two little horns
+  for (const x of [-7, 6]) {
+    shape(g, c.teeth, c.dark, [
+      [x - 3, -radius + 3],
+      [x + 3, -radius + 3],
+      [x + 1, -radius - 6],
+    ]);
+  }
+  // One big eye, looking the way it goes
+  g.fillStyle(c.dark);
+  g.fillCircle(2, -5, 6.4);
+  g.fillStyle(c.eye);
+  g.fillCircle(2, -5, 5.3);
+  g.fillStyle(c.pupil);
+  g.fillCircle(3.6, -5, 2.4);
+  g.fillStyle(0xffffff);
+  g.fillCircle(2.6, -6.4, 0.9);
+  // The mouth: wide open, fangs along the top and the bottom
+  box(g, c.mouth, c.dark, -9, 2, 20, 9, 3);
+  g.fillStyle(c.teeth);
+  for (const x of [-7, -2.5, 2, 6.5]) {
+    g.fillTriangle(x, 2.6, x + 4, 2.6, x + 2, 6.4);
+    g.fillTriangle(x, 10.4, x + 4, 10.4, x + 2, 7.2);
+  }
+  return g;
+}
+
+/**
+ * A ghost: a white sheet with a round top and a wavy hem, two dark eyes, a wailing
+ * mouth and two little arms held up. Its bottom middle is at (0, 0), and it looks right.
+ */
+function drawGhost(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const { halfWidth, height } = def;
+  const top = -height;
+  const dome = halfWidth - 2;
+  const waves = 4;
+  const outline: Point[] = [];
+  // Over the top from the left side to the right, in small steps
+  for (let i = 0; i <= 14; i++) {
+    const angle = Math.PI + (i / 14) * Math.PI;
+    outline.push([Math.cos(angle) * dome, top + dome + Math.sin(angle) * dome]);
+  }
+  // And back along the hem, which goes up and down in waves
+  for (let i = 0; i <= waves * 2; i++) {
+    const x = dome - (i / (waves * 2)) * dome * 2;
+    outline.push([x, i % 2 === 0 ? -1 : -9]);
+  }
+  // The arms, behind the sheet
+  box(g, fill, dark, dome - 5, top + dome + 4, 13, 8, 4);
+  box(g, fill, dark, -dome - 8, top + dome + 8, 13, 8, 4);
+  shape(g, fill, dark, outline);
+  g.fillStyle(light);
+  g.fillEllipse(-7, top + 12, dome * 0.8, 9);
+  g.fillStyle(dark, 0.3);
+  g.fillRect(dome - 7, top + dome, 5, height - dome - 12);
+  // Eyes and a wailing mouth
+  g.fillStyle(detail);
+  g.fillEllipse(-3, top + 22, 8, 11);
+  g.fillEllipse(11, top + 22, 8, 11);
+  g.fillEllipse(5, top + 37, 9, 12);
+  g.fillStyle(0xffffff);
+  g.fillCircle(-2, top + 20, 1.4);
+  g.fillCircle(12, top + 20, 1.4);
+  return g;
+}
+
 /**
  * The head that pops out of a skibidi fridge, around (0, 0) and looking right: a
  * long neck, a bald head with a few hairs, wide staring eyes, eyebrows raised high
  * and a huge grin full of teeth. An own drawing, in the spirit of the meme.
  */
-export function drawSkibidiHead(g: Graphics, radius: number): Graphics {
+function drawSkibidiHead(g: Graphics, radius: number, neck: number): Graphics {
   const c = SKIBIDI;
   // Neck, long enough to reach down into the fridge
-  box(g, c.skin, c.dark, -6, radius - 4, 12, radius * 2.4, 3);
+  box(g, c.skin, c.dark, -6, radius - NECK.in, 12, neck, 3);
   // Head
   g.fillStyle(c.dark);
   g.fillCircle(0, 0, radius);

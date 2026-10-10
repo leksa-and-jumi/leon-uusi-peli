@@ -25,6 +25,10 @@ export const HINT = {
   text:
     '👆 Pick + click   🖐️ Drag (🔫 onto a doll!)   👆👆 Double-click = actions   🗑️ = all away\n' +
     '👆 Valitse + klikkaa   🖐️ Raahaa (🔫 nuken päälle!)   👆👆 Tuplaklikkaa = toiminnot   🗑️ = kaikki pois',
+  /** The same on a screen you touch with a finger. */
+  touchText:
+    '👆 Pick + tap   🖐️ Drag (🔫 onto a doll!)   👆👆 Double-tap = actions   🗑️ = all away\n' +
+    '👆 Valitse + napauta   🖐️ Raahaa (🔫 nuken päälle!)   👆👆 Tuplanapauta = toiminnot   🗑️ = kaikki pois',
   fontSize: '12px',
   /** How far above the bottom of the screen the middle of the text is. */
   fromBottom: 36,
@@ -54,6 +58,8 @@ export const DEPTH = {
   person: 20,
   item: 30,
   bullet: 40,
+  /** A ghost floats in front of everything else in the area. */
+  ghost: 45,
 } as const;
 
 /** A weapon stuck in a doll. */
@@ -235,7 +241,7 @@ export const PERSON = {
 } as const;
 
 /** Two quick clicks this close together are a double-click. */
-export const DOUBLE_CLICK_MS = 350;
+export const DOUBLE_CLICK_MS = 420;
 
 /** Walking around: back and forth between the edges of the area. */
 export const WALK = { speed: 80 } as const;
@@ -425,11 +431,12 @@ export const MAX_BUBBLES = 6;
 
 /** The round action bubbles that come up above a double-clicked person. */
 export const BUBBLES = {
-  row: { radius: 22, gap: 8, above: 10 },
+  // Big enough to hit with a finger on a phone
+  row: { radius: 27, gap: 8, above: 10 },
   color: 0xffffff,
   edge: 0x1b1b1b,
   edgeWidth: 2,
-  fontSize: '22px',
+  fontSize: '27px',
   /** The light around a pressed bubble. */
   glow: { color: 0xffe14d, extra: 9, alpha: 0.45, edgeWidth: 4 },
   /** Turn-around is done in a blink, so its light only flashes this long. */
@@ -444,12 +451,13 @@ export const MENU = {
   color: 0x2b2b2b,
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
-  tabs: { x: 6, y: 7, width: 24, height: 26, gap: 4, vertical: true, wrap: 3 },
+  // Six big buttons, two under each other in three columns: easy to hit with a finger
+  tabs: { x: 6, y: 7, width: 46, height: 41, gap: 4, vertical: true, wrap: 2 },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
-  tabFontSize: '15px',
-  slots: { x: 66, y: 10, width: 64, height: 80, gap: 8 },
+  tabFontSize: '24px',
+  slots: { x: 160, y: 10, width: 61, height: 80, gap: 7 },
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
   slotColor: 0x9e9e9e,
@@ -460,12 +468,15 @@ export const MENU = {
   /** How far above the slot's bottom edge the feet stand. */
   feetInset: 7,
   /** The button that switches the sounds off and on. */
-  sound: { x: GAME_WIDTH - 148, y: 10, width: 48, height: 80, gap: 0 },
+  sound: { x: GAME_WIDTH - 138, y: 10, width: 50, height: 38, gap: 0 },
+  /** The button under it that makes the game fill the whole screen, and back. */
+  full: { x: GAME_WIDTH - 138, y: 52, width: 50, height: 38, gap: 0 },
+  fullEmoji: '⛶',
   soundColor: 0x555555,
   soundEmoji: { on: '🔊', off: '🔇' },
   soundFontSize: '24px',
   /** The button that takes everything away. */
-  clear: { x: GAME_WIDTH - 88, y: 10, width: 72, height: 80, gap: 0 },
+  clear: { x: GAME_WIDTH - 80, y: 10, width: 72, height: 80, gap: 0 },
   clearColor: 0xc62828,
   clearEmoji: '🗑️',
   clearFontSize: '34px',
@@ -516,28 +527,40 @@ export type JunkBlockKind =
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind = 'car' | 'truck' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
 /** Things that are alive in their own way and go after the dolls. */
-export type MonsterKind = 'skibidi' | 'skibidiToilet';
+export type MonsterKind = 'skibidi' | 'skibidiToilet' | 'skibidiCone' | 'chomper' | 'ghost';
 export type BlockKind = BuildKind | JunkBlockKind | VehicleKind | MonsterKind;
 
-/** A monster: always angry. It scoots toward the dolls and zaps them with a laser from its eyes. */
+/**
+ * A monster: always angry, and after the dolls. How it gets them is its `attack`:
+ * a `laser` from its eyes from far away, a `bite` that swallows a doll whole when it
+ * gets there, or a `scare` when it floats into one.
+ */
 export interface MonsterDef {
-  /** How far it sees and shoots, and how long it waits between shots. */
+  attack: 'laser' | 'bite' | 'scare';
+  /** How far away it notices a doll, and how long it waits between attacks. */
   range: number;
   everyMs: number;
-  /** How many lives the laser takes (more than any doll has), and how hard it flings the doll. */
+  /** How many lives an attack takes, and how hard it flings the doll. */
   damage: number;
   pushSpeed: number;
-  /** How fast it scoots along the ground toward the doll it is after (pixels per second). */
+  /** How fast it goes after the doll (pixels per second). */
   speed: number;
-  /** The piece of junk it lives in. */
-  body: JunkBlockKind;
+  /** The piece of junk it lives in, and the face that pops out of it. A ghost has neither. */
+  body?: JunkBlockKind;
+  face?: 'skibidi' | 'chomper';
   /**
    * The head that pops out of its top: how big it is, how far in front of the middle
-   * it comes up, and how high its middle is when in and out.
+   * it comes up, and how high its middle is when in and out. A small monster has the
+   * whole head drawn smaller, by `scale`.
    */
-  head: { radius: number; x: number; inUp: number; outUp: number; popMs: number };
-  /** The blast when it is shot to bits. */
-  blast: BlastDef;
+  head?: { radius: number; x: number; inUp: number; outUp: number; popMs: number; scale?: number };
+  /** The blast when it is shot to bits. Without one it just falls apart. */
+  blast?: BlastDef;
+  /**
+   * A ghost: it floats, goes straight through everything, and can't be shot. `alpha`
+   * is how see-through it is, and it bobs `bob` pixels up and down every `bobMs`.
+   */
+  ghost?: { alpha: number; bob: number; bobMs: number };
 }
 
 /** How a vehicle drives, and where its wheels are. */
@@ -602,6 +625,22 @@ export const ASH = {
   lift: -70,
   lieMs: 450,
   fadeMs: 750,
+} as const;
+
+/** The head of the trash-can chomper: green, with one big eye and a mouth full of fangs. */
+export const CHOMPER = {
+  skin: 0x7cb342,
+  dark: 0x33691e,
+  eye: 0xffffff,
+  pupil: 0x1b1b1b,
+  mouth: 0x3a0d0d,
+  teeth: 0xfffbe6,
+  /** What pops up when it swallows a doll. */
+  gulpEmoji: '😋',
+  /** It bites when the doll is this close to it. */
+  reach: 10,
+  /** While it chews, its head bounces up and down once in this long. */
+  chewMs: 90,
 } as const;
 
 /** The laser a monster shoots from its eyes. */
@@ -768,6 +807,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       damage: 99,
       pushSpeed: 340,
       speed: 55,
+      attack: 'laser',
+      face: 'skibidi',
       body: 'fridge',
       head: { radius: 17, x: 0, inUp: 92, outUp: 131, popMs: 140 },
       blast: { radius: 150, damage: 3, pushSpeed: 650 },
@@ -785,9 +826,65 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       damage: 99,
       pushSpeed: 300,
       speed: 95,
+      attack: 'laser',
+      face: 'skibidi',
       body: 'toilet',
       head: { radius: 15, x: 6, inUp: 22, outUp: 60, popMs: 140 },
       blast: { radius: 120, damage: 3, pushSpeed: 600 },
+    },
+  },
+  skibidiCone: {
+    halfWidth: 18,
+    height: 42,
+    menuScale: 0.95,
+    colors: { fill: 0xf57c00, dark: 0x9a4a00, light: 0xffb056, detail: 0xfafafa },
+    // Tiny and fast, with a weak laser that fires all the time: it takes 1 life a shot
+    monster: {
+      attack: 'laser',
+      range: 360,
+      everyMs: 450,
+      damage: 1,
+      pushSpeed: 200,
+      speed: 140,
+      face: 'skibidi',
+      body: 'cone',
+      head: { radius: 16, x: 0, inUp: 12, outUp: 50, popMs: 120, scale: 0.66 },
+      blast: { radius: 90, damage: 2, pushSpeed: 480 },
+    },
+  },
+  chomper: {
+    halfWidth: 20,
+    height: 50,
+    menuScale: 0.85,
+    colors: { fill: 0x9aa6ae, dark: 0x4c575e, light: 0xd3dbe0, detail: 0x6b767d },
+    // It smells dolls from far away, runs at them and swallows them whole
+    monster: {
+      attack: 'bite',
+      range: 1400,
+      everyMs: 900,
+      damage: 99,
+      pushSpeed: 0,
+      speed: 150,
+      face: 'chomper',
+      body: 'trashcan',
+      head: { radius: 14, x: 0, inUp: 22, outUp: 58, popMs: 120 },
+      blast: { radius: 110, damage: 3, pushSpeed: 560 },
+    },
+  },
+  ghost: {
+    halfWidth: 26,
+    height: 62,
+    menuScale: 0.95,
+    colors: { fill: 0xf5f7fa, dark: 0x9aa6b2, light: 0xffffff, detail: 0x263238 },
+    // It floats through walls and scares the dolls it touches: 1 life a scare
+    monster: {
+      attack: 'scare',
+      range: 2000,
+      everyMs: 1100,
+      damage: 1,
+      pushSpeed: 260,
+      speed: 115,
+      ghost: { alpha: 0.82, bob: 7, bobMs: 420 },
     },
   },
   helicopter: {
@@ -1055,7 +1152,13 @@ export const BUILD_KINDS: readonly BuildKind[] = [
   'girder',
   'barrel',
 ];
-export const MONSTER_KINDS: readonly MonsterKind[] = ['skibidi', 'skibidiToilet'];
+export const MONSTER_KINDS: readonly MonsterKind[] = [
+  'skibidi',
+  'skibidiToilet',
+  'skibidiCone',
+  'chomper',
+  'ghost',
+];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'car',
   'truck',
@@ -1184,8 +1287,12 @@ export const PICKUP_WAIT_MS = 1500;
 /** At most this many items and building pieces at once; the oldest leaves first. */
 export const THINGS_MAX = 150;
 
-/** Things you can click are a bit bigger than they look, so small items are easy to grab. */
+/**
+ * Things you can click are a bit bigger than they look, so small items are easy to grab.
+ * A finger is much thicker than a mouse pointer, so for a touch they are bigger still.
+ */
 export const PICK_PADDING = 8;
+export const PICK_PADDING_TOUCH = 18;
 
 /** A bullet from a gun. */
 export const BULLET = { width: 12, height: 3, color: 0xffe082 } as const;
@@ -1249,6 +1356,15 @@ export const SOUND = {
     seconds: 0.13,
     volume: 0.11,
     notes: [147, 147, 0, 196, 147, 0, 220, 196, 147, 147, 0, 262, 247, 196, 175, 0],
+  },
+  /** A doll being swallowed whole: a wet gulp. */
+  gulp: {
+    tone: { wave: 'sine', from: 420, to: 70, seconds: 0.22, volume: 0.7 },
+    hiss: { from: 900, to: 150, seconds: 0.12, volume: 0.3 },
+  },
+  /** A ghost scaring a doll: an eerie rising howl. */
+  spook: {
+    tone: { wave: 'sine', from: 260, to: 720, seconds: 0.35, volume: 0.3 },
   },
   /** A laser: a bright tone that drops fast. */
   zap: {

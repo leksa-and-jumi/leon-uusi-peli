@@ -9,7 +9,6 @@ import {
   PERSON,
   PERSON_ACTIONS,
   PHYSICS,
-  PICK_PADDING,
   PUNCH_DAMAGE,
   SEAT_GUN,
   STUCK,
@@ -261,9 +260,9 @@ export class Person extends Body {
   override get pickBox(): Box {
     const box = this.hitBox;
     return {
-      left: box.left - PICK_PADDING,
-      right: box.right + PICK_PADDING,
-      top: box.top - PICK_PADDING,
+      left: box.left - Body.pickPadding,
+      right: box.right + Body.pickPadding,
+      top: box.top - Body.pickPadding,
       bottom: box.bottom,
     };
   }

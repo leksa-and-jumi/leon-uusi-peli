@@ -15,6 +15,8 @@ export type BodyState = 'flying' | 'held' | 'falling' | 'resting';
  * `x`, `y` is always the middle of its bottom edge.
  */
 export abstract class Body {
+  /** How much bigger than it looks everything is for a click. The scene sets it for touches. */
+  static pickPadding: number = PICK_PADDING;
   abstract readonly size: PersonSize;
   /** The bubbles that come up when it is double-clicked. */
   abstract readonly actions: readonly ActionId[];
@@ -63,9 +65,9 @@ export abstract class Body {
   get pickBox(): Box {
     const box = this.box;
     return {
-      left: box.left - PICK_PADDING,
-      right: box.right + PICK_PADDING,
-      top: box.top - PICK_PADDING,
+      left: box.left - Body.pickPadding,
+      right: box.right + Body.pickPadding,
+      top: box.top - Body.pickPadding,
       bottom: box.bottom,
     };
   }
@@ -160,15 +162,15 @@ export abstract class Body {
 
     const solids = world.solidBoxes(this);
     const { halfWidth, height } = this.size;
+    if (this.hovering) {
+      this.fallSpeed = 0;
+      return 'resting';
+    }
     if (!this.solid) {
       // Something solid put where this is: climb out and stand on it
       const low = this.y - PHYSICS.stepUp - 1;
       const climbable = this.climbsOnlyLow ? solids.filter((box) => box.top >= low) : solids;
       this.y = liftOut(boxAround(this.x, this.y, halfWidth - 1, height), climbable);
-    }
-    if (this.hovering) {
-      this.fallSpeed = 0;
-      return 'resting';
     }
     const ground = groundBelow(
       this.x - halfWidth,
