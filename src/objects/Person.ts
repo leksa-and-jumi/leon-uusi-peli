@@ -609,6 +609,10 @@ export class Person extends Body {
     this.figure.setDead(true);
     // Fire, a blast, a laser or lightning finished it off: only charred bones are left
     if (wound === 'burn') this.scorch();
+    // Lightning leaves it whole but singed black. A robot has no bones for a blast to bare.
+    if (wound === 'shock' || (wound === 'blast' && this.machine)) this.figure.singe();
+    // A blast bares the bones on the side it came from: it pushed the doll the other way
+    else if (wound === 'blast') this.figure.burnSide(this.knockDir !== this.facing);
     this.dropItem(solids);
     return true;
   }

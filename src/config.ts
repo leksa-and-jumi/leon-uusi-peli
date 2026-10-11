@@ -1190,6 +1190,9 @@ export const SHORT_CIRCUIT = {
   blast: { radius: 160, damage: 3, pushSpeed: 720 },
 } as const;
 
+/** A doll that lightning has finished off is singed: every part of it is covered in soot. */
+export const SOOT = { color: 0x0a0a0a, alpha: 0.55 } as const;
+
 /** A doll that fire has finished off is a black skeleton: charred bones, with embers in its eyes. */
 export const CHARRED = {
   bone: 0x1c1a19,
@@ -2145,9 +2148,11 @@ export interface GunDef {
 /**
  * The mark a hit leaves on a doll: a bruise from a fist or something blunt, a slash
  * from a blade, a stab from a point, a hole from a bullet, a burn from a blast. A `cut`
- * goes right through: a part of the doll comes off. A `saw` cuts it in two at the waist.
+ * goes right through: a part of the doll comes off. Lightning is a `shock`, and a bomb
+ * a `blast`: they leave a burn mark too, but they finish a doll off differently. A `saw` cuts it in two at the waist.
  */
-export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'cut' | 'saw' | 'prongs';
+export type WoundKind =
+  'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'shock' | 'blast' | 'cut' | 'saw' | 'prongs';
 
 /** Something to hit with: reaches further and hurts more than a fist. */
 export interface MeleeDef {
@@ -2843,6 +2848,8 @@ export const BLOOD = {
     stab: { burst: 22, bleedMs: 7500 },
     hole: { burst: 18, bleedMs: 6000 },
     burn: { burst: 9, bleedMs: 2200 },
+    shock: { burst: 0, bleedMs: 0 },
+    blast: { burst: 12, bleedMs: 3000 },
     cut: { burst: 70, bleedMs: 14000 },
     saw: { burst: 70, bleedMs: 14000 },
     prongs: { burst: 40, bleedMs: 9000 },
