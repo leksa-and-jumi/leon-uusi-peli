@@ -45,7 +45,15 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
     case 'flamethrower':
       return drawFlamethrower(g);
     case 'freezeRay':
-      return drawFreezeRay(g);
+      return drawRayGun(g, ITEM_COLORS.freezeRay);
+    case 'laserGun': {
+      const c = ITEM_COLORS.laser;
+      return drawRayGun(g, { ...c, shine: 0xffffff, crystal: c.glow });
+    }
+    case 'bow':
+      return drawBow(g);
+    case 'rocketLauncher':
+      return drawRocketLauncher(g);
     case 'magnet':
       return drawMagnet(g);
     case 'balloon':
@@ -323,9 +331,88 @@ function drawThunderHammer(g: Graphics): Graphics {
   return g;
 }
 
-/** A freeze ray: a pale blue ray gun with rings around its barrel and an ice crystal at the tip. */
-function drawFreezeRay(g: Graphics): Graphics {
-  const c = ITEM_COLORS.freezeRay;
+/**
+ * A bow with an arrow on the string, ready to shoot: the stave bends forward, the
+ * string runs straight behind it.
+ */
+function drawBow(g: Graphics): Graphics {
+  const c = ITEM_COLORS.bow;
+  g.lineStyle(1, c.string);
+  g.lineBetween(-4, -21, -4, 21);
+  // The stave: a thick curve from tip to tip
+  for (const [width, color] of [
+    [4.6, c.dark],
+    [2.6, c.wood],
+  ] as const) {
+    g.lineStyle(width, color);
+    g.beginPath();
+    g.moveTo(-4, -22);
+    g.lineTo(3, -13);
+    g.lineTo(6, 0);
+    g.lineTo(3, 13);
+    g.lineTo(-4, 22);
+    g.strokePath();
+  }
+  // The arrow, with its head and its feathers
+  g.lineStyle(1.6, c.dark);
+  g.lineBetween(-5, 0, 17, 0);
+  g.fillStyle(c.tip);
+  g.fillTriangle(16, -2.6, 16, 2.6, 22, 0);
+  g.fillStyle(c.feather);
+  g.fillTriangle(-6, 0, -2, -2.6, -2, 0);
+  g.fillTriangle(-6, 0, -2, 2.6, -2, 0);
+  return g;
+}
+
+/** A rocket launcher: a long green tube that flares at the back, with the red nose of a rocket in front. */
+function drawRocketLauncher(g: Graphics): Graphics {
+  const c = ITEM_COLORS.rocket;
+  shape(g, c.grip, [
+    [-3, 0],
+    [4, 0],
+    [2, 11],
+    [-5, 11],
+  ]);
+  shape(g, c.grip, [
+    [16, 0],
+    [21, 0],
+    [20, 8],
+    [15, 8],
+  ]);
+  // The rocket's nose pokes out of the front
+  g.fillStyle(c.nose);
+  g.fillTriangle(42, -9, 42, -1, 52, -5);
+  // Tube, flared at the back
+  shape(g, c.dark, [
+    [-32, -12],
+    [-24, -10],
+    [44, -10],
+    [44, 0],
+    [-24, 0],
+    [-32, 2],
+  ]);
+  shape(g, c.tube, [
+    [-30.5, -10.4],
+    [-24, -8.8],
+    [42.8, -8.8],
+    [42.8, -1.2],
+    [-24, -1.2],
+    [-30.5, 0.4],
+  ]);
+  g.fillStyle(c.shine, 0.8);
+  g.fillRect(-22, -8.2, 62, 1.5);
+  g.fillStyle(c.dark);
+  g.fillRect(8, -13, 5, 3.5);
+  g.fillRect(-10, -10, 2.5, 10);
+  g.fillRect(30, -10, 2.5, 10);
+  return g;
+}
+
+/** A ray gun: a rounded body with rings around its barrel and a crystal at the tip that glows. */
+function drawRayGun(
+  g: Graphics,
+  c: { body: number; dark: number; shine: number; crystal: number; grip: number },
+): Graphics {
   shape(g, c.grip, [
     [-4, -1],
     [5, -1],

@@ -22,6 +22,10 @@
 
 🇫🇮 **Lisää rakennuspaloja 🧱:** korkea betoni**pilari**, joka kaatuu kuin dominopalikka, **lasiseinä**, joka särkyy, kun siihen osuu luoti tai kun se kaatuu, ja **TNT-laatikko** 🧨: kuin tynnyri, mutta paljon isommalla pamauksella (tuplaklikkaa sitä ja paina 🔥, tai ammu sitä).
 
+🇬🇧 **Stairs, a steel crate and a fence 🪜:** the **stairs** have four steps up to the height of a crate: dolls walk up them and on over whatever stands next to them (🔄 turns them around). The **steel crate** is as big as the wooden one, but it sinks in water, a magnet pulls it and lava melts it. The **fence** is low enough for a doll to hop over.
+
+🇫🇮 **Portaat, teräslaatikko ja aita 🪜:** **portaissa** on neljä askelmaa laatikon korkeudelle: nuket kävelevät ne ylös ja jatkavat sen yli, mitä vieressä on (🔄 kääntää ne). **Teräslaatikko** on puulaatikon kokoinen, mutta uppoaa vedessä, magneetti vetää sitä ja laava sulattaa sen. **Aita** on niin matala, että nukke hyppää sen yli.
+
 🇬🇧 **Trampoline 🛝:** on the building page. A doll that lands on it is thrown back up and keeps bouncing for as long as it stays on it. A walking doll hops on, bounces across and carries on at the other side. Crates, bombs and other things bounce too, but lower and lower until they lie still.
 
 🇫🇮 **Trampoliini 🛝:** rakennussivulla. Sen päälle putoava nukke lentää takaisin ylös ja pomppii niin kauan kuin se pysyy trampoliinilla. Kävelevä nukke hyppää sen päälle, pomppii yli ja jatkaa toiselta puolelta. Laatikot, pommit ja muut tavarat pomppivat myös, mutta aina vain matalammalle, kunnes ne jäävät paikalleen.
@@ -42,9 +46,9 @@
 
 🇫🇮 **Tankki:** hidas, kulkee teloilla ja on tosi kestävä: se kestää 12 luotia. Pudota nukke sen päälle, niin nukke kiipeää sisään pää luukusta ulkona, tai käynnistä se 🏁-pallosta. Ajaessaan sen tykki ampuu parin sekunnin välein ammuksen lähimpään edessä olevaan nukkeen, ja ammus räjähtää osuessaan: tiellä olevat seinät ja laatikot hajoavat palasiksi. Kuljettajansa värisiin nukkeihin se ei ammu.
 
-🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. The TV always has a program on 📺: a cartoon, a ball game, dancing music bars, and a show from Leo's first game, where a black stick figure walks through the ruins at night and shoots white stick figures. A doll can hold the bottle, the frying pan and the broom and hit with them. Throw the bottle hard and it smashes. Drag the broom 🧹 along the floor to wipe blood away.
+🇬🇧 **Junk 🚽:** a toilet, a TV, a trash can, an armchair, a table, a fridge, a traffic cone and a tire are solid: stack them and stand dolls on them. The TV always has a program on 📺: a cartoon, a ball game, dancing music bars, and a show from Leo's first game, where a black stick figure walks through the ruins at night and shoots white stick figures (with blood, like in the real game). A doll can hold the bottle, the frying pan and the broom and hit with them. Throw the bottle hard and it smashes. Drag the broom 🧹 along the floor to wipe blood away.
 
-🇫🇮 **Krääsä 🚽:** vessanpönttö, televisio, roskis, nojatuoli, pöytä, jääkaappi, liikennekartio ja rengas ovat kiinteitä: pinoa niitä ja laita nukkeja niiden päälle. Telkkarista tulee aina ohjelmaa 📺: piirretty, pallopeli, tanssivat musiikkipalkit ja ohjelma Leon ensimmäisestä pelistä, jossa musta tikku-ukko kävelee yöllä raunioissa ja ampuu valkoisia tikku-ukkoja. Pullon, paistinpannun ja harjan nukke voi ottaa käteen ja lyödä niillä. Paiskaa pullo kovaa, niin se särkyy. Raahaa harjaa 🧹 lattiaa pitkin, niin veri pyyhkiytyy pois.
+🇫🇮 **Krääsä 🚽:** vessanpönttö, televisio, roskis, nojatuoli, pöytä, jääkaappi, liikennekartio ja rengas ovat kiinteitä: pinoa niitä ja laita nukkeja niiden päälle. Telkkarista tulee aina ohjelmaa 📺: piirretty, pallopeli, tanssivat musiikkipalkit ja ohjelma Leon ensimmäisestä pelistä, jossa musta tikku-ukko kävelee yöllä raunioissa ja ampuu valkoisia tikku-ukkoja (ja verta tulee niin kuin oikeassakin pelissä). Pullon, paistinpannun ja harjan nukke voi ottaa käteen ja lyödä niillä. Paiskaa pullo kovaa, niin se särkyy. Raahaa harjaa 🧹 lattiaa pitkin, niin veri pyyhkiytyy pois.
 
 🇬🇧 **Weapons 🔫:** drop a weapon onto a doll, or drag it there, and the doll takes it in its hand. In 😡 angry mode the doll uses it. Double-click a gun and press 💥: it fires nonstop, also while you drag it around, so you can shoot the dolls yourself (🔄 turns it around). A lit 💣 bomb goes off after 4 seconds: it hurts the dolls nearby and blows up everything else in its blast: building pieces and loose weapons. Other bombs and barrels in the blast go off too!
 
@@ -98,6 +102,10 @@
 
 🇫🇮 **Erikoisnuket 🤖:** valikon neljä viimeistä nukkea ovat aluksi vihaisia ja hyökkäävät heti, kun ne laskeutuvat (saat ne silti kävelemään, tanssimaan tai rauhoittumaan niiden palloista). Niillä on enemmän elämiä kuin tavallisilla nukeilla, ja niiden iskut vievät yhden elämän enemmän. 🤖 Robotti: 5 elämää. 🥷 Ninja: 4 elämää, tosi nopea. 🛡️ Ritari: 6 elämää, hidas. 🧟 Zombi: 5 elämää, hidas, kädet ojossa.
 
+🇬🇧 **Normal people 🧑:** the last three on the dolls page aren't dolls but people, with skin, hair and clothes: a man in a blue shirt, a woman with long hair in a yellow one, and a bald grandpa with a moustache. They do everything the dolls do, and each of them is a side of its own.
+
+🇫🇮 **Tavalliset ihmiset 🧑:** nukkesivun kolme viimeistä eivät ole nukkeja vaan ihmisiä, joilla on iho, hiukset ja vaatteet: mies sinisessä paidassa, pitkähiuksinen nainen keltaisessa ja kalju viiksekäs vaari. He tekevät kaiken, minkä nuketkin, ja jokainen heistä on oma puolensa.
+
 🇬🇧 **Bullets 🔫:** a bullet takes a life but doesn't knock a doll over; only the last one makes it fall. Bullets also hit dolls that are lying down, falling, or hanging from your hand.
 
 🇫🇮 **Luodit 🔫:** luoti vie elämän mutta ei kaada nukkea; vasta viimeinen kaataa sen. Luodit osuvat myös nukkeihin, jotka makaavat, putoavat tai roikkuvat kädestäsi.
@@ -147,6 +155,9 @@
 | 🔨 hammer             | heavy: takes 2 lives, sends dolls flying   | painava: vie 2 elämää, nuket lentävät         |
 | ⚡ thunder hammer     | slam it on the floor: lightning!           | iske se lattiaan: salama!                     |
 | 🔪 knife              | short, takes 1 life, sticks in when thrown | lyhyt, vie 1 elämän, jää kiinni heitettäessä  |
+| 🏹 bow                | shoots arrows far, one at a time           | ampuu nuolia kauas, yhden kerrallaan          |
+| 🔴 laser gun          | a fast red ray: burns, takes 2 lives       | nopea punainen säde: polttaa, vie 2 elämää    |
+| 🚀 rocket launcher    | its rocket explodes where it hits          | sen raketti räjähtää osuessaan                |
 | 💣 bomb (⚠️ page)     | double-click it and press 🔥 to light it   | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
 | 🧨 dynamite (⚠️ page) | like the bomb: 3 seconds, a huge blast     | kuin pommi: 3 sekuntia, valtava räjähdys      |
 

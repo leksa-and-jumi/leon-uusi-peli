@@ -173,6 +173,20 @@ export interface PersonLook {
    * lightning makes it short-circuit: it twitches, sparks, and blows up in the end.
    */
   machine?: boolean;
+  /**
+   * A normal person and not a doll: skin, hair and clothes of their own colors. The
+   * forearms are bare when the `sleeves` are short. (`body` is still what decides
+   * which side they are on.)
+   */
+  human?: {
+    skin: number;
+    hair: number;
+    style: 'short' | 'long' | 'bald';
+    shirt: number;
+    sleeves: 'short' | 'long';
+    trousers: number;
+    shoes: number;
+  };
   /** It is heavy (a knight in armor): in water it sinks to the bottom, and under water it drowns. */
   heavy?: boolean;
 }
@@ -233,6 +247,46 @@ export const PEOPLE: readonly PersonLook[] = [
     armsForward: true,
     angry: true,
     blood: 0x5f8f1f,
+  },
+  // Normal people: a man in a blue shirt, a woman in a yellow one, and a grandpa
+  {
+    body: 0x1e88e5,
+    joint: 0x0d47a1,
+    human: {
+      skin: 0xf1c27d,
+      hair: 0x4e342e,
+      style: 'short',
+      shirt: 0x1e88e5,
+      sleeves: 'short',
+      trousers: 0x3949ab,
+      shoes: 0x212121,
+    },
+  },
+  {
+    body: 0xfbc02d,
+    joint: 0xf57f17,
+    human: {
+      skin: 0xe0ac69,
+      hair: 0x2b1b12,
+      style: 'long',
+      shirt: 0xfbc02d,
+      sleeves: 'short',
+      trousers: 0x6a1b9a,
+      shoes: 0xd81b60,
+    },
+  },
+  {
+    body: 0x558b2f,
+    joint: 0x33691e,
+    human: {
+      skin: 0xffdbac,
+      hair: 0xcfd8dc,
+      style: 'bald',
+      shirt: 0x558b2f,
+      sleeves: 'long',
+      trousers: 0x5d4037,
+      shoes: 0x3e2723,
+    },
   },
 ];
 
@@ -462,6 +516,8 @@ export const PERSON_ACTIONS: readonly ActionId[] = [
 ];
 /** The bubbles of a building piece or an item, and of a bomb. */
 export const THING_ACTIONS: readonly ActionId[] = ['throw'];
+/** Stairs can be turned around. */
+export const TURN_ACTIONS: readonly ActionId[] = ['throw', 'turn'];
 /** A castle gate opens and closes; a drawbridge turns around, and goes down and up. */
 export const GATE_ACTIONS: readonly ActionId[] = ['throw', 'gate'];
 export const BRIDGE_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'bridge'];
@@ -506,6 +562,8 @@ export const MENU = {
   tabRadius: 7,
   tabFontSize: '22px',
   slots: { x: 210, y: 10, width: 58, height: 80, gap: 6 },
+  /** The slots of a page end before this. A page with many things gets narrower slots. */
+  slotsEnd: GAME_WIDTH - 146,
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
   slotColor: 0x9e9e9e,
@@ -599,10 +657,15 @@ export interface BlockDef {
   gate?: { opening: { halfWidth: number; height: number }; ms: number };
   /** It is a drawbridge: from its bubble it is let down the way it points, and pulled up again. */
   bridge?: boolean;
+  /** It is a flight of stairs with this many steps: dolls walk up it, the way it points. */
+  stairs?: number;
 }
 
 /** The pieces on the building page. */
 export type BuildKind =
+  | 'stairs'
+  | 'steelCrate'
+  | 'fence'
   | 'crate'
   | 'wall'
   | 'plank'
@@ -1269,6 +1332,34 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0x050208, dark: 0x4a148c, light: 0xff9800, detail: 0xffe082 },
     hole: { radius: 260, speed: 560, least: 28, eat: 30, spin: 3.2 },
   },
+  // Four steps up to the height of a crate. Dolls walk up them.
+  stairs: {
+    burns: true,
+    floats: true,
+    halfWidth: 44,
+    height: 56,
+    menuScale: 0.75,
+    colors: { fill: 0xb07a45, dark: 0x5e3a1a, light: 0xdcaa70, detail: 0x3a2a1a },
+    stairs: 4,
+  },
+  // As big as the wooden crate, but steel: it sinks, a magnet pulls it, lava melts it
+  steelCrate: {
+    melts: true,
+    metal: true,
+    halfWidth: 28,
+    height: 56,
+    menuScale: 1,
+    colors: { fill: 0x90a4ae, dark: 0x37474f, light: 0xcfd8dc, detail: 0x546e7a },
+  },
+  // Low enough for a doll to hop over
+  fence: {
+    burns: true,
+    floats: true,
+    halfWidth: 50,
+    height: 46,
+    menuScale: 0.65,
+    colors: { fill: 0xc9a46a, dark: 0x7a5a2e, light: 0xecd2a0, detail: 0x5e3a1a },
+  },
   // Castle pieces: gray stone, and they stack like everything else
   tower: {
     halfWidth: 32,
@@ -1717,6 +1808,10 @@ export interface GunDef {
    * the dolls they hit, burn up what is made of wood and set off what explodes.
    */
   flame?: { reach: number; width: number; height: number; color: number };
+  /** Its bullets look different from the usual ones: an arrow, a red ray of light... */
+  look?: { width: number; height: number; color: number };
+  /** The mark its bullets leave, when not a bullet hole. */
+  wound?: WoundKind;
   /** A freeze ray: its bullets are puffs of frost that freeze a doll solid for `ms`. */
   frost?: { ms: number; width: number; height: number; color: number };
   /** A cannon: its bullet is a big shell that goes off with this blast where it hits. */
@@ -1803,7 +1898,10 @@ export type WeaponKind =
   | 'thunderHammer'
   | 'knife'
   | 'bomb'
-  | 'dynamite';
+  | 'dynamite'
+  | 'bow'
+  | 'rocketLauncher'
+  | 'laserGun';
 /** Junk a doll can hold, and hit others with. */
 export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 /** Odd weapons, on the traps page. */
@@ -1848,6 +1946,75 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       bulletSpeed: 900,
       muzzle: { x: 98, y: 86 },
       barrelUp: 17,
+    },
+  },
+  // Its arrows fly far, one at a time
+  bow: {
+    floats: true,
+    burns: true,
+    crumbs: [0x8d6e63, 0x4e342e, 0xeeeeee],
+    halfWidth: 14,
+    height: 46,
+    menuScale: 1.05,
+    lie: { x: -4, y: -23 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 520,
+      damage: 1,
+      everyMs: 1100,
+      autoMs: 650,
+      bulletSpeed: 640,
+      muzzle: { x: 70, y: 86 },
+      barrelUp: 23,
+      look: { width: 22, height: 2.5, color: 0x8d6e63 },
+      wound: 'stab',
+    },
+  },
+  // Its rocket goes off with a blast where it hits. The one who fires it is safe from it.
+  rocketLauncher: {
+    melts: true,
+    metal: true,
+    crumbs: [0x4b5320, 0x23280f, 0xc62828],
+    halfWidth: 40,
+    height: 22,
+    menuScale: 0.85,
+    lie: { x: -6, y: -12 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 620,
+      damage: 0,
+      everyMs: 2600,
+      autoMs: 1800,
+      bulletSpeed: 600,
+      muzzle: { x: 108, y: 86 },
+      barrelUp: 14,
+      shell: {
+        blast: { radius: 110, damage: 3, pushSpeed: 640 },
+        width: 20,
+        height: 8,
+        color: 0xc62828,
+      },
+    },
+  },
+  // A red ray, very fast: it burns, and takes 2 lives
+  laserGun: {
+    melts: true,
+    crumbs: [0xeceff1, 0x78909c, 0xff1744],
+    halfWidth: 22,
+    height: 22,
+    menuScale: 1.5,
+    lie: { x: -15, y: -13 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 560,
+      damage: 2,
+      everyMs: 800,
+      autoMs: 380,
+      bulletSpeed: 1500,
+      muzzle: { x: 92, y: 86 },
+      barrelUp: 15,
+      look: { width: 30, height: 3, color: 0xff1744 },
+      wound: 'burn',
     },
   },
   // Slow, and it doesn't reach far, but five bullets fly out at once
@@ -2139,6 +2306,9 @@ export const WEAPON_KINDS: readonly WeaponKind[] = [
   'hammer',
   'thunderHammer',
   'knife',
+  'bow',
+  'laserGun',
+  'rocketLauncher',
 ];
 /** The traps page: the traps, the things with a fuse, and the odd weapons. */
 export const TRAP_KINDS: readonly (
@@ -2177,6 +2347,9 @@ export const ELEMENT_KINDS: readonly (
 ];
 export const BUILD_KINDS: readonly BuildKind[] = [
   'crate',
+  'steelCrate',
+  'stairs',
+  'fence',
   'wall',
   'plank',
   'stone',
@@ -2236,6 +2409,9 @@ export const ITEM_COLORS = {
   chicken: { body: 0xffd54f, dark: 0xc79a1a, comb: 0xe53935, beak: 0xff9800, eye: 0x1b1b1b },
   fish: { body: 0x78909c, dark: 0x37474f, belly: 0xcfd8dc, eye: 0x1b1b1b, fin: 0x546e7a },
   flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
+  bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },
+  rocket: { tube: 0x5b6628, dark: 0x23280f, shine: 0x9aab55, nose: 0xc62828, grip: 0x3e2723 },
+  laser: { body: 0xeceff1, dark: 0x78909c, glow: 0xff1744, grip: 0x37474f },
   freezeRay: { body: 0x4fc3f7, dark: 0x0277bd, shine: 0xe1f5fe, crystal: 0xffffff, grip: 0x37474f },
   magnet: { red: 0xd32f2f, dark: 0x7f1d1d, shine: 0xff8a80, tip: 0xcfd8dc, tipDark: 0x78909c },
   balloon: { red: 0xe53935, dark: 0x9a1b1b, shine: 0xffcdd2, string: 0xfafafa },
@@ -2355,6 +2531,7 @@ export const TV = {
     enemy: 0xffffff,
     shot: 0xffcc66,
     flash: 0xfff3c4,
+    blood: 0xe53935,
   },
   snow: [0x1c1c1c, 0x6e6e6e, 0xb8b8b8, 0xf2f2f2],
   /**

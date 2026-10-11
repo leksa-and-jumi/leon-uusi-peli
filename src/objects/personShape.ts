@@ -404,29 +404,23 @@ export class PersonFigure {
 class Painter {
   /** For every part it has drawn: how to draw that part again as a charred bone. */
   readonly toBones: (() => void)[] = [];
-  private readonly rim: number;
-  private readonly shine: number;
-  private readonly jointRim: number;
-  private readonly jointShine: number;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly look: PersonLook,
-  ) {
-    this.rim = shade(look.body, DOLL.rim);
-    this.shine = shade(look.body, DOLL.shine);
-    this.jointRim = shade(look.joint, DOLL.rim);
-    this.jointShine = shade(look.joint, DOLL.shine);
-  }
+  ) {}
 
   leg(hipX: number, hipY: number): Limb {
     const { thigh, shin, foot } = SHAPE;
+    // A normal person wears trousers and shoes; a doll is one color all over
+    const trousers = this.look.human?.trousers;
     const lowerShape = this.blank();
-    this.tube(lowerShape, shin.width, shin.length);
-    this.block(lowerShape, -foot.back, shin.length - 2, foot.length, foot.height, 3);
+    this.tube(lowerShape, shin.width, shin.length, trousers);
+    const shoes = this.look.human?.shoes;
+    this.block(lowerShape, -foot.back, shin.length - 2, foot.length, foot.height, 3, shoes);
     const upperShape = this.blank();
-    this.tube(upperShape, thigh.width, thigh.length);
-    this.ball(upperShape, 0, 0, SHAPE.jointRadius + 1);
+    this.tube(upperShape, thigh.width, thigh.length, trousers);
+    this.ball(upperShape, 0, 0, SHAPE.jointRadius + 1, true, trousers);
     this.toBones.push(() => {
       this.bone(upperShape, thigh.length);
       this.bone(lowerShape, shin.length);
@@ -434,30 +428,34 @@ class Painter {
       lowerShape.fillStyle(CHARRED.bone);
       lowerShape.fillRoundedRect(-foot.back + 3, shin.length, foot.length - 5, 3.5, 1.7);
     });
-    return this.limb(hipX, hipY, upperShape, thigh.length, lowerShape);
+    return this.limb(hipX, hipY, upperShape, thigh.length, lowerShape, trousers);
   }
 
   arm(shoulderX: number, shoulderY: number): Limb {
     const { upperArm, forearm, hand } = SHAPE;
+    // A normal person has sleeves, and bare hands (and bare forearms under short sleeves)
+    const human = this.look.human;
+    const sleeve = human?.shirt;
+    const fore = human?.sleeves === 'short' ? human.skin : sleeve;
     const lowerShape = this.blank();
-    this.tube(lowerShape, forearm.width, forearm.length);
-    this.ball(lowerShape, 0, forearm.length + 2, hand.radius, false);
+    this.tube(lowerShape, forearm.width, forearm.length, fore);
+    this.ball(lowerShape, 0, forearm.length + 2, hand.radius, false, human?.skin);
     const upperShape = this.blank();
-    this.tube(upperShape, upperArm.width, upperArm.length);
-    this.ball(upperShape, 0, 0, SHAPE.jointRadius + 0.5);
+    this.tube(upperShape, upperArm.width, upperArm.length, sleeve);
+    this.ball(upperShape, 0, 0, SHAPE.jointRadius + 0.5, true, sleeve);
     this.toBones.push(() => {
       this.bone(upperShape, upperArm.length);
       this.bone(lowerShape, forearm.length);
       lowerShape.fillStyle(CHARRED.bone);
       lowerShape.fillCircle(0, forearm.length + 2, hand.radius - 1.5);
     });
-    return this.limb(shoulderX, shoulderY, upperShape, upperArm.length, lowerShape);
+    return this.limb(shoulderX, shoulderY, upperShape, upperArm.length, lowerShape, fore);
   }
 
   hips(): Graphics {
     const g = this.blank();
     const { hips } = SHAPE;
-    this.block(g, hips.x, hips.y, hips.width, hips.height, hips.round);
+    this.block(g, hips.x, hips.y, hips.width, hips.height, hips.round, this.look.human?.trousers);
     this.toBones.push(() => {
       // The pelvis: a narrow bar with a knob at each hip
       g.clear();
@@ -473,8 +471,9 @@ class Painter {
   chest(): Graphics {
     const g = this.blank();
     const { chest, waist, neck } = SHAPE;
-    this.ball(g, 0, waist.y, waist.radius);
-    this.block(g, chest.x, chest.y, chest.width, chest.height, chest.round);
+    const human = this.look.human;
+    this.ball(g, 0, waist.y, waist.radius, true, human?.trousers);
+    this.block(g, chest.x, chest.y, chest.width, chest.height, chest.round, human?.shirt);
     if (this.look.extra === 'patches') {
       // A zombie's chest has dark, rotten patches
       g.fillStyle(EXTRA_COLORS.patches.blotch, 0.85);
@@ -482,7 +481,7 @@ class Painter {
       g.fillCircle(chest.x + 20, chest.y + 17, 3.5);
       g.fillCircle(chest.x + 7, chest.y + 20, 2.5);
     }
-    this.ball(g, 0, neck.y, neck.radius);
+    this.ball(g, 0, neck.y, neck.radius, true, human?.skin);
     this.toBones.push(() => {
       // A spine from the waist to the neck, with ribs and shoulders across it
       g.clear();
@@ -531,13 +530,29 @@ class Painter {
       g.fillTriangle(-7, top + 2, 4, top + 1, -10, top - 9);
     }
 
-    g.fillStyle(this.rim);
+    const human = this.look.human;
+    const skin = this.tones(human?.skin ?? this.look.body);
+    g.fillStyle(skin.rim);
     g.fillCircle(0, head.y, head.radius);
-    g.fillStyle(this.look.body);
+    g.fillStyle(skin.fill);
     g.fillCircle(0, head.y, head.radius - DOLL.rimWidth);
     // A round shine on top makes the head look like a ball
-    g.fillStyle(this.shine, DOLL.shineAlpha);
+    g.fillStyle(skin.shine, DOLL.shineAlpha);
     g.fillEllipse(-1, head.y - head.radius * 0.45, head.radius * 1.1, head.radius * 0.6);
+    if (human) {
+      // A normal person has hair, and a mouth
+      g.fillStyle(human.hair);
+      if (human.style === 'bald') {
+        g.fillRoundedRect(back, head.y - 3, 6, 10, 3);
+        g.fillRoundedRect(5, head.y + 4.5, 9, 3, 1.5);
+      } else {
+        g.fillEllipse(-2.5, head.y - head.radius * 0.6, head.radius * 1.9, head.radius * 0.95);
+        const down = human.style === 'long' ? 33 : 15;
+        g.fillRoundedRect(back - 1.5, head.y - 9, 8.5, down, 4);
+      }
+      g.lineStyle(1.4, shade(human.skin, -0.5));
+      g.lineBetween(5.5, head.y + 8, 11, head.y + 8);
+    }
 
     if (this.look.extra === 'headband') {
       const c = EXTRA_COLORS.headband;
@@ -625,9 +640,10 @@ class Painter {
     upperShape: Graphics,
     length: number,
     lowerShape: Graphics,
+    color?: number,
   ): Limb {
     const joint = this.blank();
-    this.ball(joint, 0, 0, SHAPE.jointRadius);
+    this.ball(joint, 0, 0, SHAPE.jointRadius, true, color);
     this.toBones.push(() => {
       joint.clear();
     });
@@ -649,8 +665,13 @@ class Painter {
   }
 
   /** A round tube hanging down from (0, 0): dark rim, body color, bright stripe. */
-  private tube(g: Graphics, width: number, length: number): void {
-    this.block(g, -width / 2, -2, width, length + 4, width / 2);
+  private tube(g: Graphics, width: number, length: number, color?: number): void {
+    this.block(g, -width / 2, -2, width, length + 4, width / 2, color);
+  }
+
+  /** A color with the dark rim and the bright stripe that go with it. */
+  private tones(color: number): { rim: number; fill: number; shine: number } {
+    return { rim: shade(color, DOLL.rim), fill: color, shine: shade(color, DOLL.shine) };
   }
 
   /** A rounded block of the body, shaded like the tubes. */
@@ -661,11 +682,13 @@ class Painter {
     width: number,
     height: number,
     round: number,
+    color: number = this.look.body,
   ): void {
     const rim = DOLL.rimWidth;
-    g.fillStyle(this.rim);
+    const tones = this.tones(color);
+    g.fillStyle(tones.rim);
     g.fillRoundedRect(x, y, width, height, round);
-    g.fillStyle(this.look.body);
+    g.fillStyle(tones.fill);
     g.fillRoundedRect(
       x + rim,
       y + rim,
@@ -673,7 +696,7 @@ class Painter {
       height - rim * 2,
       Math.max(1, round - rim),
     );
-    g.fillStyle(this.shine, DOLL.shineAlpha);
+    g.fillStyle(tones.shine, DOLL.shineAlpha);
     const stripe = width * 0.3;
     g.fillRoundedRect(
       x + (width - stripe) / 2,
@@ -684,13 +707,24 @@ class Painter {
     );
   }
 
-  /** A ball: a joint between two parts, or a hand when `joint` is false. */
-  private ball(g: Graphics, x: number, y: number, radius: number, joint = true): void {
-    g.fillStyle(joint ? this.jointRim : this.rim);
+  /**
+   * A ball: a joint between two parts, or a hand when `joint` is false. A normal
+   * person's are given their own `color`: that of the sleeve, the trousers or the skin.
+   */
+  private ball(
+    g: Graphics,
+    x: number,
+    y: number,
+    radius: number,
+    joint = true,
+    color?: number,
+  ): void {
+    const tones = this.tones(color ?? (joint ? this.look.joint : this.look.body));
+    g.fillStyle(tones.rim);
     g.fillCircle(x, y, radius);
-    g.fillStyle(joint ? this.look.joint : this.look.body);
+    g.fillStyle(tones.fill);
     g.fillCircle(x, y, radius - DOLL.rimWidth);
-    g.fillStyle(joint ? this.jointShine : this.shine, DOLL.shineAlpha);
+    g.fillStyle(tones.shine, DOLL.shineAlpha);
     g.fillCircle(x, y - radius * 0.3, radius * 0.4);
   }
 }
