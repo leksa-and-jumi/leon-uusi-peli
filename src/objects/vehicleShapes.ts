@@ -28,6 +28,8 @@ export function drawVehicle(g: Graphics, kind: VehicleKind): Graphics {
       return drawHelicopter(g, def);
     case 'plane':
       return drawPlane(g, def);
+    case 'saucer':
+      return drawSaucer(g, def);
   }
 }
 
@@ -523,5 +525,38 @@ function drawPlane(g: Graphics, def: BlockDef): Graphics {
   g.lineBetween(8, -40, 22, -40);
   g.lineBetween(22, -40, 32, -30);
   g.lineBetween(15, -40, 15, -30);
+  return g;
+}
+
+/**
+ * A flying saucer to ride in: a wide metal disc with lights, three little feet, and
+ * a glass dome that you can see the pilot through.
+ */
+function drawSaucer(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // Feet
+  g.lineStyle(2.4, dark);
+  for (const x of [-26, 0, 26]) {
+    g.lineBetween(x * 0.7, -8, x, 0);
+    g.lineBetween(x - 3, 0, x + 3, 0);
+  }
+  // The glass dome: see-through, so the pilot shows
+  g.lineStyle(1.6, dark);
+  g.strokeCircle(0, -18, 17);
+  g.fillStyle(0xbfe9ff, 0.3);
+  g.fillCircle(0, -18, 16);
+  g.fillStyle(0xffffff, 0.5);
+  g.fillEllipse(-7, -27, 9, 4);
+  // The disc
+  g.fillStyle(dark);
+  g.fillEllipse(0, -11, 92, 18);
+  g.fillStyle(fill);
+  g.fillEllipse(0, -11.5, 89, 15);
+  g.fillStyle(light, 0.8);
+  g.fillEllipse(-8, -14.5, 60, 4.5);
+  g.fillStyle(detail);
+  for (const x of [-34, -17, 0, 17, 34]) {
+    g.fillCircle(x, -9.5 - Math.abs(x) / 17, 2.5);
+  }
   return g;
 }

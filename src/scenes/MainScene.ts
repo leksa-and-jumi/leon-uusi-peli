@@ -20,6 +20,7 @@ import {
   HIT_FX,
   ITEMS,
   LASER,
+  LOB,
   MENU,
   PERSON,
   PHYSICS,
@@ -230,7 +231,9 @@ export class MainScene extends Phaser.Scene {
       fling: (kind, x, y, speedX, speedY) => {
         const item = new Item(this, kind, x, y);
         this.items.push(item);
-        item.fling(speedX, speedY, this.solidBoxes(item));
+        // A bomb that is hurled is armed: it goes off where it comes down
+        if (item.def.bomb) item.lob(speedX, speedY, this.solidBoxes(item), LOB.fuseMs);
+        else item.fling(speedX, speedY, this.solidBoxes(item));
         if (this.blocks.length + this.items.length > THINGS_MAX) this.forgetOldest(this.items);
       },
       smoke: (x, y) => {

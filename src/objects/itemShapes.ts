@@ -50,6 +50,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       const c = ITEM_COLORS.laser;
       return drawRayGun(g, { ...c, shine: 0xffffff, crystal: c.glow });
     }
+    case 'trident':
+      return drawTrident(g);
     case 'bow':
       return drawBow(g);
     case 'boulder':
@@ -330,6 +332,28 @@ function drawThunderHammer(g: Graphics): Graphics {
     [38, -1],
     [34.8, -1],
   ]);
+  return g;
+}
+
+/** A trident: a long dark shaft with three golden points. */
+function drawTrident(g: Graphics): Graphics {
+  const c = ITEM_COLORS.trident;
+  g.fillStyle(c.shaft);
+  g.fillRoundedRect(-30, -2.5, 76, 5, 2);
+  g.fillStyle(c.shaftLight);
+  g.fillRect(-29, -1.5, 74, 1.6);
+  // The fork: a crossbar, and three points with barbs
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(43, -8.5, 5, 17, 2);
+  for (const y of [-7, 0, 7]) {
+    const long = y === 0 ? 68 : 62;
+    g.fillStyle(c.dark);
+    g.fillRect(46, y - 1.8, long - 52, 3.6);
+    g.fillTriangle(long - 7, y - 4, long - 7, y + 4, long, y);
+    g.fillStyle(c.gold);
+    g.fillRect(46, y - 0.9, long - 53, 1.8);
+    g.fillTriangle(long - 6, y - 2.6, long - 6, y + 2.6, long - 1.5, y);
+  }
   return g;
 }
 

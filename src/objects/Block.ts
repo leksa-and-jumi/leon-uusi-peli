@@ -167,13 +167,13 @@ export class Block extends Body {
     super(x, y);
     this.def = BLOCKS[kind];
     const ghost = this.def.monster?.ghost;
-    const { liquid, hole } = this.def;
-    // A ghost, a pool and a black hole aren't solid: things go right into them
-    this.solid = !ghost && !liquid && !hole;
+    const { liquid, hole, cloud } = this.def;
+    // A ghost, a pool, a black hole and a cloud aren't solid: things go right into them
+    this.solid = !ghost && !liquid && !hole && !cloud;
     // A ghost, a flying saucer and a black hole hold themselves up in the air. A pool
     // doesn't fall either: it lies on the floor, under everything.
     const flier = this.def.monster?.saucer ?? this.def.monster?.dragon;
-    this.hovering = Boolean(ghost ?? flier ?? hole ?? liquid);
+    this.hovering = Boolean(ghost ?? flier ?? hole ?? liquid ?? cloud);
     if (liquid) {
       const { halfWidth, height } = this.def;
       this.pool = { left: x - halfWidth, right: x + halfWidth, level: height };
@@ -256,7 +256,7 @@ export class Block extends Body {
       picture.add(this.wing);
     }
     const { launcher } = this.def;
-    if (launcher) {
+    if (launcher?.pivot && launcher.arm) {
       this.arm = drawCatapultArm(blank(), this.def);
       this.arm.setPosition(launcher.pivot.x, -launcher.pivot.up);
       this.arm.rotation = launcher.arm.rest;
@@ -705,6 +705,7 @@ export class Block extends Body {
     this.patrol(deltaMs, world, state);
     this.rampage(deltaMs, world, state);
     this.prowl(deltaMs, world, state);
+    this.drift(deltaMs, world, state);
     this.sling(deltaMs, world, state);
     this.flow(deltaMs, world, state);
     this.trap(deltaMs, world, state);
@@ -851,15 +852,31 @@ export class Block extends Body {
     world.shoot(null, mouthX, mouthY, this.facing, dragon.gun, aim, this);
   }
 
+  /** A storm cloud rises to just under the ceiling and drifts from one side of the area to the other. */
+  private drift(deltaMs: number, world: World, state: BodyState): void {
+    const cloud = this.def.cloud;
+    if (!cloud || state !== 'resting') return;
+    const { halfWidth, height } = this.shape;
+    const { left, right, top } = world.area;
+    const seconds = deltaMs / 1000;
+    const rise = cloud.speed * 3 * seconds;
+    this.y += clamp(top + cloud.below + height - this.y, -rise, rise);
+    this.x += this.facing * cloud.speed * seconds;
+    if (this.x <= left + halfWidth) this.facing = 1;
+    if (this.x >= right - halfWidth) this.facing = -1;
+  }
+
   /**
    * A catapult hurls a boulder at the closest living doll in front of it, in a high
    * arc, and then its arm comes back for the next one.
    */
   private sling(deltaMs: number, world: World, state: BodyState): void {
     const launcher = this.def.launcher;
-    if (!launcher || !this.arm) return;
-    this.armSwing = Math.max(0, this.armSwing - deltaMs / launcher.arm.backMs);
-    this.arm.rotation = launcher.arm.rest + launcher.arm.swing * this.armSwing;
+    if (!launcher) return;
+    if (this.arm && launcher.arm) {
+      this.armSwing = Math.max(0, this.armSwing - deltaMs / launcher.arm.backMs);
+      this.arm.rotation = launcher.arm.rest + launcher.arm.swing * this.armSwing;
+    }
     this.launchWaitMs = Math.max(0, this.launchWaitMs - deltaMs);
     if (this.launchWaitMs > 0 || state !== 'resting' || this.fallen !== 0) return;
 
@@ -1093,7 +1110,7 @@ export class Block extends Body {
     this.zapWaitMs = monster.everyMs;
     const solids = world.solidBoxes(victim);
     const { bite } = monster.ghost;
-    const wound = bite ? 'stab' : 'bruise';
+    const wound = monster.ghost.wound ?? (bite ? 'stab' : 'bruise');
     const deadly = victim.hit(this.facing, solids, monster.damage, monster.pushSpeed, wound);
     world.hitEffect(atX, atY, deadly, bite ? 'punch' : 'none');
     if (!bite) world.spook();
@@ -1203,7 +1220,8 @@ export class Block extends Body {
     if (hazard.kind === 'zap') {
       this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
       if (this.zapWaitMs > 0 || this.fallen !== 0 || state !== 'resting') return;
-      const ballY = own.top + TESLA.ballDown;
+      // A lightning coil shoots from the ball on its top, a storm cloud from its underside
+      const ballY = this.def.cloud ? own.bottom : own.top + TESLA.ballDown;
       const victim = this.closestDoll(world, ballY, hazard.range ?? 0, null, false);
       if (!victim) return;
       this.zapWaitMs = hazard.everyMs;
@@ -1368,7 +1386,8 @@ function isCastle(kind: BlockKind): kind is CastleKind {
 }
 
 function isElement(kind: BlockKind): kind is ElementKind {
-  return BLOCKS[kind].liquid !== undefined || BLOCKS[kind].hole !== undefined;
+  const { liquid, hole, cloud } = BLOCKS[kind];
+  return liquid !== undefined || hole !== undefined || cloud !== undefined;
 }
 
 function isTrap(kind: BlockKind): kind is TrapKind {
@@ -1421,6 +1440,8 @@ export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
       return drawSteelCrate(g, BLOCKS.steelCrate);
     case 'fence':
       return drawFence(g, BLOCKS.fence);
+    case 'hay':
+      return drawHay(g, BLOCKS.hay);
     default:
       return drawJunk(g, kind);
   }
@@ -1840,6 +1861,36 @@ function drawFence(g: Graphics, def: BlockDef): Graphics {
     );
     g.fillStyle(colors.light, 0.6);
     g.fillRect(left + 2.4, -height + 9, 1.6, height - 12);
+  }
+  return g;
+}
+
+/** A bale of hay: a golden block of straw tied with two cords. */
+function drawHay(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(left, top, width, height, 6);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(left + 2, top + 2, width - 4, height - 4, 5);
+  // Straws, every which way
+  g.lineStyle(1.2, colors.light, 0.9);
+  for (let i = 0; i < 16; i++) {
+    const x = left + 6 + ((i * 37) % (width - 14));
+    const y = top + 6 + ((i * 23) % (height - 14));
+    g.lineBetween(x, y, x + 6 + (i % 3) * 2, y + (i % 2 === 0 ? 3 : -3));
+  }
+  g.lineStyle(1, colors.dark, 0.5);
+  for (let i = 0; i < 10; i++) {
+    const x = left + 8 + ((i * 53) % (width - 18));
+    const y = top + 8 + ((i * 31) % (height - 16));
+    g.lineBetween(x, y, x + 5, y + (i % 2 === 0 ? -2 : 2));
+  }
+  g.fillStyle(colors.detail);
+  for (const x of [left + width * 0.3, left + width * 0.7]) {
+    g.fillRect(x - 1.2, top + 1, 2.4, height - 2);
   }
   return g;
 }

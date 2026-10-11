@@ -152,7 +152,7 @@ export interface PersonLook {
   /** Eye color, when it isn't the usual dark. */
   eye?: number;
   /** Something extra that shows what kind of doll it is. */
-  extra?: 'antenna' | 'headband' | 'helmet' | 'patches' | 'crown';
+  extra?: 'antenna' | 'headband' | 'helmet' | 'patches' | 'crown' | 'wizardHat';
   /** How many hits it takes, when not the usual `PERSON.lives`. */
   lives?: number;
   /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
@@ -323,6 +323,23 @@ export const PEOPLE: readonly PersonLook[] = [
       shoes: 0xffd54f,
     },
   },
+  // A wizard: a pointed hat with a star, a long white beard and a robe
+  {
+    body: 0x4527a0,
+    joint: 0x311b92,
+    extra: 'wizardHat',
+    lives: 4,
+    human: {
+      skin: 0xf1c27d,
+      hair: 0xeeeeee,
+      style: 'long',
+      beard: true,
+      shirt: 0x4527a0,
+      sleeves: 'long',
+      trousers: 0x4527a0,
+      shoes: 0x3e2723,
+    },
+  },
 ];
 
 /** The colors of the extras that the special dolls wear. */
@@ -332,6 +349,7 @@ export const EXTRA_COLORS = {
   helmet: { visor: 0x263238, crest: 0x1e88e5, crestDark: 0x0d47a1 },
   patches: { blotch: 0x5a6e38 },
   crown: { gold: 0xffd54f, dark: 0xb8860b, jewel: 0xe53935 },
+  wizardHat: { hat: 0x311b92, light: 0x5e35b1, star: 0xffd54f },
 } as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */
@@ -708,14 +726,21 @@ export interface BlockDef {
     flightMs: number;
     x: number;
     up: number;
-    pivot: { x: number; up: number };
+    /** A catapult has an arm that turns at `pivot`; a cannon has neither. */
+    pivot?: { x: number; up: number };
     /** How the arm leans while it waits, how far it swings over, and how long it takes back. */
-    arm: { rest: number; swing: number; backMs: number; length: number };
+    arm?: { rest: number; swing: number; backMs: number; length: number };
   };
+  /**
+   * It is a storm cloud: it hangs `below` the ceiling, drifts from side to side this
+   * fast, and its lightning comes out of its underside.
+   */
+  cloud?: { below: number; speed: number };
 }
 
 /** The pieces on the building page. */
 export type BuildKind =
+  | 'hay'
   | 'stairs'
   | 'steelCrate'
   | 'fence'
@@ -731,9 +756,10 @@ export type BuildKind =
   | 'trampoline';
 /** Junk that is solid like a building piece: you can stack it and stand on it. */
 export type JunkBlockKind =
-  'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire';
+  'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire' | 'piano';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
-export type VehicleKind = 'car' | 'truck' | 'tank' | 'bike' | 'skateboard' | 'helicopter' | 'plane';
+export type VehicleKind =
+  'car' | 'truck' | 'tank' | 'bike' | 'skateboard' | 'helicopter' | 'plane' | 'saucer';
 /** Things that are alive in their own way and go after the dolls. */
 export type MonsterKind =
   | 'skibidi'
@@ -745,13 +771,15 @@ export type MonsterKind =
   | 'batMonster'
   | 'ufo'
   | 'boss'
-  | 'dragon';
+  | 'dragon'
+  | 'wisp';
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
-export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine';
+export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine' | 'cactus';
 /** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
-export type ElementKind = 'lava' | 'water' | 'blackHole';
+export type ElementKind = 'lava' | 'water' | 'blackHole' | 'cloud';
 /** The pieces of a castle. */
-export type CastleKind = 'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner' | 'catapult';
+export type CastleKind =
+  'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner' | 'catapult' | 'cannon';
 export type BlockKind =
   BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind | ElementKind | CastleKind;
 
@@ -816,6 +844,8 @@ export interface MonsterDef {
     /** A bat: it bites instead of scaring, and flaps its wings once in `flapMs`. */
     bite?: boolean;
     flapMs?: number;
+    /** The mark its touch leaves, when not the usual one: a fire spirit burns. */
+    wound?: WoundKind;
   };
   /**
    * A flying saucer: it hovers `below` the ceiling, flies over the closest doll and
@@ -1400,6 +1430,112 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 1,
     colors: { fill: 0x050208, dark: 0x4a148c, light: 0xff9800, detail: 0xffe082 },
     hole: { radius: 260, speed: 560, least: 28, eat: 30, spin: 3.2 },
+  },
+  // Soft and light: it floats, and it burns
+  hay: {
+    burns: true,
+    floats: true,
+    halfWidth: 34,
+    height: 42,
+    menuScale: 1,
+    colors: { fill: 0xe6c04a, dark: 0x9a7a1e, light: 0xf7e08a, detail: 0x8d6e63 },
+  },
+  piano: {
+    burns: true,
+    halfWidth: 42,
+    height: 64,
+    menuScale: 0.8,
+    colors: { fill: 0x3e2723, dark: 0x1b100d, light: 0x8d6e63, detail: 0xfafafa },
+  },
+  // It pricks whoever touches it
+  cactus: {
+    burns: true,
+    halfWidth: 18,
+    height: 66,
+    menuScale: 0.85,
+    colors: { fill: 0x43a047, dark: 0x1b5e20, light: 0x81c784, detail: 0xa1553a },
+    hazard: {
+      kind: 'touch',
+      damage: 1,
+      pushSpeed: 220,
+      wound: 'stab',
+      sound: 'punch',
+      everyMs: 600,
+      side: 3,
+      up: 3,
+    },
+  },
+  // It drifts along under the ceiling and strikes the closest doll with lightning
+  cloud: {
+    halfWidth: 60,
+    height: 40,
+    menuScale: 0.5,
+    colors: { fill: 0x546e7a, dark: 0x263238, light: 0x90a4ae, detail: 0xffee58 },
+    cloud: { below: 14, speed: 45 },
+    hazard: {
+      kind: 'zap',
+      damage: 2,
+      pushSpeed: 300,
+      wound: 'burn',
+      sound: 'none',
+      everyMs: 1900,
+      side: 0,
+      up: 0,
+      range: 640,
+    },
+  },
+  // A castle cannon: it lobs bombs at the dolls in front of it
+  cannon: {
+    metal: true,
+    halfWidth: 40,
+    height: 46,
+    menuScale: 0.8,
+    colors: { fill: 0x37474f, dark: 0x1c262b, light: 0x90a4ae, detail: 0x8d6e63 },
+    launcher: {
+      item: 'bomb',
+      everyMs: 3400,
+      range: 720,
+      tooClose: 240,
+      flightMs: 1000,
+      x: 38,
+      up: 52,
+    },
+  },
+  // A fire spirit: it floats through everything like the ghost, and its touch burns
+  wisp: {
+    halfWidth: 20,
+    height: 44,
+    menuScale: 1.1,
+    colors: { fill: 0xff7a1a, dark: 0xc62828, light: 0xffee58, detail: 0x1b1b1b },
+    monster: {
+      attack: 'scare',
+      range: 2000,
+      everyMs: 750,
+      damage: 1,
+      pushSpeed: 160,
+      speed: 150,
+      ghost: { alpha: 0.92, bob: 6, bobMs: 260, wound: 'burn' },
+    },
+  },
+  // A flying saucer to ride in: it takes off with a pilot in it, like the helicopter
+  saucer: {
+    melts: true,
+    metal: true,
+    halfWidth: 92,
+    height: 70,
+    menuScale: 0.6,
+    colors: { fill: 0x9aa7b4, dark: 0x3d4852, light: 0xdfe7ee, detail: 0xffeb3b },
+    drive: {
+      speed: 280,
+      damage: 1,
+      pushSpeed: 520,
+      // Big enough for a doll to sit under the dome
+      scale: 2,
+      wheels: { xs: [], up: 0, radius: 0 },
+      seat: { x: 0, up: 6, inFront: false },
+      blast: { radius: 170, damage: 3, pushSpeed: 700 },
+      flies: { below: 50, climb: 210, sink: 0.25 },
+    },
   },
   // Four steps up to the height of a crate. Dolls walk up them.
   stairs: {
@@ -2022,6 +2158,7 @@ export type WeaponKind =
   | 'knife'
   | 'bomb'
   | 'dynamite'
+  | 'trident'
   | 'bow'
   | 'rocketLauncher'
   | 'laserGun';
@@ -2072,6 +2209,19 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       muzzle: { x: 98, y: 86 },
       barrelUp: 17,
     },
+  },
+  // Three points on a long shaft: it reaches far, and takes 2 lives
+  trident: {
+    melts: true,
+    metal: true,
+    crumbs: [0xffd54f, 0xb8860b, 0x4e342e],
+    halfWidth: 49,
+    height: 18,
+    menuScale: 0.68,
+    lie: { x: -19, y: -9 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 124, damage: 2, wound: 'stab', pushSpeed: 300 },
+    stick: { out: 46 },
   },
   // Its arrows fly far, one at a time
   bow: {
@@ -2442,6 +2592,7 @@ export const WEAPON_KINDS: readonly WeaponKind[] = [
   'hammer',
   'thunderHammer',
   'knife',
+  'trident',
   'bow',
   'laserGun',
   'rocketLauncher',
@@ -2450,6 +2601,7 @@ export const WEAPON_KINDS: readonly WeaponKind[] = [
 export const TRAP_KINDS: readonly (
   { type: 'block'; kind: TrapKind } | { type: 'item'; kind: WeaponKind | OddItemKind }
 )[] = [
+  { type: 'block', kind: 'cactus' },
   { type: 'block', kind: 'spikes' },
   { type: 'block', kind: 'saw' },
   { type: 'block', kind: 'burner' },
@@ -2469,6 +2621,7 @@ export const CASTLE_KINDS: readonly CastleKind[] = [
   'gate',
   'drawbridge',
   'catapult',
+  'cannon',
   'banner',
 ];
 /** The page of forces of nature, and of things with strange powers. */
@@ -2478,12 +2631,14 @@ export const ELEMENT_KINDS: readonly (
   { type: 'block', kind: 'lava' },
   { type: 'block', kind: 'water' },
   { type: 'block', kind: 'blackHole' },
+  { type: 'block', kind: 'cloud' },
   { type: 'item', kind: 'freezeRay' },
   { type: 'item', kind: 'magnet' },
   { type: 'item', kind: 'balloon' },
 ];
 export const BUILD_KINDS: readonly BuildKind[] = [
   'crate',
+  'hay',
   'steelCrate',
   'stairs',
   'fence',
@@ -2507,6 +2662,7 @@ export const MONSTER_KINDS: readonly MonsterKind[] = [
   'batMonster',
   'ufo',
   'dragon',
+  'wisp',
   'boss',
 ];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
@@ -2517,6 +2673,7 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'skateboard',
   'helicopter',
   'plane',
+  'saucer',
 ];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
@@ -2532,6 +2689,7 @@ export const JUNK_KINDS: readonly (
   { type: 'item', kind: 'pan' },
   { type: 'block', kind: 'tire' },
   { type: 'item', kind: 'broom' },
+  { type: 'block', kind: 'piano' },
 ];
 
 /** The colors of the items. */
@@ -2548,6 +2706,7 @@ export const ITEM_COLORS = {
   fish: { body: 0x78909c, dark: 0x37474f, belly: 0xcfd8dc, eye: 0x1b1b1b, fin: 0x546e7a },
   flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
   boulder: { fill: 0x9e9e9e, dark: 0x616161, light: 0xd0d0d0 },
+  trident: { gold: 0xffd54f, dark: 0xb8860b, shaft: 0x4e342e, shaftLight: 0x8d6e63 },
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },
   rocket: { tube: 0x5b6628, dark: 0x23280f, shine: 0x9aab55, nose: 0xc62828, grip: 0x3e2723 },
   laser: { body: 0xeceff1, dark: 0x78909c, glow: 0xff1744, grip: 0x37474f },

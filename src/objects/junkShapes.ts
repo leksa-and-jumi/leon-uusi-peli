@@ -70,6 +70,10 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
       g.restore();
       return g;
     }
+    case 'piano':
+      return drawPiano(g, def);
+    case 'wisp':
+      return drawWisp(g, def);
     case 'cone':
       return drawCone(g, def);
     case 'tire':
@@ -391,6 +395,56 @@ function drawTire(g: Graphics, def: BlockDef): Graphics {
     const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
     g.fillCircle(Math.cos(angle) * 7.5, middleY + Math.sin(angle) * 7.5, 1.4);
   }
+  return g;
+}
+
+/** An upright piano: a tall dark case, a shelf of white and black keys, and two legs under it. */
+function drawPiano(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  box(g, colors.fill, colors.dark, -halfWidth, -height, halfWidth * 2, height - 4, 3);
+  g.fillStyle(colors.light, 0.35);
+  g.fillRect(-halfWidth + 4, -height + 4, halfWidth * 2 - 8, 3);
+  g.lineStyle(1.2, colors.dark, 0.9);
+  g.strokeRect(-halfWidth + 8, -height + 12, halfWidth * 2 - 16, 18);
+  // The keys, on their shelf
+  box(g, shade(colors.fill, 0.15), colors.dark, -halfWidth - 3, -30, halfWidth * 2 + 6, 9, 2);
+  g.fillStyle(colors.detail);
+  g.fillRect(-halfWidth, -29, halfWidth * 2, 5.5);
+  g.fillStyle(colors.dark);
+  for (let x = -halfWidth + 5; x < halfWidth - 2; x += 6) {
+    g.fillRect(x, -29, 0.8, 5.5);
+    if ((x + halfWidth) % 18 !== 5) g.fillRect(x - 1.6, -29, 3, 3.3);
+  }
+  // Legs and pedals
+  box(g, colors.fill, colors.dark, -halfWidth - 2, -21, 6, 21, 1.5);
+  box(g, colors.fill, colors.dark, halfWidth - 4, -21, 6, 21, 1.5);
+  g.fillStyle(0xffd54f);
+  g.fillRect(-6, -3, 4, 2);
+  g.fillRect(2, -3, 4, 2);
+  return g;
+}
+
+/** A fire spirit: a living flame with two dark eyes and a grin. Its bottom middle is at (0, 0). */
+function drawWisp(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const flame = (scale: number, color: number, alpha = 1): void => {
+    const wide = halfWidth * scale;
+    const tall = height * scale;
+    g.fillStyle(color, alpha);
+    g.fillCircle(0, -wide, wide);
+    g.fillTriangle(-wide * 0.95, -wide * 1.2, wide * 0.95, -wide * 1.2, wide * 0.25, -tall);
+    g.fillTriangle(-wide * 0.9, -wide * 1.1, -wide * 0.1, -wide * 1.6, -wide * 0.55, -tall * 0.78);
+  };
+  flame(1, colors.dark);
+  flame(0.88, colors.fill);
+  flame(0.6, colors.light, 0.95);
+  g.fillStyle(colors.detail);
+  g.fillEllipse(-6, -halfWidth - 3, 5, 7);
+  g.fillEllipse(6, -halfWidth - 3, 5, 7);
+  g.lineStyle(1.6, colors.detail);
+  g.beginPath();
+  g.arc(0, -halfWidth + 3, 6, 0.15 * Math.PI, 0.85 * Math.PI);
+  g.strokePath();
   return g;
 }
 

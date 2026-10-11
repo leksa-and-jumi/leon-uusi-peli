@@ -30,6 +30,8 @@ export function drawTrap(g: Graphics, kind: TrapKind, whole: boolean): Graphics 
       return drawTesla(g, def);
     case 'mine':
       return drawMine(g, def);
+    case 'cactus':
+      return drawCactus(g, def);
   }
 }
 
@@ -178,6 +180,52 @@ function drawTesla(g: Graphics, def: BlockDef): Graphics {
   g.fillCircle(1, ballY + 1, TESLA.ballRadius - 3.5);
   g.fillStyle(0xffffff, 0.9);
   g.fillCircle(-2.5, ballY - 3, 2);
+  return g;
+}
+
+/** A cactus in a clay pot: a thick green trunk with two arms, spines all over and a flower on top. */
+function drawCactus(g: Graphics, def: BlockDef): Graphics {
+  const { height, colors } = def;
+  const pot = 16;
+  /** A rounded green column from (x, top) down to `bottom`. */
+  const column = (x: number, top: number, bottom: number, wide: number): void => {
+    g.fillStyle(colors.dark);
+    g.fillRoundedRect(x - wide / 2, top, wide, bottom - top, wide / 2);
+    g.fillStyle(colors.fill);
+    g.fillRoundedRect(x - wide / 2 + 1.5, top + 1.5, wide - 3, bottom - top - 3, wide / 2 - 1.5);
+    g.fillStyle(colors.light, 0.6);
+    g.fillRoundedRect(x - wide / 2 + 3, top + 4, 2.5, bottom - top - 10, 1.2);
+  };
+  // Arms, with the bends that join them to the trunk
+  column(-13, -height + 26, -pot - 12, 9);
+  column(13, -height + 18, -pot - 20, 9);
+  g.fillStyle(colors.dark);
+  g.fillRect(-13, -pot - 18, 10, 7);
+  g.fillRect(4, -pot - 26, 10, 7);
+  column(0, -height + 6, -pot + 2, 15);
+  // Spines
+  g.lineStyle(1, 0xffffff, 0.9);
+  for (let y = -height + 14; y < -pot - 2; y += 9) {
+    g.lineBetween(-7.5, y, -11, y - 2);
+    g.lineBetween(7.5, y + 4, 11, y + 2);
+  }
+  g.fillStyle(0xff80ab);
+  g.fillCircle(0, -height + 5, 4.5);
+  g.fillStyle(0xffeb3b);
+  g.fillCircle(0, -height + 5, 1.8);
+  // The pot
+  g.fillStyle(shade(colors.detail, -0.3));
+  g.fillRoundedRect(-13, -pot, 26, 5, 2);
+  g.beginPath();
+  g.moveTo(-11, -pot + 4);
+  g.lineTo(11, -pot + 4);
+  g.lineTo(8, 0);
+  g.lineTo(-8, 0);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(colors.detail);
+  g.fillRoundedRect(-12, -pot + 0.8, 24, 3, 1.4);
+  g.fillRect(-9.5, -pot + 5, 19, pot - 6.5);
   return g;
 }
 

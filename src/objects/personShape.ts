@@ -557,6 +557,18 @@ class Painter {
         g.lineBetween(5.5, head.y + 8, 11, head.y + 8);
       }
     }
+    if (this.look.extra === 'wizardHat') {
+      // A tall pointed hat with a brim and a golden star
+      const c = EXTRA_COLORS.wizardHat;
+      g.fillStyle(c.hat);
+      g.fillTriangle(-12, top + 4, 12, top + 4, -5, top - 26);
+      g.fillStyle(c.light);
+      g.fillTriangle(-9, top + 4, 2, top + 4, -5, top - 21);
+      g.fillStyle(c.hat);
+      g.fillEllipse(0, top + 4, 34, 7);
+      g.fillStyle(c.star);
+      g.fillCircle(-1, top - 6, 2.4);
+    }
     if (this.look.extra === 'crown') {
       // A golden crown with three points and a red jewel
       const c = EXTRA_COLORS.crown;
