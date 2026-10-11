@@ -12,6 +12,7 @@ type Graphics = Phaser.GameObjects.Graphics;
  */
 export function drawElement(g: Graphics, kind: ElementKind, whole: boolean): Graphics {
   const def = BLOCKS[kind];
+  if (kind === 'cloud') return drawCloud(g, def);
   if (!whole) return g;
   if (kind === 'blackHole') {
     g.save();
@@ -117,6 +118,30 @@ function drawLava(
   }
   g.fillStyle(colors.detail, 0.7);
   g.fillRoundedRect(-halfWidth + 5, top + 1.5, halfWidth * 2 - 10, 1.8, 0.9);
+  return g;
+}
+
+/** A dark storm cloud: heavy gray puffs with a bright edge, and a bolt of lightning under it. */
+function drawCloud(g: Graphics, def: BlockDef): Graphics {
+  const { height, colors } = def;
+  const middle = -height / 2;
+  const puffs: readonly (readonly [number, number, number])[] = [
+    [-34, middle + 6, 20],
+    [-12, middle - 6, 24],
+    [14, middle - 4, 22],
+    [36, middle + 6, 19],
+    [0, middle + 10, 22],
+  ];
+  g.fillStyle(colors.dark);
+  for (const [x, y, radius] of puffs) g.fillCircle(x, y, radius + 2);
+  g.fillStyle(colors.fill);
+  for (const [x, y, radius] of puffs) g.fillCircle(x, y, radius);
+  g.fillStyle(colors.light, 0.6);
+  g.fillEllipse(-12, middle - 16, 30, 9);
+  g.fillEllipse(16, middle - 14, 22, 7);
+  g.fillStyle(colors.detail);
+  g.fillTriangle(-4, -6, 6, -6, -2, 4);
+  g.fillTriangle(2, 0, -6, 0, 3, 10);
   return g;
 }
 

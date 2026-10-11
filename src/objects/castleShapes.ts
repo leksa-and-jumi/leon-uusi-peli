@@ -28,9 +28,11 @@ export function drawCastle(g: Graphics, kind: CastleKind, whole: boolean): Graph
       return drawBridge(g, def);
     case 'banner':
       return drawBanner(g, def);
+    case 'cannon':
+      return drawCannon(g, def);
     case 'catapult':
       drawCatapultFrame(g, def);
-      if (whole && def.launcher) {
+      if (whole && def.launcher?.pivot && def.launcher.arm) {
         const { pivot, arm } = def.launcher;
         g.save();
         g.translateCanvas(pivot.x, -pivot.up);
@@ -186,6 +188,52 @@ function drawBridge(g: Graphics, def: BlockDef): Graphics {
   return g;
 }
 
+/** A castle cannon: a thick iron barrel pointing up and ahead, on a wooden carriage with wheels. */
+function drawCannon(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, colors } = def;
+  // The barrel, slanted upward: thick at the back, with a ring around its mouth
+  const barrel: [number, number][] = [
+    [-22, -24],
+    [-14, -36],
+    [34, -56],
+    [39, -46],
+    [-6, -16],
+  ];
+  g.fillStyle(colors.dark);
+  g.beginPath();
+  barrel.forEach(([x, y], i) => {
+    if (i === 0) g.moveTo(x, y);
+    else g.lineTo(x, y);
+  });
+  g.closePath();
+  g.fillPath();
+  g.lineStyle(5, colors.fill);
+  g.lineBetween(-14, -28, 32, -49);
+  g.lineStyle(1.6, colors.light, 0.8);
+  g.lineBetween(-10, -32, 30, -52);
+  g.lineStyle(4, colors.dark);
+  g.lineBetween(31, -57, 38, -44);
+  g.fillStyle(colors.dark);
+  g.fillCircle(-18, -29, 8);
+  // The carriage and its wheels
+  g.fillStyle(shade(colors.detail, -0.35));
+  g.fillRoundedRect(-halfWidth + 6, -20, halfWidth * 2 - 18, 10, 3);
+  g.fillStyle(colors.detail);
+  g.fillRoundedRect(-halfWidth + 7.5, -18.5, halfWidth * 2 - 21, 7, 2);
+  for (const x of [-halfWidth + 16, halfWidth - 20]) {
+    g.fillStyle(colors.dark);
+    g.fillCircle(x, -12, 12);
+    g.fillStyle(colors.detail);
+    g.fillCircle(x, -12, 9.5);
+    g.lineStyle(1.8, colors.dark);
+    g.lineBetween(x - 9, -12, x + 9, -12);
+    g.lineBetween(x, -21, x, -3);
+    g.fillStyle(colors.light);
+    g.fillCircle(x, -12, 2.4);
+  }
+  return g;
+}
+
 /** The frame of a catapult: a beam on two wheels, with two posts that hold the arm up. */
 function drawCatapultFrame(g: Graphics, def: BlockDef): Graphics {
   const { halfWidth, colors } = def;
@@ -231,7 +279,7 @@ function drawCatapultFrame(g: Graphics, def: BlockDef): Graphics {
  */
 export function drawCatapultArm(g: Graphics, def: BlockDef): Graphics {
   const { colors } = def;
-  const length = def.launcher?.arm.length ?? 40;
+  const length = def.launcher?.arm?.length ?? 40;
   g.fillStyle(colors.dark);
   g.fillRoundedRect(-3.5, -length, 7, length + 16, 2);
   g.fillStyle(colors.fill);
