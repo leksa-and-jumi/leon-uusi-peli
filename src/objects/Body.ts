@@ -1,5 +1,5 @@
 import { PHYSICS, PICK_PADDING, THROW, WATER, type ActionId } from '../config';
-import { ceilingBounce, fallStep, springSpeed } from '../logic/fall';
+import { bob, ceilingBounce, fallStep, springSpeed } from '../logic/fall';
 import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
 import { boxAround, groundBelow, liftOut, type Box } from '../logic/ground';
 import type { Spot } from '../logic/pick';
@@ -63,6 +63,10 @@ export abstract class Body {
   /** How fast it was falling when it last hit the ground (pixels per second). */
   protected lastImpact = 0;
   private fallSpeed = 0;
+  /** Its own clock for bobbing in water, so that not everything bobs in step. */
+  private bobMs = Math.random() * WATER.bob.ms;
+  /** Afloat in water right now. */
+  protected swimming = false;
   private fallSpeedBefore = 0;
   private flownOut = false;
   /** From the point it is held by to its bottom middle. */
@@ -214,12 +218,19 @@ export abstract class Body {
     );
     // In water, a thing that floats doesn't get down to the ground under it
     const depth = this.floatDepth;
-    const afloat = depth === null ? null : world.floatLine(this.x, depth);
+    const still = depth === null ? null : world.floatLine(this.x, depth);
+    this.bobMs += deltaMs;
+    // What floats bobs up and down a little all the time
+    const afloat = still === null ? null : still + bob(this.bobMs, WATER.bob.height, WATER.bob.ms);
     const floats = afloat !== null && afloat < solidGround;
-    if (floats && this.y > afloat) {
-      // Deeper than it floats: it comes up
-      this.y = Math.max(afloat, this.y - WATER.riseSpeed * (deltaMs / 1000));
+    this.swimming = false;
+    if (floats && depth !== null && this.y > afloat - WATER.snap) {
+      // In the water: it comes up if it is too deep, and then rides the surface
+      if (this.fallSpeed >= WATER.splashSpeed) world.splash(this.x, afloat - depth);
+      const up = WATER.riseSpeed * (deltaMs / 1000);
+      this.y = this.y > afloat ? Math.max(afloat, this.y - up) : afloat;
       this.fallSpeed = 0;
+      this.swimming = true;
       return 'resting';
     }
     const ground = floats ? afloat : solidGround;
@@ -241,12 +252,6 @@ export abstract class Body {
     this.fallSpeed = below.speed;
     if (!fall.landed) return 'falling';
     const impact = this.fallSpeedBefore + PHYSICS.gravity * this.gravityScale * (deltaMs / 1000);
-    if (floats && depth !== null) {
-      // Into the water: it stays afloat there, with a splash if it came in fast
-      if (impact >= WATER.splashSpeed) world.splash(this.x, ground - depth);
-      this.lastImpact = 0;
-      return 'resting';
-    }
     // Landed on a trampoline: it throws the thing back up
     const spring = world.spring(this.x - halfWidth, this.x + halfWidth, ground);
     const back = spring ? springSpeed(impact, spring, this.lively) : 0;

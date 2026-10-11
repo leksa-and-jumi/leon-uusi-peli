@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ceilingBounce, fallStep, floatLine, springSpeed } from './fall';
+import { bob, ceilingBounce, fallStep, floatLine, springSpeed } from './fall';
 
 describe('fallStep', () => {
   it('falls faster and faster', () => {
@@ -87,5 +87,17 @@ describe('floatLine', () => {
   it('takes the highest surface where pools overlap', () => {
     const higher = { left: 150, right: 300, top: 350, bottom: 500 };
     expect(floatLine(180, 55, [pool, higher])).toBe(405);
+  });
+});
+
+describe('bob', () => {
+  it('starts on the float line', () => {
+    expect(bob(0, 4, 2000)).toBeCloseTo(0);
+  });
+
+  it('goes down and up by its height, once every round', () => {
+    expect(bob(500, 4, 2000)).toBeCloseTo(4);
+    expect(bob(1500, 4, 2000)).toBeCloseTo(-4);
+    expect(bob(2000, 4, 2000)).toBeCloseTo(0);
   });
 });

@@ -136,3 +136,24 @@ describe('slam pose', () => {
     expect(pose.frontArm).toBeLessThan(0);
   });
 });
+
+describe('swim pose', () => {
+  it('lies forward in the water with its head held up', () => {
+    const pose = poseFor('swim', 0);
+    expect(pose.lean).toBeGreaterThan(1);
+    expect(pose.head).toBeLessThan(0);
+  });
+
+  it('reaches out in front with both arms, one after the other', () => {
+    const early = poseFor('swim', 190);
+    const late = poseFor('swim', 570);
+    expect(early.frontArm).toBeLessThan(-1);
+    expect(early.backArm).toBeLessThan(-1);
+    expect(early.frontArm - early.backArm).toBeCloseTo(-(late.frontArm - late.backArm));
+  });
+
+  it('kicks its legs in turn', () => {
+    const pose = poseFor('swim', 190);
+    expect(pose.frontLeg).toBeCloseTo(-pose.backLeg);
+  });
+});

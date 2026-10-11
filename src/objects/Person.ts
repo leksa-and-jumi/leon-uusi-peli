@@ -129,7 +129,8 @@ export class Person extends Body {
    */
   protected override get floatDepth(): number | null {
     if (this.look.heavy) return null;
-    return this.ragdoll ? WATER.lieDepth : WATER.standDepth;
+    if (this.ragdoll) return WATER.lieDepth;
+    return this.strokes ? WATER.swimDepth : WATER.standDepth;
   }
 
   /** Its colors. Dolls of the same color are on the same side. */
@@ -173,8 +174,13 @@ export class Person extends Body {
   private ashPending = false;
   /** Melting away in lava: time left until nothing of it is left, or `null`. */
   private meltMs: number | null = null;
-  /** How long a heavy doll has had its head under water since it last lost a life. */
+  /** How long a heavy doll has had its head under water since it last lost a life, and in all. */
   private drownMs = 0;
+  private underMs = 0;
+  /** Its head is under water right now. */
+  private submerged = false;
+  /** Swimming along right now (and not just floating): it lies higher in the water. */
+  private strokes = false;
   /** A blade has just gone right through it: a part comes off on its next turn. */
   private cutPending = false;
 
@@ -588,7 +594,8 @@ export class Person extends Body {
       this.getUp(this.rise, deltaMs);
     } else if (this.ragdoll) {
       if (wasFalling && state === 'resting') this.land(fallSpeed, world);
-      this.flopAbout(deltaMs, state, world);
+      // Under water everything is slow: a doll tips over and settles in slow motion
+      this.flopAbout(deltaMs * (this.submerged ? WATER.drag : 1), state, world);
       this.maybeGetUp(deltaMs, state, world);
     } else if (state !== 'resting') {
       this.draw(this.jumpVx === 0 ? 'held' : 'run', 0);
@@ -798,21 +805,35 @@ export class Person extends Body {
   private wade(deltaMs: number, world: World): void {
     const surface = world.floatLine(this.x, 0);
     const body = this.hitBox;
-    if (surface === null || body.bottom <= surface || this.state === 'held') {
+    const wet = surface !== null && body.bottom > surface && this.state !== 'held';
+    this.submerged = wet && body.top > surface;
+    if (wet && this.machine) this.shortCircuit(this.facing);
+    if (!this.submerged || !this.look.heavy || surface === null) {
       this.drownMs = 0;
+      this.underMs = 0;
       return;
     }
-    if (this.machine) this.shortCircuit(this.facing);
-    if (!this.look.heavy || this.dead || body.top <= surface) {
-      this.drownMs = 0;
-      return;
-    }
+    // A heavy doll on the bottom can't stay on its feet for long, and doesn't get up again
+    this.underMs += deltaMs;
+    if (this.ragdoll) this.downMs = 0;
+    else if (this.underMs >= DROWN.fallAfterMs && this.state === 'resting') this.tipOver();
+    if (this.dead) return;
     this.drownMs += deltaMs;
     if (this.drownMs < DROWN.everyMs) return;
     this.drownMs = 0;
     if (!this.lose(1, world.solidBoxes(this), null)) return;
     this.knockOver(this.facing, 0);
     world.hitEffect(this.x, surface, true, 'none');
+  }
+
+  /** Go limp and tip over on the spot, gently: nothing has hit it. */
+  private tipOver(): void {
+    const before = this.tumble.speed;
+    this.knockOver(this.facing, 0);
+    this.tumble = {
+      angle: this.tumble.angle,
+      speed: before + this.facing * LIMP.knockSpin * DROWN.tip,
+    };
   }
 
   /**
@@ -974,6 +995,8 @@ export class Person extends Body {
 
   /** Do the thing that's switched on, and say which pose it needs. */
   private act(deltaMs: number, world: World): PoseKind {
+    // A heavy doll on the bottom of the water can't walk, dance or fight down there
+    if (this.submerged && this.look.heavy) return 'stand';
     if (this.activity === 'walk') {
       const edge = PERSON.halfWidth;
       const walker = walkStep(
@@ -1149,12 +1172,15 @@ export class Person extends Body {
 
   /** How much faster or slower than usual this kind of doll moves. */
   private get pace(): number {
-    return this.look.speed ?? 1;
+    return (this.look.speed ?? 1) * (this.swimming ? WATER.swimSpeed : 1);
   }
 
   /** Draw the doll in a pose (a limp doll keeps the pose its joints are in). */
   private draw(kind: PoseKind, rotation: number): void {
-    const pose = this.ragdoll ? this.limbs : this.standingPose(kind);
+    // In water, walking and running is swimming
+    const moving = kind === 'walk' || kind === 'run';
+    this.strokes = this.swimming && moving && !this.ragdoll;
+    const pose = this.ragdoll ? this.limbs : this.standingPose(this.strokes ? 'swim' : kind);
     this.figure.setPose(pose);
     // A bullet makes it jerk back for a moment
     const flinch = this.flinchMs > 0 ? this.flinchDir * PERSON.flinch.lean : 0;

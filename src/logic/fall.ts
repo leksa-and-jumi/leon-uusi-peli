@@ -82,3 +82,11 @@ export function floatLine(x: number, depth: number, pools: readonly Pool[]): num
   }
   return line;
 }
+
+/**
+ * Something that floats bobs gently: how far above or below its float line it is at
+ * this moment. Up and down by `height`, once every `ms`.
+ */
+export function bob(timeMs: number, height: number, ms: number): number {
+  return height * Math.sin((timeMs / ms) * Math.PI * 2);
+}

@@ -19,6 +19,7 @@ import {
   THUNDER,
   THING_ACTIONS,
   TOPPLE,
+  TV,
   VEHICLE_ACTIONS,
   VEHICLE_HULL,
   WATER,
@@ -56,7 +57,7 @@ import type { Person } from './Person';
 import { drawElement, drawLiquid, drawSwirl } from './elementShapes';
 import { drawJunk, drawMonsterHead } from './junkShapes';
 import { drawFlames, drawSawBlade, drawTrap } from './trapShapes';
-import { drawTvHaywire, drawTvProgram } from './tvScreen';
+import { drawTvDead, drawTvHaywire, drawTvProgram } from './tvScreen';
 import { drawParkedVehicle, drawRotor, drawVehicle, drawWheel } from './vehicleShapes';
 import type { World } from './World';
 
@@ -117,6 +118,8 @@ export class Block extends Body {
   private prop: { pivotX: number; angle: number } | null = null;
   /** How far over a fallen piece is drawn right now: the picture eases to where the piece is. */
   private tiltShown = Math.PI / 2;
+  /** A TV under water: how long it has been soaking. Soaked through, it is broken for good. */
+  private soakMs = 0;
   /** A vehicle fried by lightning: it smokes and never drives again. Some blow up later. */
   private fried = false;
   private smokeWaitMs = 0;
@@ -413,7 +416,32 @@ export class Block extends Body {
 
   /** Lightning has run into it: an electric thing goes haywire for this long. */
   goHaywire(ms: number): void {
-    if (this.def.electric) this.haywireMs = ms;
+    if (this.def.electric && !this.dead) this.haywireMs = ms;
+  }
+
+  /** An electric thing that water has soaked through: it never works again. */
+  private get dead(): boolean {
+    return this.soakMs >= TV.soakMs;
+  }
+
+  /**
+   * Under water an electric thing breaks little by little: its program glitches
+   * more and more, and in the end its screen goes dark for good.
+   */
+  private soak(deltaMs: number, world: World): void {
+    if (!this.screen) return;
+    if (this.dead) {
+      drawTvDead(this.screen);
+      return;
+    }
+    const surface = world.floatLine(this.x, 0);
+    const under = surface !== null && this.y - this.shape.height / 2 > surface;
+    if (under) this.soakMs += deltaMs;
+    // The wetter it is, the more often the picture breaks up
+    const glitching = this.haywireMs > 0 || Math.random() < this.soakMs / TV.soakMs;
+    if (glitching) drawTvHaywire(this.screen, this.clockMs);
+    else drawTvProgram(this.screen, this.clockMs);
+    if (this.dead) world.spark(this.x, this.y - this.shape.height / 2);
   }
 
   /** Standing up, staying put, and tall enough to fall over onto its side. */
@@ -597,8 +625,7 @@ export class Block extends Body {
     this.lean += (tip * TOPPLE.lean - this.lean) * Math.min(1, deltaMs / TOPPLE.leanMs);
     this.draw(state, deltaMs);
     this.fizz(deltaMs, world);
-    if (this.screen && this.haywireMs > 0) drawTvHaywire(this.screen, this.clockMs);
-    else if (this.screen) drawTvProgram(this.screen, this.clockMs);
+    this.soak(deltaMs, world);
 
     if (this.fuseMs === null || !this.blast) return;
     this.fuseMs -= deltaMs;
@@ -805,6 +832,12 @@ export class Block extends Body {
     const head = monster?.head;
     if (!monster || !head || !this.head) return;
     this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    if (this.dead) {
+      // Its TV is broken for good: the head sinks back in, and it does nothing any more
+      this.headOut += (0 - this.headOut) * Math.min(1, deltaMs / head.popMs);
+      this.head.y = -(head.inUp + (head.outUp - head.inUp) * this.headOut);
+      return;
+    }
     if (this.haywireMs > 0) {
       // Haywire: its head pops out and shakes wildly, and it can't do anything else
       const { sway, ms } = THUNDER.headShake;

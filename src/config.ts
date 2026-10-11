@@ -884,6 +884,14 @@ export const THUNDER = {
 export const WATER = {
   standDepth: 60,
   lieDepth: 16,
+  /** A swimming doll lies high in the water, and gets along at this share of its speed on land. */
+  swimDepth: 30,
+  swimSpeed: 0.6,
+  /** What floats bobs up and down this far, once in this long. Closer than `snap` to its float line it is afloat. */
+  bob: { height: 4, ms: 1900 },
+  snap: 12,
+  /** Under water, a limp doll moves this much slower: it falls over in slow motion. */
+  drag: 0.3,
   riseSpeed: 150,
   splashSpeed: 220,
   splashDrops: 14,
@@ -911,7 +919,13 @@ export const POOL = {
 } as const;
 
 /** A heavy doll with its head under water loses a life this often, until it has drowned. */
-export const DROWN = { everyMs: 1100 } as const;
+export const DROWN = {
+  everyMs: 1100,
+  /** After this long with its head under water, a heavy doll can't stay on its feet any more. */
+  fallAfterMs: 2400,
+  /** It tips over this much slower than a doll that is knocked down. */
+  tip: 0.25,
+} as const;
 
 /** A doll in lava melts away: it sinks this far and fades in this long, and then it is gone. */
 export const MELT = { ms: 900, sink: 26 } as const;
@@ -2044,6 +2058,12 @@ export const TV = {
   pong: { field: 0x10241a, line: 0x2f6b4c, ball: 0xffffff, paddle: 0xe0e0e0 },
   music: { back: 0x23204a, bars: [0xff5d73, 0xffb84d, 0xfff06a, 0x67e28c, 0x5cc8ff, 0xb388ff] },
   snow: [0x1c1c1c, 0x6e6e6e, 0xb8b8b8, 0xf2f2f2],
+  /**
+   * Under water a TV breaks little by little: for this long its program glitches more
+   * and more, and then the screen is dead for good.
+   */
+  soakMs: 4500,
+  dead: { glass: 0x0b0d10, shine: 0x2a2f36 },
   /** The wild colors on a TV that lightning has hit. */
   haywire: [0xff1744, 0x00e5ff, 0xffea00, 0x76ff03, 0xd500f9],
 } as const;

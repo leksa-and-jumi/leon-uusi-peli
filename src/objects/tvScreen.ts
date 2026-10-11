@@ -50,6 +50,16 @@ export function drawTvHaywire(g: Graphics, timeMs: number): void {
   }
 }
 
+/** A TV that is broken for good: dark glass, with only a dull shine left on it. */
+export function drawTvDead(g: Graphics): void {
+  const { x, y, width, height } = TV.screen;
+  g.clear();
+  g.fillStyle(TV.dead.glass);
+  g.fillRect(x, y, width, height);
+  g.fillStyle(TV.dead.shine, 0.6);
+  g.fillTriangle(x + 3, y + 2, x + 15, y + 2, x + 3, y + 16);
+}
+
 /** Black, gray and white dots all over: no program for a moment. */
 function drawSnow(g: Graphics): void {
   const { x, y, width, height } = TV.screen;
