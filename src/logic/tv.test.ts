@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pingPong, tvMoment } from './tv';
+import { pingPong, stickFight, tvMoment } from './tv';
 
 describe('tvMoment', () => {
   it('plays the programs one after the other and starts over', () => {
@@ -31,5 +31,36 @@ describe('pingPong', () => {
 
   it('stays at zero when there is nowhere to go', () => {
     expect(pingPong(5, 0)).toBe(0);
+  });
+});
+
+describe('stickFight', () => {
+  it('starts with the two far apart and nobody shooting', () => {
+    const start = stickFight(0, 2000);
+    expect(start.heroX).toBeCloseTo(0.1);
+    expect(start.enemyX).toBeCloseTo(0.95);
+    expect(start.shooting).toBe(false);
+    expect(start.fallen).toBe(0);
+  });
+
+  it('lets them walk toward each other', () => {
+    const later = stickFight(600, 2000);
+    expect(later.heroX).toBeGreaterThan(0.1);
+    expect(later.enemyX).toBeLessThan(0.95);
+    expect(later.enemyX).toBeGreaterThan(later.heroX);
+  });
+
+  it('has the hero stop and shoot, and the white one fall over', () => {
+    const shot = stickFight(1100, 2000);
+    expect(shot.shooting).toBe(true);
+    expect(shot.fallen).toBeGreaterThan(0);
+    const after = stickFight(1700, 2000);
+    expect(after.shooting).toBe(false);
+    expect(after.fallen).toBe(1);
+  });
+
+  it('starts over with every round', () => {
+    expect(stickFight(2000, 2000)).toEqual(stickFight(0, 2000));
+    expect(stickFight(2600, 2000)).toEqual(stickFight(600, 2000));
   });
 });

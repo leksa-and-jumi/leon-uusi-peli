@@ -2334,12 +2334,28 @@ export const BLOOD = {
 export const TV = {
   /** Where the glass of the screen is on the TV, from the middle of its bottom edge. */
   screen: { x: -25, y: -39, width: 38, height: 28 },
-  channels: 3,
+  channels: 4,
   channelMs: 7000,
   snowMs: 350,
   cartoon: { sky: 0x7ec8f0, sun: 0xffe14d, grass: 0x58a946, cloud: 0xffffff, doll: 0x2b2b33 },
   pong: { field: 0x10241a, line: 0x2f6b4c, ball: 0xffffff, paddle: 0xe0e0e0 },
   music: { back: 0x23204a, bars: [0xff5d73, 0xffb84d, 0xfff06a, 0x67e28c, 0x5cc8ff, 0xb388ff] },
+  /**
+   * A show from Leo's first game: a black stick figure with a pale edge walks through
+   * old ruins at night and shoots the white stick figures. One round takes `roundMs`.
+   */
+  stick: {
+    roundMs: 2300,
+    sky: 0x1d1f2b,
+    moon: 0xe8e2d0,
+    ruin: 0x3a3d52,
+    ground: 0x2a2620,
+    hero: 0x000000,
+    heroEdge: 0xd8cfe0,
+    enemy: 0xffffff,
+    shot: 0xffcc66,
+    flash: 0xfff3c4,
+  },
   snow: [0x1c1c1c, 0x6e6e6e, 0xb8b8b8, 0xf2f2f2],
   /**
    * Under water a TV breaks little by little: for this long its program glitches more
