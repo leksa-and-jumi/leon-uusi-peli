@@ -343,7 +343,10 @@ export class Item extends Body {
 
     const melee = this.size.melee;
     if (!this.tossed || !melee || Math.abs(this.vx) < ITEM_TOSS.hitSpeed) return;
-    const victim = world.people.find((person) => person.canBeHit && overlaps(this.box, person.box));
+    // It never hits the doll that threw it
+    const victim = world.people.find(
+      (person) => person !== this.dropper && person.canBeHit && overlaps(this.box, person.box),
+    );
     if (!victim) return;
     const direction = this.vx < 0 ? -1 : 1;
     const solids = world.solidBoxes(victim);

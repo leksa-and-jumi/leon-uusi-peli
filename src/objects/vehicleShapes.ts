@@ -30,6 +30,8 @@ export function drawVehicle(g: Graphics, kind: VehicleKind): Graphics {
       return drawPlane(g, def);
     case 'saucer':
       return drawSaucer(g, def);
+    case 'ship':
+      return drawShip(g, def);
   }
 }
 
@@ -557,6 +559,58 @@ function drawSaucer(g: Graphics, def: BlockDef): Graphics {
   g.fillStyle(detail);
   for (const x of [-34, -17, 0, 17, 34]) {
     g.fillCircle(x, -9.5 - Math.abs(x) / 17, 2.5);
+  }
+  return g;
+}
+
+/**
+ * A pirate ship sailing to the right: a wooden hull with a row of planks, a cannon
+ * poking out of its bow, a mast with two pale sails, and a black flag with a skull.
+ */
+function drawShip(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // Mast, sails and flag
+  g.fillStyle(dark);
+  g.fillRect(-3, -90, 5, 66);
+  shape(g, detail, dark, [
+    [3, -84],
+    [34, -78],
+    [38, -56],
+    [3, -52],
+  ]);
+  shape(g, shade(detail, -0.08), dark, [
+    [3, -49],
+    [42, -46],
+    [44, -28],
+    [3, -26],
+  ]);
+  shape(g, 0x1b1b1b, 0x000000, [
+    [-3, -93],
+    [-24, -89],
+    [-3, -82],
+  ]);
+  g.fillStyle(0xffffff);
+  g.fillCircle(-12, -88.5, 2.2);
+  // The cannon in the bow
+  g.fillStyle(0x263238);
+  g.fillRoundedRect(38, -18, 18, 6, 2);
+  // Hull: high at both ends, with a rail and planks
+  shape(g, fill, dark, [
+    [-62, -26],
+    [-50, -20],
+    [44, -20],
+    [62, -30],
+    [48, 0],
+    [-48, 0],
+  ]);
+  g.lineStyle(1.2, dark, 0.7);
+  g.lineBetween(-54, -13, 54, -13);
+  g.lineBetween(-51, -6, 51, -6);
+  g.fillStyle(light, 0.8);
+  g.fillRect(-49, -19, 92, 2);
+  g.fillStyle(dark);
+  for (const x of [-30, -10, 10]) {
+    g.fillCircle(x, -10, 2.4);
   }
   return g;
 }

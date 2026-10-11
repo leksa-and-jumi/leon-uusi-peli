@@ -29,6 +29,7 @@ import {
   type WoundKind,
 } from '../config';
 import { clamp } from '../logic/bounds';
+import { lobSpeed } from '../logic/toss';
 import { shade } from '../logic/color';
 import { chaseStep, nearestIndex } from '../logic/chase';
 import {
@@ -1153,8 +1154,11 @@ export class Person extends Body {
     const solids = world.solidBoxes(this);
     const lobbed = this.lobBomb(target, deltaMs, world);
     if (lobbed) return lobbed;
+    const hurled = this.hurlWeapon(target, world);
+    if (hurled) return hurled;
     const weapon = this.item?.def;
-    const gun = weapon?.gun;
+    // A wizard needs no gun: with an empty hand it casts its spell
+    const gun = weapon?.gun ?? (weapon ? undefined : this.look.spell);
     const canShoot = gun !== undefined && this.clearShot(target, gun, solids);
     const reach = canShoot ? gun.range : (weapon?.melee?.reach ?? ANGRY.reach);
     const chase = chaseStep(this.x, this.facing, target.x, reach, ANGRY.speed * this.pace, deltaMs);
@@ -1195,6 +1199,30 @@ export class Person extends Body {
     world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly, sound);
     this.waitMs = ANGRY.restMs;
     this.inReach = false;
+    return 'punch';
+  }
+
+  /**
+   * A weapon that is made for throwing (a trident) is thrown at the one the doll is
+   * after, hard and almost straight. Gives the pose for it, or `null` when it holds
+   * nothing to throw or the other doll is too close or too far.
+   */
+  private hurlWeapon(target: Person, world: World): PoseKind | null {
+    const weapon = this.item;
+    const hurl = weapon?.def.hurl;
+    if (!weapon || !hurl) return null;
+    const gap = Math.abs(target.x - this.x);
+    if (gap < hurl.tooClose || gap > hurl.range) return null;
+    this.facing = target.x < this.x ? -1 : 1;
+    if (this.waitMs > 0) return 'stand';
+    const solids = world.solidBoxes(this);
+    this.dropItem(solids);
+    const from = weapon.feet;
+    const chest = target.y - PERSON.height * 0.6;
+    const speed = lobSpeed(from.x, from.y, target.x, chest, PHYSICS.gravity, hurl.flightMs / 1000);
+    weapon.fling(speed.x, speed.y, solids);
+    this.punchMs = ANGRY.punchMs;
+    this.waitMs = ANGRY.restMs;
     return 'punch';
   }
 

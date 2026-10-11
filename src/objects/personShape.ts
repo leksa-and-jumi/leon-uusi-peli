@@ -331,6 +331,16 @@ export class PersonFigure {
         trickle(x + half * 0.5, y + rise * 0.5, 3 + random() * 5);
         break;
       }
+      case 'prongs':
+        // Three deep holes side by side, each with its own trickle
+        for (const dx of [-7, 0, 7]) {
+          g.fillStyle(dark);
+          g.fillEllipse(x + dx, y, 4, 6.5);
+          g.fillStyle(marks.hole);
+          g.fillEllipse(x + dx, y, 1.8, 4.2);
+          trickle(x + dx, y + 2.5, 5 + random() * 7);
+        }
+        break;
       case 'stab':
         // A narrow, deep wound with a long trickle
         g.fillStyle(dark);

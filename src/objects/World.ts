@@ -99,6 +99,8 @@ export interface World {
   quake: () => void;
   /** A new item of this kind is hurled from this spot, at this speed (pixels per second). */
   fling: (kind: ItemKind, x: number, y: number, speedX: number, speedY: number) => void;
+  /** A note of this pitch (in hertz) sounds. */
+  note: (pitch: number) => void;
   /** A puff of smoke rises from this spot. */
   smoke: (x: number, y: number) => void;
   /** A little spark flies off something at this spot. */
