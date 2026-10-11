@@ -91,6 +91,8 @@ export class PersonFigure {
   private readonly scene: Phaser.Scene;
   /** Burnt down to a black skeleton. What draws each of its parts again as bones. */
   private charred = false;
+  /** Burnt by lava: its bones are much thinner than a skeleton's usually are. */
+  private wasted = false;
   private readonly toBones: readonly (() => void)[];
 
   constructor(scene: Phaser.Scene, look: PersonLook) {
@@ -137,7 +139,8 @@ export class PersonFigure {
    * Fire has finished the doll off: all that is left is a black skeleton. Every part
    * is drawn again as charred bone, the head as a skull, and the wounds are gone.
    */
-  burnToBones(): void {
+  burnToBones(thin = false): void {
+    this.wasted ||= thin;
     if (this.charred) return;
     this.charred = true;
     this.toBones.forEach((redraw) => {
@@ -147,6 +150,11 @@ export class PersonFigure {
     this.eyes.setVisible(false);
     this.deadEyes.setVisible(false);
     this.brows.setVisible(false);
+  }
+
+  /** How much thinner than usual it is drawn: lava leaves hardly anything of the bones. */
+  get thinness(): number {
+    return this.wasted ? CHARRED.thinScale : 1;
   }
 
   /** The pose the doll is in right now. */
