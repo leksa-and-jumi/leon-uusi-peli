@@ -189,6 +189,8 @@ export interface PersonLook {
     trousers: number;
     shoes: number;
   };
+  /** A wizard: in angry mode it casts this at the others, with no weapon in its hand. */
+  spell?: GunDef;
   /** It is heavy (a knight in armor): in water it sinks to the bottom, and under water it drowns. */
   heavy?: boolean;
 }
@@ -329,6 +331,18 @@ export const PEOPLE: readonly PersonLook[] = [
     joint: 0x311b92,
     extra: 'wizardHat',
     lives: 4,
+    // A fireball: it burns, and takes 2 lives
+    spell: {
+      range: 480,
+      damage: 2,
+      everyMs: 1500,
+      autoMs: 1500,
+      bulletSpeed: 520,
+      muzzle: { x: 44, y: 84 },
+      barrelUp: 0,
+      look: { width: 13, height: 13, color: 0xff7a1a },
+      wound: 'burn',
+    },
     human: {
       skin: 0xf1c27d,
       hair: 0xeeeeee,
@@ -736,6 +750,13 @@ export interface BlockDef {
    * fast, and its lightning comes out of its underside.
    */
   cloud?: { below: number; speed: number };
+  /**
+   * It is a piano: a doll walking along its top plays these notes (pitches in hertz),
+   * one for every key it steps onto, from left to right.
+   */
+  keys?: readonly number[];
+  /** A thing that floats lies this deep in the water, when not the usual share of its height. */
+  draft?: number;
 }
 
 /** The pieces on the building page. */
@@ -759,7 +780,7 @@ export type JunkBlockKind =
   'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire' | 'piano';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind =
-  'car' | 'truck' | 'tank' | 'bike' | 'skateboard' | 'helicopter' | 'plane' | 'saucer';
+  'car' | 'truck' | 'tank' | 'bike' | 'skateboard' | 'helicopter' | 'plane' | 'saucer' | 'ship';
 /** Things that are alive in their own way and go after the dolls. */
 export type MonsterKind =
   | 'skibidi'
@@ -916,6 +937,8 @@ export interface DriveDef {
   rotor?: { x: number; up: number; length: number; thickness: number; flat: boolean };
   /** How many bullets it takes, when that isn't the usual number. */
   hull?: number;
+  /** A ship: it only moves while it floats in water. */
+  sails?: boolean;
   /**
    * A cannon: while the vehicle is switched on it fires at the closest doll in front
    * of it, from this spot on the drawing. It doesn't fire at anything closer than `tooClose`.
@@ -1441,6 +1464,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xe6c04a, dark: 0x9a7a1e, light: 0xf7e08a, detail: 0x8d6e63 },
   },
   piano: {
+    keys: [262, 294, 330, 349, 392, 440, 494, 523],
     burns: true,
     halfWidth: 42,
     height: 64,
@@ -1515,6 +1539,47 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       pushSpeed: 160,
       speed: 150,
       ghost: { alpha: 0.92, bob: 6, bobMs: 260, wound: 'burn' },
+    },
+  },
+  // A pirate ship: it floats, sails back and forth on water, and fires its cannon
+  ship: {
+    floats: true,
+    burns: true,
+    halfWidth: 100,
+    height: 150,
+    menuScale: 0.5,
+    draft: 26,
+    colors: { fill: 0x8d5a2b, dark: 0x4e2f12, light: 0xc48a4f, detail: 0xf5efe0 },
+    drive: {
+      speed: 110,
+      damage: 1,
+      pushSpeed: 420,
+      scale: 1.6,
+      wheels: { xs: [], up: 0, radius: 0 },
+      seat: { x: -14, up: 24, inFront: true },
+      blast: { radius: 200, damage: 3, pushSpeed: 740 },
+      hull: 8,
+      sails: true,
+      cannon: {
+        x: 50,
+        up: 14,
+        tooClose: 170,
+        gun: {
+          range: 700,
+          damage: 0,
+          everyMs: 2800,
+          autoMs: 2800,
+          bulletSpeed: 600,
+          muzzle: { x: 0, y: 0 },
+          barrelUp: 0,
+          shell: {
+            blast: { radius: 100, damage: 3, pushSpeed: 600 },
+            width: 11,
+            height: 11,
+            color: 0x212121,
+          },
+        },
+      },
     },
   },
   // A flying saucer to ride in: it takes off with a pilot in it, like the helicopter
@@ -2082,7 +2147,7 @@ export interface GunDef {
  * from a blade, a stab from a point, a hole from a bullet, a burn from a blast. A `cut`
  * goes right through: a part of the doll comes off. A `saw` cuts it in two at the waist.
  */
-export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'cut' | 'saw';
+export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'cut' | 'saw' | 'prongs';
 
 /** Something to hit with: reaches further and hurts more than a fist. */
 export interface MeleeDef {
@@ -2129,6 +2194,11 @@ export interface ItemDef {
   melts?: boolean;
   /** It is made of iron or steel: a magnet pulls it. */
   metal?: boolean;
+  /**
+   * An angry doll throws it at the one it is after, from at least `tooClose` and at
+   * most `range` away, so that it gets there in `flightMs`.
+   */
+  hurl?: { range: number; tooClose: number; flightMs: number };
   /** It is a magnet: it pulls everything made of metal toward itself, and holds it. */
   magnet?: Pull;
   /**
@@ -2210,7 +2280,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       barrelUp: 17,
     },
   },
-  // Three points on a long shaft: it reaches far, and takes 2 lives
+  // Three points on a long shaft: angry dolls throw it
   trident: {
     melts: true,
     metal: true,
@@ -2220,8 +2290,10 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 0.68,
     lie: { x: -19, y: -9 },
     hand: { rotation: Math.PI / 4, along: 0 },
-    melee: { reach: 124, damage: 2, wound: 'stab', pushSpeed: 300 },
+    // Thrown or thrust, its three points go right in: three holes, and the doll is out
+    melee: { reach: 124, damage: 99, wound: 'prongs', pushSpeed: 300 },
     stick: { out: 46 },
+    hurl: { range: 520, tooClose: 70, flightMs: 420 },
   },
   // Its arrows fly far, one at a time
   bow: {
@@ -2674,6 +2746,7 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'helicopter',
   'plane',
   'saucer',
+  'ship',
 ];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
@@ -2772,6 +2845,7 @@ export const BLOOD = {
     burn: { burst: 9, bleedMs: 2200 },
     cut: { burst: 70, bleedMs: 14000 },
     saw: { burst: 70, bleedMs: 14000 },
+    prongs: { burst: 40, bleedMs: 9000 },
   },
   /** Where a part is cut off, this many more drops spray out, and the cut end looks like this. */
   cutSpray: 60,

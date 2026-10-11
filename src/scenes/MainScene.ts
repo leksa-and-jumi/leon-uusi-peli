@@ -236,6 +236,9 @@ export class MainScene extends Phaser.Scene {
         else item.fling(speedX, speedY, this.solidBoxes(item));
         if (this.blocks.length + this.items.length > THINGS_MAX) this.forgetOldest(this.items);
       },
+      note: (pitch) => {
+        this.sfx.note(pitch);
+      },
       smoke: (x, y) => {
         this.puff(x, y);
       },

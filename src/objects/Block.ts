@@ -132,6 +132,8 @@ export class Block extends Body {
   private fried = false;
   private smokeWaitMs = 0;
   private burnOutMs: number | null = null;
+  /** A piano: the key each doll on top of it is standing on. */
+  private readonly keyUnder = new WeakMap<Person, number>();
   /** A dragon: its wing, the time left of its breath of fire, and until its next puff. */
   private readonly wing: Phaser.GameObjects.Graphics | null = null;
   private breathMs = 0;
@@ -299,7 +301,8 @@ export class Block extends Body {
 
   /** A light piece floats in water, most of it under the surface. */
   protected override get floatDepth(): number | null {
-    return this.def.floats ? this.shape.height * POOL.floatShare : null;
+    if (!this.def.floats) return null;
+    return this.def.draft ?? this.shape.height * POOL.floatShare;
   }
 
   /** More of the same is poured into a pool: it gets deeper. */
@@ -706,6 +709,7 @@ export class Block extends Body {
     this.rampage(deltaMs, world, state);
     this.prowl(deltaMs, world, state);
     this.drift(deltaMs, world, state);
+    this.play(world, state);
     this.sling(deltaMs, world, state);
     this.flow(deltaMs, world, state);
     this.trap(deltaMs, world, state);
@@ -745,6 +749,8 @@ export class Block extends Body {
   private drive(deltaMs: number, world: World): void {
     const drive = this.def.drive;
     if (!drive || !this.driving) return;
+    // A ship only gets anywhere on water
+    if (drive.sails && !this.swimming) return;
     const { halfWidth, height } = this.shape;
     if (drive.flies) {
       // Climb to where it flies: its top a little under the ceiling
@@ -850,6 +856,29 @@ export class Block extends Body {
     const mouthX = this.x + this.facing * dragon.mouth.x;
     const aim = aimAt(mouthX, mouthY, atX, atY, this.facing);
     world.shoot(null, mouthX, mouthY, this.facing, dragon.gun, aim, this);
+  }
+
+  /**
+   * A piano plays: every doll that walks along its top sounds a note for each key it
+   * steps onto, low on the left and high on the right.
+   */
+  private play(world: World, state: BodyState): void {
+    const keys = this.def.keys;
+    if (!keys || state !== 'resting' || this.fallen !== 0) return;
+    const own = this.box;
+    const wide = (own.right - own.left) / keys.length;
+    for (const person of world.people) {
+      const feet = person.feet;
+      const onTop = Math.abs(feet.y - own.top) <= PHYSICS.groundSlack + 1;
+      if (!onTop || feet.x < own.left || feet.x > own.right || !person.riding) {
+        this.keyUnder.delete(person);
+        continue;
+      }
+      const key = Math.min(keys.length - 1, Math.floor((feet.x - own.left) / wide));
+      if (this.keyUnder.get(person) === key) continue;
+      this.keyUnder.set(person, key);
+      world.note(keys[key] ?? 0);
+    }
   }
 
   /** A storm cloud rises to just under the ceiling and drifts from one side of the area to the other. */
