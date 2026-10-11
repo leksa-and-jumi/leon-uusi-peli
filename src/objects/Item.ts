@@ -8,6 +8,7 @@ import {
   ITEM_TOSS,
   ITEMS,
   PICKUP_WAIT_MS,
+  POOL,
   THING_ACTIONS,
   TOPPLE,
   TOSS,
@@ -93,6 +94,15 @@ export class Item extends Body {
   }
 
   /** In a doll's hand, or stuck in a doll, right now? */
+  override get burns(): boolean {
+    return this.size.burns === true;
+  }
+
+  /** A light item floats in water. */
+  protected override get floatDepth(): number | null {
+    return this.size.floats ? this.size.height * POOL.floatShare : null;
+  }
+
   get isHeld(): boolean {
     return this.holder !== null || this.stuckIn !== null;
   }
@@ -166,7 +176,7 @@ export class Item extends Body {
   }
 
   /** Caught in another blast: a bomb goes off at most `ms` from now. */
-  setOff(ms: number): void {
+  override setOff(ms: number): void {
     if (!this.size.bomb || this.exploded) return;
     this.fuseMs = Math.min(this.fuseMs ?? ms, ms);
   }

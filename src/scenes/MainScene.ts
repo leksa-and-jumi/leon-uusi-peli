@@ -138,6 +138,8 @@ export class MainScene extends Phaser.Scene {
   private downDolls: Box[] = [];
   /** Things destroyed during this frame, waiting to be taken out of the game. */
   private doomed: Body[] = [];
+  /** A click on a pool that puts a new thing in, unless a second click makes it a double-click. */
+  private spawnSoon: { x: number; y: number; atMs: number } | null = null;
   /** When the thunder hammer last called down lightning. */
   private lastThunderMs = -Infinity;
   /** The full-screen button was pressed: switch when the press is let go. */
@@ -237,7 +239,7 @@ export class MainScene extends Phaser.Scene {
         this.bolt(x, y, x + reach(), y + reach(), SPARK);
       },
       things: (self) => [
-        ...this.blocks.filter((block) => block !== self && block.canBePicked),
+        ...this.blocks.filter((block) => block !== self && block.canBePicked && !block.def.liquid),
         ...this.items.filter((item) => item.canBePicked && !item.isHeld),
       ],
       zapThing: (fromX, fromY, thing) => {
@@ -308,6 +310,11 @@ export class MainScene extends Phaser.Scene {
       body.update(delta, this.world);
     }
     this.pullIn(delta);
+    if (this.spawnSoon && this.time.now - this.spawnSoon.atMs > DOUBLE_CLICK_MS) {
+      const { x, y } = this.spawnSoon;
+      this.spawnSoon = null;
+      this.spawn(x, y);
+    }
     this.forget(this.doomed);
     this.doomed = [];
     this.chant(delta);
@@ -366,7 +373,7 @@ export class MainScene extends Phaser.Scene {
       const holeY = (at.top + at.bottom) / 2;
       for (const body of this.everything()) {
         if (body === this.dragged || !body.canBePicked || this.doomed.includes(body)) continue;
-        if (body instanceof Block && body.def.hole) continue;
+        if (body instanceof Block && (body.def.hole || body.def.liquid)) continue;
         if (body instanceof Item && body.isHeld) continue;
         if (body instanceof Person && body.seated) continue;
         const box = body instanceof Person ? body.hitBox : body.box;
@@ -454,6 +461,18 @@ export class MainScene extends Phaser.Scene {
     }
 
     const click = { timeMs: this.time.now, target: body };
+    if (body instanceof Block && body.def.liquid) {
+      // A pool can't be grabbed. A double-click opens its bubble (to drain it); a
+      // single click goes through it, and puts a new thing in after a moment.
+      const twice = isDoubleClick(this.lastClick, click, DOUBLE_CLICK_MS);
+      this.lastClick = twice ? null : click;
+      this.spawnSoon = null;
+      if (twice && target === body) this.bubbles.close();
+      else if (twice) this.bubbles.open(body);
+      else if (target) this.bubbles.close();
+      else this.spawnSoon = { x: px, y: py, atMs: this.time.now };
+      return;
+    }
     if (isDoubleClick(this.lastClick, click, DOUBLE_CLICK_MS)) {
       this.lastClick = null;
       if (target === body) {
@@ -613,7 +632,10 @@ export class MainScene extends Phaser.Scene {
 
   /** What a click at this point grabs: items first, then dolls, then building pieces. */
   private bodyUnder(px: number, py: number): Body | null {
-    const pickable = this.everything().filter((body) => body.canBePicked);
+    // A pool covers the whole floor: whatever else is under the click is picked before it
+    const isPool = (body: Body): boolean => body instanceof Block && body.def.liquid !== undefined;
+    const all = this.everything().filter((body) => body.canBePicked);
+    const pickable = [...all.filter(isPool), ...all.filter((body) => !isPool(body))];
     const index = boxAt(
       pickable.map((body) => body.pickBox),
       px,
@@ -639,8 +661,15 @@ export class MainScene extends Phaser.Scene {
       thing = new Item(this, choice.kind, feet.x, feet.y);
       this.items.push(thing);
     } else {
-      const feet = placeFeet(px, py, AREA, BLOCKS[choice.kind]);
-      thing = new Block(this, choice.kind, feet.x, feet.y);
+      const def = BLOCKS[choice.kind];
+      const feet = placeFeet(px, py, AREA, def);
+      // More of a pool that is there already makes it deeper. A new pool starts on the floor.
+      const pool = def.liquid && this.blocks.find((block) => block.def.liquid === def.liquid);
+      if (pool) {
+        pool.deepen();
+        return;
+      }
+      thing = new Block(this, choice.kind, feet.x, def.liquid ? AREA.floorY : feet.y);
       this.blocks.push(thing);
     }
     thing.release(this.solidBoxes(thing));
@@ -827,7 +856,8 @@ export class MainScene extends Phaser.Scene {
       person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed, 'burn');
     }
 
-    const blocks = this.blocks.filter(caught);
+    // A blast doesn't blow a pool away
+    const blocks = this.blocks.filter((block) => !block.def.liquid && caught(block));
     const items = this.items.filter((item) => !item.isHeld && caught(item));
     for (const next of [...blocks, ...items]) {
       next.setOff(BLAST.chainMs);

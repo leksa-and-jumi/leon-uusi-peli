@@ -47,6 +47,17 @@ export abstract class Body {
     return null;
   }
 
+  /** Does lava burn it up? */
+  get burns(): boolean {
+    return false;
+  }
+
+  /** Fire or a blast gets at it: something explosive goes off `ms` from now. Nothing else minds. */
+  setOff(ms: number): void {
+    // Most things don't explode, however soon
+    void ms;
+  }
+
   /** A trampoline never stops bouncing it (a doll); other things bounce lower and lower. */
   protected readonly lively: boolean = false;
   /** How fast it was falling when it last hit the ground (pixels per second). */
