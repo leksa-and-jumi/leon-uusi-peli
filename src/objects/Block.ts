@@ -13,6 +13,7 @@ import {
   PERSON,
   ROTOR,
   PHYSICS,
+  POOL,
   SKIBIDI,
   TESLA,
   THUNDER,
@@ -42,6 +43,7 @@ import {
   topplePose,
 } from '../logic/balance';
 import { clamp } from '../logic/bounds';
+import { deeper, spreadStep, type Spread } from '../logic/pool';
 import { floatStep } from '../logic/chase';
 import { shade } from '../logic/color';
 import { blockedX, boxAround, liftOut, overlaps, type Box } from '../logic/ground';
@@ -121,6 +123,12 @@ export class Block extends Body {
   private burnOutMs: number | null = null;
   /** A pool: its picture, drawn again every frame. A black hole: its rings, which turn. */
   private readonly waves: Phaser.GameObjects.Graphics | null = null;
+  /**
+   * A pool: where its sides are and how deep it is right now, and how deep it is
+   * getting. It spreads out over the whole floor; drained, its depth goes to 0.
+   */
+  private pool: Spread | null = null;
+  private poolTarget = 0;
   private readonly swirl: Phaser.GameObjects.Graphics | null = null;
   /** A trampoline that has just thrown something up: time left of being squashed. */
   private boingMs = 0;
@@ -139,8 +147,14 @@ export class Block extends Body {
     const { liquid, hole } = this.def;
     // A ghost, a pool and a black hole aren't solid: things go right into them
     this.solid = !ghost && !liquid && !hole;
-    // A ghost, a flying saucer and a black hole hold themselves up in the air
-    this.hovering = Boolean(ghost ?? this.def.monster?.saucer ?? hole);
+    // A ghost, a flying saucer and a black hole hold themselves up in the air. A pool
+    // doesn't fall either: it lies on the floor, under everything.
+    this.hovering = Boolean(ghost ?? this.def.monster?.saucer ?? hole ?? liquid);
+    if (liquid) {
+      const { halfWidth, height } = this.def;
+      this.pool = { left: x - halfWidth, right: x + halfWidth, level: height };
+      this.poolTarget = height;
+    }
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
     const { blast, drive } = this.def;
     this.usualActions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
@@ -221,7 +235,24 @@ export class Block extends Body {
   }
 
   override get gone(): boolean {
-    return super.gone || this.exploded;
+    const drained = this.pool !== null && this.poolTarget === 0 && this.pool.level < POOL.gone;
+    return super.gone || this.exploded || drained;
+  }
+
+  override get burns(): boolean {
+    return this.def.burns === true;
+  }
+
+  /** A light piece floats in water, most of it under the surface. */
+  protected override get floatDepth(): number | null {
+    return this.def.floats ? this.shape.height * POOL.floatShare : null;
+  }
+
+  /** More of the same is poured into a pool: it gets deeper. */
+  deepen(): void {
+    const { liquid, height } = this.def;
+    if (!liquid || this.poolTarget === 0) return;
+    this.poolTarget = deeper(this.poolTarget, height * POOL.more, POOL.most[liquid]);
   }
 
   /** Does it go off with a blast when it is hit? */
@@ -358,6 +389,11 @@ export class Block extends Body {
   }
 
   override throwAway(area: PlaceArea): void {
+    // A pool can't be thrown: it drains away
+    if (this.pool) {
+      this.poolTarget = 0;
+      return;
+    }
     this.ejectDriver();
     super.throwAway(area);
   }
@@ -416,7 +452,7 @@ export class Block extends Body {
   }
 
   /** Hit by a bullet or caught in a blast: a barrel explodes at most `ms` from now. */
-  setOff(ms: number): void {
+  override setOff(ms: number): void {
     if (!this.explosive || this.exploded) return;
     const boss = this.def.monster?.boss;
     if (boss) {
@@ -902,12 +938,28 @@ export class Block extends Body {
   private flow(deltaMs: number, world: World, state: BodyState): void {
     const { liquid, hole } = this.def;
     if (this.swirl && hole) this.swirl.rotation += hole.spin * (deltaMs / 1000);
-    if (!this.waves || !liquid) return;
-    drawLiquid(this.waves.clear(), liquid, this.clockMs, this.def);
+    if (!this.waves || !liquid || !this.pool) return;
+    // It spreads over the floor, and its depth follows what was poured in or drained
+    const { left, right, floorY } = world.area;
+    const { spreadSpeed, levelMs } = POOL;
+    this.pool = spreadStep(this.pool, this.poolTarget, left, right, spreadSpeed, levelMs, deltaMs);
+    const halfWidth = (this.pool.right - this.pool.left) / 2;
+    this.x = (this.pool.left + this.pool.right) / 2;
+    this.y = floorY;
+    this.shape = { halfWidth, height: this.pool.level };
+    drawLiquid(this.waves.clear(), liquid, this.clockMs, this.def, halfWidth, this.pool.level);
     if (liquid !== 'lava' || state !== 'resting') return;
+
+    // Lava: a doll in it melts away, explosives go off, and what is made of wood burns up
     const own = this.box;
+    for (const person of world.people) {
+      if (person.seated || !person.canBePicked || !overlaps(own, person.hitBox)) continue;
+      if (person.melt(world.solidBoxes(person))) world.smoke(person.feet.x, own.top);
+    }
     for (const thing of world.things(this)) {
-      if (!(thing instanceof Block) && overlaps(own, thing.box)) world.burn(thing);
+      if (!overlaps(own, thing.box)) continue;
+      thing.setOff(BLAST.chainMs);
+      if (thing.burns) world.burn(thing);
     }
   }
 

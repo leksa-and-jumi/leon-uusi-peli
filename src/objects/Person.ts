@@ -20,6 +20,8 @@ import {
   TOSS,
   WALK,
   WATER,
+  DROWN,
+  MELT,
   type ActionId,
   type GunDef,
   type PersonLook,
@@ -121,8 +123,12 @@ export class Person extends Body {
   protected override readonly climbsOnlyLow = true;
   protected override readonly lively = true;
 
-  /** A doll floats: upright with its head out of the water, or flat on top when it is limp. */
-  protected override get floatDepth(): number {
+  /**
+   * A doll floats: upright with its head out of the water, or flat on top when it is
+   * limp. A knight in its heavy armor doesn't: it sinks to the bottom.
+   */
+  protected override get floatDepth(): number | null {
+    if (this.look.heavy) return null;
     return this.ragdoll ? WATER.lieDepth : WATER.standDepth;
   }
 
@@ -165,6 +171,10 @@ export class Person extends Body {
   private twitchWaitMs = 0;
   private blown = false;
   private ashPending = false;
+  /** Melting away in lava: time left until nothing of it is left, or `null`. */
+  private meltMs: number | null = null;
+  /** How long a heavy doll has had its head under water since it last lost a life. */
+  private drownMs = 0;
   /** A blade has just gone right through it: a part comes off on its next turn. */
   private cutPending = false;
 
@@ -226,7 +236,22 @@ export class Person extends Body {
 
   /** A robot that has blown up is gone. */
   override get gone(): boolean {
-    return super.gone || this.blown;
+    return super.gone || this.blown || this.meltMs === 0;
+  }
+
+  /**
+   * Lava has got it: it is out at once, sinks in, fades and is gone for good. Says
+   * whether it has only just started to melt.
+   */
+  melt(solids: readonly Box[]): boolean {
+    if (this.meltMs !== null) return false;
+    this.meltMs = MELT.ms;
+    this.leaveSeat();
+    this.lose(this.lives, solids, null);
+    this.spray = 0;
+    this.bleedMs = 0;
+    this.shortMs = 0;
+    return true;
   }
 
   /** Is it a machine (a robot)? Lightning doesn't just knock those out. */
@@ -509,10 +534,10 @@ export class Person extends Body {
   }
 
   /** Lose lives, and get the mark of what did it. Says whether that was the last life. */
-  private lose(damage: number, solids: readonly Box[], wound: WoundKind): boolean {
+  private lose(damage: number, solids: readonly Box[], wound: WoundKind | null): boolean {
     if (this.dead) return false;
     if (damage > 0 && wound === 'cut') this.cutPending = true;
-    if (damage > 0) {
+    if (damage > 0 && wound) {
       // Every hit that hurts leaves its own kind of mark, which sprays and then drips
       const bleeding = BLOOD.byWound[wound];
       this.figure.addWound(wound);
@@ -539,8 +564,10 @@ export class Person extends Body {
       this.bleed(deltaMs, world);
       return;
     }
+    if (this.meltMs !== null) this.meltMs = Math.max(0, this.meltMs - deltaMs);
     const wasFalling = this.state === 'falling';
     const fallSpeed = this.speed.y;
+    this.wade(deltaMs, world);
     this.noJumpMs = Math.max(0, this.noJumpMs - deltaMs);
     this.glide(deltaMs, world);
     this.leap(deltaMs, world);
@@ -762,6 +789,30 @@ export class Person extends Body {
       hitSomeone = true;
     }
     return hitSomeone;
+  }
+
+  /**
+   * In water: a robot short-circuits as soon as it gets wet, and a heavy doll whose
+   * head is under water loses a life again and again until it has drowned.
+   */
+  private wade(deltaMs: number, world: World): void {
+    const surface = world.floatLine(this.x, 0);
+    const body = this.hitBox;
+    if (surface === null || body.bottom <= surface || this.state === 'held') {
+      this.drownMs = 0;
+      return;
+    }
+    if (this.machine) this.shortCircuit(this.facing);
+    if (!this.look.heavy || this.dead || body.top <= surface) {
+      this.drownMs = 0;
+      return;
+    }
+    this.drownMs += deltaMs;
+    if (this.drownMs < DROWN.everyMs) return;
+    this.drownMs = 0;
+    if (!this.lose(1, world.solidBoxes(this), null)) return;
+    this.knockOver(this.facing, 0);
+    world.hitEffect(this.x, surface, true, 'none');
   }
 
   /**
@@ -1129,6 +1180,12 @@ export class Person extends Body {
     // sitting on a motorbike it is in front
     const sitting = this.seat?.seatInFront ? DEPTH.rider : DEPTH.driver;
     container.setDepth(this.seat ? sitting : flat ? DEPTH.downDoll : DEPTH.person);
+    if (this.meltMs !== null) {
+      // Melting in lava: it sinks in and fades away
+      const left = this.meltMs / MELT.ms;
+      container.setAlpha(left);
+      container.y += (1 - left) * MELT.sink;
+    }
     this.drawn = { x, y, rotation };
   }
 }

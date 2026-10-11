@@ -171,6 +171,8 @@ export interface PersonLook {
    * lightning makes it short-circuit: it twitches, sparks, and blows up in the end.
    */
   machine?: boolean;
+  /** It is heavy (a knight in armor): in water it sinks to the bottom, and under water it drowns. */
+  heavy?: boolean;
 }
 
 /**
@@ -212,6 +214,7 @@ export const PEOPLE: readonly PersonLook[] = [
     body: 0xdfe6ea,
     joint: 0x78909c,
     extra: 'helmet',
+    heavy: true,
     lives: 6,
     punch: 2,
     speed: 0.8,
@@ -565,10 +568,15 @@ export interface BlockDef {
   /** It is a trampoline: what lands on it is thrown back up. */
   spring?: Spring;
   /**
-   * It is a pool of something. Nothing stands on it: things go into it, and it is
-   * drawn in front of them. Dolls float in `water`; `lava` burns up loose items.
+   * It is a pool of something. It spreads out over the whole floor. Nothing stands on
+   * it: things go into it, and it is drawn in front of them. Dolls and light things
+   * float in `water`; `lava` melts dolls and burns up what is made of wood.
    */
   liquid?: 'water' | 'lava';
+  /** It is light: in water it comes up and floats, and dolls can ride on it. */
+  floats?: boolean;
+  /** It is made of wood, rubber or plastic: lava burns it up. */
+  burns?: boolean;
   /** It is a black hole: it pulls everything around it in, and it turns this fast (radians per second). */
   hole?: Pull & { spin: number };
 }
@@ -887,6 +895,27 @@ export const WATER = {
 /** Lava glows and bubbles: its bright patches drift, one way and back in this long. */
 export const LAVA = { alpha: 0.95, driftMs: 2600, bubbleMs: 700 } as const;
 
+/**
+ * A pool spreads out over the floor this fast (pixels per second), and its depth
+ * changes in about `levelMs`. Putting more in makes it `more` of its first depth
+ * deeper, up to `most`. Drained, it is gone once it is shallower than `gone`.
+ */
+export const POOL = {
+  spreadSpeed: 520,
+  levelMs: 380,
+  more: 0.5,
+  most: { water: 260, lava: 64 },
+  gone: 1.5,
+  /** A light thing floats with this much of its height under the surface. */
+  floatShare: 0.6,
+} as const;
+
+/** A heavy doll with its head under water loses a life this often, until it has drowned. */
+export const DROWN = { everyMs: 1100 } as const;
+
+/** A doll in lava melts away: it sinks this far and fades in this long, and then it is gone. */
+export const MELT = { ms: 900, sink: 26 } as const;
+
 /** The bar above a boss that shows how much more it can take. */
 export const BOSS_BAR = {
   width: 76,
@@ -992,6 +1021,8 @@ export const BULLET_HOLE = { color: 0x111114, rim: 0x6b6f75, radius: 2.4 } as co
 
 export const BLOCKS: Record<BlockKind, BlockDef> = {
   crate: {
+    floats: true,
+    burns: true,
     halfWidth: 28,
     height: 56,
     menuScale: 1,
@@ -1004,6 +1035,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xa8503f, dark: 0x4e221b, light: 0xd58a76, detail: 0xcfc4b2 },
   },
   plank: {
+    floats: true,
+    burns: true,
     halfWidth: 70,
     height: 18,
     menuScale: 0.45,
@@ -1022,6 +1055,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0x6f7f8c, dark: 0x2f3a43, light: 0xb1c1cc, detail: 0x232b31 },
   },
   barrel: {
+    floats: true,
     halfWidth: 19,
     height: 50,
     menuScale: 1.2,
@@ -1037,6 +1071,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
   },
   // A bigger bang than the barrel, and a longer fuse to get away from it
   tnt: {
+    floats: true,
     halfWidth: 26,
     height: 44,
     menuScale: 1.1,
@@ -1136,33 +1171,25 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
   },
   // A little too high to step onto: a doll hops on, and then it bounces
   trampoline: {
+    burns: true,
     halfWidth: 46,
     height: 24,
     menuScale: 0.9,
     colors: { fill: 0x1e88e5, dark: 0x0d3c73, light: 0x90caf9, detail: 0x23272b },
     spring: { minSpeed: 140, keep: 0.85, boost: 150, dull: 0.55, most: 1100 },
   },
-  // A doll in it burns again and again, and loose items burn up. Pieces can bridge it.
+  // It spreads over the whole floor. A doll in it melts away, and wooden things burn up.
   lava: {
     halfWidth: 64,
     height: 18,
     menuScale: 0.9,
     colors: { fill: 0xff5722, dark: 0x8a1c00, light: 0xffc107, detail: 0xffee58 },
     liquid: 'lava',
-    hazard: {
-      kind: 'touch',
-      damage: 1,
-      pushSpeed: 60,
-      wound: 'burn',
-      sound: 'none',
-      everyMs: 420,
-      side: 0,
-      up: 4,
-    },
   },
+  // It spreads over the whole floor too. Light things float in it, heavy ones sink.
   water: {
     halfWidth: 84,
-    height: 96,
+    height: 130,
     menuScale: 0.6,
     colors: { fill: 0x29b6f6, dark: 0x0277bd, light: 0xb3e5fc, detail: 0xffffff },
     liquid: 'water',
@@ -1194,12 +1221,16 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0x9aa6ae, dark: 0x4c575e, light: 0xd3dbe0, detail: 0x6b767d },
   },
   armchair: {
+    floats: true,
+    burns: true,
     halfWidth: 34,
     height: 56,
     menuScale: 0.95,
     colors: { fill: 0xa14040, dark: 0x5a1f1f, light: 0xc96a6a, detail: 0x3b2a20 },
   },
   table: {
+    floats: true,
+    burns: true,
     halfWidth: 50,
     height: 46,
     menuScale: 0.65,
@@ -1212,6 +1243,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xe6ebee, dark: 0x7c888f, light: 0xffffff, detail: 0x59646b },
   },
   cone: {
+    floats: true,
+    burns: true,
     halfWidth: 18,
     height: 42,
     menuScale: 1.35,
@@ -1503,6 +1536,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   skateboard: {
+    floats: true,
+    burns: true,
     halfWidth: 27,
     height: 10,
     menuScale: 1.1,
@@ -1516,6 +1551,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   tire: {
+    floats: true,
+    burns: true,
     halfWidth: 24,
     height: 48,
     menuScale: 1.2,
@@ -1596,6 +1633,10 @@ export interface ItemDef {
   stick?: { out: number };
   /** Dragged along the floor, it wipes stains away. */
   wipes?: boolean;
+  /** It is light: in water it comes up and floats. */
+  floats?: boolean;
+  /** It is made of wood: lava burns it up. */
+  burns?: boolean;
   /** Struck against the floor at least this fast (pixels per second), it calls down lightning. */
   thunder?: { minSpeed: number };
   /** The colors of the pieces it breaks into. */
@@ -1707,6 +1748,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     stick: { out: 24 },
   },
   spear: {
+    floats: true,
+    burns: true,
     crumbs: [0xc9a46a, 0x7a5a2e, 0xb4c0c8],
     halfWidth: 49,
     height: 10,
@@ -1717,6 +1760,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     stick: { out: 48 },
   },
   bat: {
+    floats: true,
+    burns: true,
     crumbs: [0xc9a46a, 0x7a5a2e, 0xecd2a0],
     halfWidth: 36,
     height: 12,
@@ -1767,6 +1812,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // A shorter fuse than the bomb and a much bigger blast
   dynamite: {
+    floats: true,
     crumbs: [0xd32f2f, 0x7f1d1d, 0x3e2723],
     halfWidth: 13,
     height: 26,
@@ -1776,6 +1822,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     bomb: { fuseMs: 3000, radius: 250, damage: 4, pushSpeed: 850 },
   },
   bottle: {
+    floats: true,
     crumbs: [0x2e7d4f, 0xa5e0bd, 0x174428],
     halfWidth: 26,
     height: 16,
@@ -1795,6 +1842,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 74, damage: 1, wound: 'bruise', pushSpeed: 540 },
   },
   broom: {
+    floats: true,
+    burns: true,
     crumbs: [0xc9a46a, 0x7a5a2e, 0xd9b44a],
     halfWidth: 42,
     height: 26,

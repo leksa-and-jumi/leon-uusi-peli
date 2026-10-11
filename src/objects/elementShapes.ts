@@ -20,7 +20,7 @@ export function drawElement(g: Graphics, kind: ElementKind, whole: boolean): Gra
     g.restore();
     return g;
   }
-  return drawLiquid(g, kind, 0, def);
+  return drawLiquid(g, kind, 0, def, def.halfWidth, def.height);
 }
 
 /** A pool as it looks at this moment: water with waves rolling by, or glowing, bubbling lava. */
@@ -29,12 +29,23 @@ export function drawLiquid(
   liquid: 'water' | 'lava',
   timeMs: number,
   def: BlockDef,
+  halfWidth: number,
+  height: number,
 ): Graphics {
-  return liquid === 'water' ? drawWater(g, timeMs, def) : drawLava(g, timeMs, def);
+  return liquid === 'water'
+    ? drawWater(g, timeMs, def, halfWidth, height)
+    : drawLava(g, timeMs, def, halfWidth, height);
 }
 
-function drawWater(g: Graphics, timeMs: number, def: BlockDef): Graphics {
-  const { halfWidth, height, colors } = def;
+/** Water, this wide and this deep right now: a pool spreads, and gets deeper. */
+function drawWater(
+  g: Graphics,
+  timeMs: number,
+  def: BlockDef,
+  halfWidth: number,
+  height: number,
+): Graphics {
+  const { colors } = def;
   const { wave } = WATER;
   const top = -height;
   /** How high the surface is at `x` right now. */
@@ -65,37 +76,42 @@ function drawWater(g: Graphics, timeMs: number, def: BlockDef): Graphics {
   }
   g.strokePath();
   g.fillStyle(colors.light, 0.7);
-  for (let i = 0; i < 5; i++) {
-    const x = -halfWidth + 14 + i * ((halfWidth * 2 - 28) / 4);
-    const rise = ((timeMs / (1700 + i * 260) + i * 0.37) % 1) * (height - 16);
+  for (let i = 0, x = -halfWidth + 14; x < halfWidth - 10; i++, x += 36) {
+    const rise = ((timeMs / (1700 + (i % 5) * 260) + i * 0.37) % 1) * Math.max(0, height - 16);
     g.fillCircle(x + 4 * Math.sin(timeMs / 400 + i), -6 - rise, 1.8 + (i % 2));
   }
   return g;
 }
 
-function drawLava(g: Graphics, timeMs: number, def: BlockDef): Graphics {
-  const { halfWidth, height, colors } = def;
+/** Lava, this wide and this deep right now. */
+function drawLava(
+  g: Graphics,
+  timeMs: number,
+  def: BlockDef,
+  halfWidth: number,
+  height: number,
+): Graphics {
+  const { colors } = def;
   const top = -height;
   g.fillStyle(colors.dark);
-  g.fillRoundedRect(-halfWidth, top, halfWidth * 2, height, 6);
+  g.fillRoundedRect(-halfWidth, top, halfWidth * 2, height, Math.min(6, height / 2));
   g.fillStyle(colors.fill);
-  g.fillRoundedRect(-halfWidth + 2, top + 2, halfWidth * 2 - 4, height - 3, 5);
-  // Bright patches that drift from side to side
+  g.fillRoundedRect(-halfWidth + 2, top + 2, halfWidth * 2 - 4, Math.max(1, height - 3), 3);
+  // Bright patches that drift from side to side, all along it
   const drift = Math.sin((timeMs / LAVA.driftMs) * Math.PI * 2);
-  g.fillStyle(colors.light, 0.85);
-  for (const [x, wide] of [
-    [-38, 26],
-    [-4, 34],
-    [34, 22],
-  ] as const) {
-    g.fillEllipse(x + drift * 7, top + height * 0.5, wide, height * 0.42);
+  for (let i = 0, x = -halfWidth + 26; x < halfWidth - 14; i++, x += 38) {
+    const wide = [26, 34, 22][i % 3] ?? 26;
+    const sway = (i % 2 === 0 ? 1 : -1) * drift * 7;
+    g.fillStyle(colors.light, 0.85);
+    g.fillEllipse(x + sway, top + height * 0.5, wide, height * 0.42);
+    if (i % 3 === 1) {
+      g.fillStyle(colors.detail, 0.9);
+      g.fillEllipse(x - sway * 0.7, top + height * 0.48, 16, height * 0.22);
+    }
   }
-  g.fillStyle(colors.detail, 0.9);
-  g.fillEllipse(-2 - drift * 5, top + height * 0.48, 16, height * 0.22);
   // Bubbles that swell up and pop, one after the other
-  for (let i = 0; i < 3; i++) {
-    const part = (timeMs / LAVA.bubbleMs + i / 3) % 1;
-    const x = -halfWidth + 22 + i * ((halfWidth * 2 - 44) / 2);
+  for (let i = 0, x = -halfWidth + 22; x < halfWidth - 12; i++, x += 58) {
+    const part = (timeMs / LAVA.bubbleMs + (i % 3) / 3) % 1;
     g.fillStyle(shade(colors.light, 0.2), 1 - part);
     g.fillCircle(x, top + 3 - part * 3, 2 + part * 4);
   }
