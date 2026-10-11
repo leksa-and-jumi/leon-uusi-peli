@@ -60,6 +60,16 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
       return drawUfo(g, def);
     case 'boss':
       return drawBoss(g, def);
+    case 'dragon': {
+      // In the menu its wing is drawn on, spread out
+      const wing = def.monster?.dragon?.wing ?? { x: 0, up: 0 };
+      drawDragonBody(g, def);
+      g.save();
+      g.translateCanvas(wing.x, -wing.up);
+      drawDragonWing(g, def);
+      g.restore();
+      return g;
+    }
     case 'cone':
       return drawCone(g, def);
     case 'tire':
@@ -381,6 +391,101 @@ function drawTire(g: Graphics, def: BlockDef): Graphics {
     const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
     g.fillCircle(Math.cos(angle) * 7.5, middleY + Math.sin(angle) * 7.5, 1.4);
   }
+  return g;
+}
+
+/**
+ * A dragon without its wing, flying to the right: a long tail, a round body with a
+ * pale belly, two legs tucked under it, a neck, and a head with horns and a yellow eye.
+ * The middle of its bottom edge is at (0, 0).
+ */
+export function drawDragonBody(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // Tail, with a spike on its end
+  shape(g, fill, dark, [
+    [-22, -40],
+    [-46, -46],
+    [-60, -40],
+    [-46, -37],
+    [-24, -24],
+  ]);
+  shape(g, detail, dark, [
+    [-58, -45],
+    [-67, -42],
+    [-58, -36],
+  ]);
+  // Legs with claws
+  for (const x of [-18, 8]) {
+    box(g, shade(fill, -0.15), dark, x, -16, 11, 14, 4);
+    g.fillStyle(detail);
+    g.fillTriangle(x + 1, -2, x + 5, -2, x + 3, 2);
+    g.fillTriangle(x + 6, -2, x + 10, -2, x + 8, 2);
+  }
+  // Neck, body and belly
+  shape(g, fill, dark, [
+    [12, -44],
+    [36, -58],
+    [46, -50],
+    [26, -26],
+  ]);
+  g.fillStyle(dark);
+  g.fillEllipse(-4, -30, 62, 36);
+  g.fillStyle(fill);
+  g.fillEllipse(-4, -30, 59, 33);
+  g.fillStyle(light, 0.85);
+  g.fillEllipse(-2, -21, 44, 13);
+  // Spikes down its back
+  g.fillStyle(detail);
+  for (const x of [-26, -16, -6, 4]) {
+    g.fillTriangle(x - 4, -45, x + 4, -45, x, -53);
+  }
+  // Head: horns, a snout, an eye and teeth
+  shape(g, detail, dark, [
+    [36, -58],
+    [28, -68],
+    [42, -60],
+  ]);
+  shape(g, fill, dark, [
+    [34, -58],
+    [52, -60],
+    [66, -52],
+    [66, -45],
+    [50, -41],
+    [36, -46],
+  ]);
+  g.lineStyle(1.4, dark);
+  g.lineBetween(46, -47, 66, -47.5);
+  g.fillStyle(0xffffff);
+  g.fillTriangle(54, -47.5, 57, -47.5, 55.5, -44.5);
+  g.fillTriangle(60, -47.5, 63, -47.5, 61.5, -44.5);
+  g.fillStyle(detail);
+  g.fillCircle(49, -54, 2.8);
+  g.fillStyle(dark);
+  g.fillCircle(49.6, -54, 1.2);
+  g.fillCircle(63, -50.5, 0.9);
+  return g;
+}
+
+/**
+ * The wing of a dragon, around its root at (0, 0): three long bones with skin between
+ * them, like a bat's wing. It stands up; turned over, it points down.
+ */
+export function drawDragonWing(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light } = def.colors;
+  shape(g, shade(light, -0.1), dark, [
+    [0, 0],
+    [-12, -36],
+    [-30, -22],
+    [-40, -30],
+    [-44, -8],
+    [-56, -12],
+    [-40, 8],
+    [-14, 6],
+  ]);
+  g.lineStyle(2.4, fill);
+  g.lineBetween(0, 0, -12, -36);
+  g.lineBetween(0, 0, -40, -30);
+  g.lineBetween(0, 0, -56, -12);
   return g;
 }
 

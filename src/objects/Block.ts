@@ -55,14 +55,15 @@ import { shade } from '../logic/color';
 import { blockedX, boxAround, liftOut, overlaps, type Box } from '../logic/ground';
 import { aimAt, segmentHit } from '../logic/shot';
 import { stairSteps } from '../logic/stairs';
+import { lobSpeed } from '../logic/toss';
 import type { Spot } from '../logic/pick';
 import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
-import { drawCastle, drawGrille } from './castleShapes';
+import { drawCastle, drawCatapultArm, drawGrille } from './castleShapes';
 import { drawElement, drawLiquid, drawSwirl } from './elementShapes';
-import { drawJunk, drawMonsterHead } from './junkShapes';
+import { drawDragonBody, drawDragonWing, drawJunk, drawMonsterHead } from './junkShapes';
 import { drawFlames, drawSawBlade, drawTrap } from './trapShapes';
 import { drawTvDead, drawTvHaywire, drawTvProgram } from './tvScreen';
 import { drawParkedVehicle, drawRotor, drawVehicle, drawWheel } from './vehicleShapes';
@@ -131,6 +132,14 @@ export class Block extends Body {
   private fried = false;
   private smokeWaitMs = 0;
   private burnOutMs: number | null = null;
+  /** A dragon: its wing, the time left of its breath of fire, and until its next puff. */
+  private readonly wing: Phaser.GameObjects.Graphics | null = null;
+  private breathMs = 0;
+  private puffWaitMs = 0;
+  /** A catapult: its arm, how far it has swung over (0 to 1), and the time until it fires again. */
+  private readonly arm: Phaser.GameObjects.Graphics | null = null;
+  private armSwing = 0;
+  private launchWaitMs = 0;
   /** A gate: is it open, its grille, and how much of the grille is down (1 is closed). */
   private gateOpen = false;
   private readonly grille: Phaser.GameObjects.Graphics | null = null;
@@ -163,7 +172,8 @@ export class Block extends Body {
     this.solid = !ghost && !liquid && !hole;
     // A ghost, a flying saucer and a black hole hold themselves up in the air. A pool
     // doesn't fall either: it lies on the floor, under everything.
-    this.hovering = Boolean(ghost ?? this.def.monster?.saucer ?? hole ?? liquid);
+    const flier = this.def.monster?.saucer ?? this.def.monster?.dragon;
+    this.hovering = Boolean(ghost ?? flier ?? hole ?? liquid);
     if (liquid) {
       const { halfWidth, height } = this.def;
       this.pool = { left: x - halfWidth, right: x + halfWidth, level: height };
@@ -173,7 +183,8 @@ export class Block extends Body {
     const { blast, drive } = this.def;
     const moving = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
     const special = this.def.gate ? GATE_ACTIONS : this.def.bridge ? BRIDGE_ACTIONS : null;
-    this.usualActions = special ?? (this.def.stairs ? TURN_ACTIONS : moving);
+    const turns = this.def.stairs !== undefined || this.def.launcher !== undefined;
+    this.usualActions = special ?? (turns ? TURN_ACTIONS : moving);
     const { fill, dark, light } = this.def.colors;
     this.crumbs = [fill, dark, light];
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
@@ -189,7 +200,7 @@ export class Block extends Body {
       this.flames = blank();
       parts.unshift(this.flames);
     }
-    this.hull = drive?.hull ?? monster?.boss?.hull ?? VEHICLE_HULL;
+    this.hull = drive?.hull ?? monster?.boss?.hull ?? monster?.dragon?.hull ?? VEHICLE_HULL;
     if (monster?.boss) {
       this.bar = blank().setPosition(0, -this.def.height - BOSS_BAR.up);
       parts.push(this.bar);
@@ -237,6 +248,19 @@ export class Block extends Body {
     if (hole) {
       this.swirl = drawSwirl(blank(), this.def).setPosition(0, -this.def.height / 2);
       picture.add(this.swirl);
+    }
+    const dragon = monster?.dragon;
+    if (dragon) {
+      // The wing is a picture of its own, so that it can beat
+      this.wing = drawDragonWing(blank(), this.def).setPosition(dragon.wing.x, -dragon.wing.up);
+      picture.add(this.wing);
+    }
+    const { launcher } = this.def;
+    if (launcher) {
+      this.arm = drawCatapultArm(blank(), this.def);
+      this.arm.setPosition(launcher.pivot.x, -launcher.pivot.up);
+      this.arm.rotation = launcher.arm.rest;
+      picture.add(this.arm);
     }
     const { gate } = this.def;
     if (gate) {
@@ -680,6 +704,8 @@ export class Block extends Body {
     this.haunt(deltaMs, world, state);
     this.patrol(deltaMs, world, state);
     this.rampage(deltaMs, world, state);
+    this.prowl(deltaMs, world, state);
+    this.sling(deltaMs, world, state);
     this.flow(deltaMs, world, state);
     this.trap(deltaMs, world, state);
     const steady = this.tipping !== null || this.prop !== null;
@@ -776,6 +802,86 @@ export class Block extends Body {
     this.cannonWaitMs = cannon.gun.everyMs;
     const aim = aimAt(fromX, fromY, target.x, target.y, this.facing);
     world.shoot(this.driver, fromX, fromY, this.facing, cannon.gun, aim, this);
+  }
+
+  /**
+   * A dragon flies up under the ceiling, keeps a little to the side of the closest
+   * living doll and breathes fire down on it: a stream of flames, then a rest.
+   */
+  private prowl(deltaMs: number, world: World, state: BodyState): void {
+    const monster = this.def.monster;
+    const dragon = monster?.dragon;
+    if (!monster || !dragon) return;
+    if (this.wing) {
+      // The wing beats: up, down, up, down
+      const beat = Math.cos((this.clockMs / dragon.flapMs) * Math.PI * 2);
+      this.wing.setScale(1, 0.25 + 0.75 * beat);
+    }
+    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    this.breathMs = Math.max(0, this.breathMs - deltaMs);
+    this.puffWaitMs = Math.max(0, this.puffWaitMs - deltaMs);
+    if (state !== 'resting') return;
+    const { halfWidth, height } = this.shape;
+    const { left, right, top } = world.area;
+    const climb = monster.speed * (deltaMs / 1000);
+    this.y += clamp(top + dragon.below + height - this.y, -climb, climb);
+
+    const mouthY = this.y - dragon.mouth.up;
+    const victim = this.closestDoll(world, mouthY, monster.range, null, false);
+    if (!victim) return;
+    const body = victim.hitBox;
+    const atX = (body.left + body.right) / 2;
+    const atY = (body.top + body.bottom) / 2;
+    if (Math.abs(atX - this.x) > 4) this.facing = atX < this.x ? -1 : 1;
+    // It hangs back a little, so that its fire comes down on the doll at a slant
+    const from = this.x;
+    const wanted = floatStep(from, 0, atX - this.facing * dragon.keep, 0, monster.speed, deltaMs).x;
+    const inside = clamp(wanted, left + halfWidth, right - halfWidth);
+    this.x = blockedX(from, inside, halfWidth, this.y, height, world.pieces(this), 0);
+    world.carry(this, this.x - from);
+
+    if (this.breathMs <= 0 && this.zapWaitMs <= 0 && Math.abs(atX - this.x) <= dragon.keep * 2) {
+      this.breathMs = dragon.breathMs;
+      this.zapWaitMs = dragon.breathMs + monster.everyMs;
+    }
+    if (this.breathMs <= 0 || this.puffWaitMs > 0) return;
+    this.puffWaitMs = dragon.gun.everyMs;
+    const mouthX = this.x + this.facing * dragon.mouth.x;
+    const aim = aimAt(mouthX, mouthY, atX, atY, this.facing);
+    world.shoot(null, mouthX, mouthY, this.facing, dragon.gun, aim, this);
+  }
+
+  /**
+   * A catapult hurls a boulder at the closest living doll in front of it, in a high
+   * arc, and then its arm comes back for the next one.
+   */
+  private sling(deltaMs: number, world: World, state: BodyState): void {
+    const launcher = this.def.launcher;
+    if (!launcher || !this.arm) return;
+    this.armSwing = Math.max(0, this.armSwing - deltaMs / launcher.arm.backMs);
+    this.arm.rotation = launcher.arm.rest + launcher.arm.swing * this.armSwing;
+    this.launchWaitMs = Math.max(0, this.launchWaitMs - deltaMs);
+    if (this.launchWaitMs > 0 || state !== 'resting' || this.fallen !== 0) return;
+
+    let target: { x: number; y: number } | null = null;
+    let closest: number = launcher.range;
+    for (const person of world.people) {
+      if (person.dead || person.seated || !person.canBePicked) continue;
+      const body = person.hitBox;
+      const atX = (body.left + body.right) / 2;
+      const ahead = (atX - this.x) * this.facing;
+      if (ahead < launcher.tooClose || ahead >= closest) continue;
+      target = { x: atX, y: (body.top + body.bottom) / 2 };
+      closest = ahead;
+    }
+    if (!target) return;
+    this.launchWaitMs = launcher.everyMs;
+    this.armSwing = 1;
+    const fromX = this.x + this.facing * launcher.x;
+    const fromY = this.y - launcher.up;
+    const seconds = launcher.flightMs / 1000;
+    const speed = lobSpeed(fromX, fromY, target.x, target.y, PHYSICS.gravity, seconds);
+    world.fling(launcher.item, fromX, fromY, speed.x, speed.y);
   }
 
   /**
@@ -1277,6 +1383,7 @@ function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
   if (isCastle(kind)) return drawCastle(g, kind, false);
   if (isElement(kind)) return drawElement(g, kind, false);
   if (isTrap(kind)) return drawTrap(g, kind, false);
+  if (kind === 'dragon') return drawDragonBody(g, BLOCKS.dragon);
   const body = BLOCKS[kind].monster?.body;
   return body ? drawJunk(g, body) : drawBlock(g, kind);
 }

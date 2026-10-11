@@ -52,6 +52,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
     }
     case 'bow':
       return drawBow(g);
+    case 'boulder':
+      return drawBoulder(g);
     case 'rocketLauncher':
       return drawRocketLauncher(g);
     case 'magnet':
@@ -328,6 +330,39 @@ function drawThunderHammer(g: Graphics): Graphics {
     [38, -1],
     [34.8, -1],
   ]);
+  return g;
+}
+
+/** A boulder for a catapult: a rough gray rock, around (0, 0). */
+function drawBoulder(g: Graphics): Graphics {
+  const c = ITEM_COLORS.boulder;
+  shape(g, c.dark, [
+    [-13, 2],
+    [-9, -9],
+    [1, -13],
+    [11, -8],
+    [13, 3],
+    [7, 12],
+    [-6, 13],
+  ]);
+  shape(g, c.fill, [
+    [-11.3, 1.6],
+    [-7.8, -7.6],
+    [0.8, -11.2],
+    [9.6, -6.8],
+    [11.3, 2.6],
+    [6.2, 10.4],
+    [-5.2, 11.2],
+  ]);
+  shape(g, c.light, [
+    [-7, -6],
+    [0.5, -9.5],
+    [6, -6],
+    [-1, -3.5],
+  ]);
+  g.lineStyle(1.2, c.dark, 0.7);
+  g.lineBetween(-2, 2, 4, 7);
+  g.lineBetween(4, 7, 3, 10);
   return g;
 }
 
