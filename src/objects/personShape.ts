@@ -54,6 +54,8 @@ export interface LoosePart {
   y: number;
   /** How far above the floor its middle is when it lies flat. */
   lift: number;
+  /** How far it reaches to each side of where it is held, lying flat. */
+  reach: number;
 }
 
 /** An arm or a leg: the upper half turns at the shoulder or hip, the lower half at the joint. */
@@ -194,7 +196,7 @@ export class PersonFigure {
    */
   cutOff(part: BodyPart): LoosePart | null {
     if (this.severed) return null;
-    const { picture, lift } = this.partPicture(part);
+    const { picture, lift, reach } = this.partPicture(part);
     const parent = picture.parentContainer as Container | null;
     if (!parent) return null;
     this.severed = part;
@@ -207,23 +209,25 @@ export class PersonFigure {
     picture.setScale(at.scaleX, at.scaleY);
     picture.setVisible(true);
     picture.rotation = at.rotation;
-    return { picture, x: at.translateX, y: at.translateY, lift };
+    return { picture, x: at.translateX, y: at.translateY, lift, reach };
   }
 
-  private partPicture(part: BodyPart): { picture: Container; lift: number } {
+  private partPicture(part: BodyPart): { picture: Container; lift: number; reach: number } {
+    const arm = (SHAPE.upperArm.length + SHAPE.forearm.length) * 0.6;
+    const leg = (SHAPE.thigh.length + SHAPE.shin.length) * 0.6;
     switch (part) {
       case 'head':
-        return { picture: this.headPart, lift: SHAPE.head.radius * 0.5 };
+        return { picture: this.headPart, lift: SHAPE.head.radius * 0.5, reach: SHAPE.head.radius };
       case 'frontArm':
-        return { picture: this.frontArm.upper, lift: SHAPE.upperArm.width / 2 };
+        return { picture: this.frontArm.upper, lift: SHAPE.upperArm.width / 2, reach: arm };
       case 'backArm':
-        return { picture: this.backArm.upper, lift: SHAPE.upperArm.width / 2 };
+        return { picture: this.backArm.upper, lift: SHAPE.upperArm.width / 2, reach: arm };
       case 'frontLeg':
-        return { picture: this.frontLeg.upper, lift: SHAPE.thigh.width / 2 };
+        return { picture: this.frontLeg.upper, lift: SHAPE.thigh.width / 2, reach: leg };
       case 'backLeg':
-        return { picture: this.backLeg.upper, lift: SHAPE.thigh.width / 2 };
+        return { picture: this.backLeg.upper, lift: SHAPE.thigh.width / 2, reach: leg };
       case 'upperBody':
-        return { picture: this.upperBody, lift: SHAPE.chest.width / 2 };
+        return { picture: this.upperBody, lift: SHAPE.chest.width / 2, reach: SHAPE.chest.width };
     }
   }
 
@@ -289,6 +293,7 @@ export class PersonFigure {
         g.fillEllipse(x - 1, y - 0.5, 4.5, 3.2);
         break;
       case 'cut':
+      case 'saw':
       case 'slash': {
         // A long slanted cut, wide open in the middle, with blood running from it
         const lean = random() < 0.5 ? 1 : -1;

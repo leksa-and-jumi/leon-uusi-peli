@@ -7,6 +7,7 @@ import {
   JUMP,
   KNOCK,
   LIMP,
+  LOB,
   PERSON,
   PERSON_ACTIONS,
   WRECK_ACTIONS,
@@ -71,7 +72,7 @@ import { walkStep, type Facing } from '../logic/walk';
 import type { Block } from './Block';
 import { Body, type BodyState } from './Body';
 import type { Item } from './Item';
-import { BODY_PARTS, PersonFigure } from './personShape';
+import { BODY_PARTS, PersonFigure, type BodyPart } from './personShape';
 import { pressActivity, type Activity } from '../logic/activity';
 import type { World } from './World';
 
@@ -183,8 +184,11 @@ export class Person extends Body {
   private submerged = false;
   /** Swimming along right now (and not just floating): it lies higher in the water. */
   private strokes = false;
-  /** A blade has just gone right through it: a part comes off on its next turn. */
-  private cutPending = false;
+  /**
+   * A blade has just gone right through it: a part comes off on its next turn. A sword
+   * takes `'any'` part; a saw takes everything above the waist.
+   */
+  private cutPending: BodyPart | 'any' | null = null;
 
   /** Limp like a ragdoll right now: every joint swings loosely. */
   private ragdoll = false;
@@ -517,11 +521,16 @@ export class Person extends Body {
    * Hit by a bullet: lose lives, but stay on your feet. Only the last bullet makes
    * the doll fall. Says whether this bullet was the last one.
    */
-  shot(direction: Facing, solids: readonly Box[], damage: number): boolean {
+  shot(
+    direction: Facing,
+    solids: readonly Box[],
+    damage: number,
+    wound: WoundKind = 'hole',
+  ): boolean {
     if (this.dead) return false;
     this.flinchMs = PERSON.flinch.ms;
     this.flinchDir = direction;
-    const deadly = this.lose(damage, solids, 'hole');
+    const deadly = this.lose(damage, solids, wound);
     if (deadly) this.knockOver(direction, KNOCK.pushSpeed);
     return deadly;
   }
@@ -548,7 +557,8 @@ export class Person extends Body {
   /** Lose lives, and get the mark of what did it. Says whether that was the last life. */
   private lose(damage: number, solids: readonly Box[], wound: WoundKind | null): boolean {
     if (this.dead) return false;
-    if (damage > 0 && wound === 'cut') this.cutPending = true;
+    if (damage > 0 && wound === 'cut') this.cutPending = 'any';
+    if (damage > 0 && wound === 'saw') this.cutPending = 'upperBody';
     if (damage > 0 && wound) {
       // Every hit that hurts leaves its own kind of mark, which sprays and then drips
       const bleeding = BLOOD.byWound[wound];
@@ -891,12 +901,14 @@ export class Person extends Body {
   }
 
   /** A part comes off, a different one every time, and flies away. Blood sprays from the cut. */
-  private comeApart(world: World): void {
-    const part = BODY_PARTS[Math.floor(Math.random() * BODY_PARTS.length)] ?? 'head';
-    const loose = this.figure.cutOff(part);
+  private comeApart(wanted: BodyPart | 'any', world: World): void {
+    const any = BODY_PARTS[Math.floor(Math.random() * BODY_PARTS.length)] ?? 'head';
+    const loose = this.figure.cutOff(wanted === 'any' ? any : wanted);
     if (!loose) return;
     world.bleed(loose.x, loose.y, BLOOD.cutSpray, this.look.blood ?? BLOOD.color, true);
-    world.sever(loose.picture, loose.lift, this.knockDir);
+    // A saw doesn't fling the part off: the doll just comes apart as it falls over
+    const { picture, lift, reach } = loose;
+    world.sever(picture, lift, reach, this.knockDir, wanted !== 'any');
   }
 
   /** Spray and drip blood from where the wounds are. */
@@ -907,8 +919,9 @@ export class Person extends Body {
       world.burn(this);
     }
     if (this.cutPending) {
-      this.cutPending = false;
-      this.comeApart(world);
+      const part = this.cutPending;
+      this.cutPending = null;
+      this.comeApart(part, world);
     }
     // A weapon left in the body keeps the wound open
     if (this.stuck.size > 0) this.bleedMs = Math.max(this.bleedMs, BLOOD.dripEveryMs * 2);
@@ -1075,6 +1088,8 @@ export class Person extends Body {
     }
 
     const solids = world.solidBoxes(this);
+    const lobbed = this.lobBomb(target, deltaMs, world);
+    if (lobbed) return lobbed;
     const weapon = this.item?.def;
     const gun = weapon?.gun;
     const canShoot = gun !== undefined && this.clearShot(target, gun, solids);
@@ -1113,10 +1128,45 @@ export class Person extends Body {
       weapon?.melee?.pushSpeed,
       weapon?.melee?.wound,
     );
-    const sound = weapon?.melee ? 'clang' : 'punch';
+    const sound = weapon?.melee ? (weapon.melee.sound ?? 'clang') : 'punch';
     world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly, sound);
     this.waitMs = ANGRY.restMs;
     this.inReach = false;
+    return 'punch';
+  }
+
+  /**
+   * With a bomb in its hand, an angry doll throws it at the one it is after, in a high
+   * arc, and the bomb goes off where it comes down. Too close for that, it backs off
+   * first. Gives the pose for it, or `null` when there is nothing to throw or the
+   * other doll is too far away.
+   */
+  private lobBomb(target: Person, deltaMs: number, world: World): PoseKind | null {
+    const bomb = this.item;
+    const blast = bomb?.def.bomb;
+    if (!bomb || !blast) return null;
+    const gap = Math.abs(target.x - this.x);
+    if (gap > LOB.range) return null;
+    const toward: Facing = target.x < this.x ? -1 : 1;
+    if (gap < blast.radius + LOB.margin) {
+      // Too close: the blast would get it too. It backs off, if it can.
+      const step = ANGRY.speed * this.pace * (deltaMs / 1000);
+      const blocked = this.walkTo(this.x - toward * step, world);
+      this.facing = toward;
+      return blocked ? null : 'run';
+    }
+    this.facing = toward;
+    if (this.waitMs > 0) return 'stand';
+    const solids = world.solidBoxes(this);
+    this.dropItem(solids);
+    const from = bomb.feet;
+    const seconds = LOB.flightMs / 1000;
+    const speedX = (target.x - from.x) / seconds;
+    const speedY =
+      (target.y - PERSON.height / 2 - from.y) / seconds - (PHYSICS.gravity * seconds) / 2;
+    bomb.lob(speedX, speedY, solids, LOB.fuseMs);
+    this.punchMs = ANGRY.punchMs;
+    this.waitMs = ANGRY.restMs;
     return 'punch';
   }
 

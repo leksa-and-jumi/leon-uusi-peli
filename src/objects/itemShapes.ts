@@ -36,6 +36,14 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawBomb(g);
     case 'dynamite':
       return drawDynamite(g);
+    case 'glove':
+      return drawGlove(g);
+    case 'chicken':
+      return drawChicken(g);
+    case 'fish':
+      return drawFish(g);
+    case 'flamethrower':
+      return drawFlamethrower(g);
     case 'bottle':
       return drawBottle(g);
     case 'pan':
@@ -306,6 +314,163 @@ function drawThunderHammer(g: Graphics): Graphics {
     [38, -1],
     [34.8, -1],
   ]);
+  return g;
+}
+
+/** A boxing glove on a spring: a grip, a coiled spring, and a big red glove on its end. */
+function drawGlove(g: Graphics): Graphics {
+  const c = ITEM_COLORS.glove;
+  const wood = ITEM_COLORS.wood;
+  g.fillStyle(wood.dark);
+  g.fillRoundedRect(-13, -3.4, 16, 6.8, 2.5);
+  g.fillStyle(wood.fill);
+  g.fillRoundedRect(-12, -2.3, 14, 3.4, 1.5);
+  // The spring: a zigzag of wire
+  g.lineStyle(2.4, c.springDark);
+  g.beginPath();
+  g.moveTo(3, 0);
+  for (let i = 0; i < 6; i++) {
+    g.lineTo(6 + i * 4, i % 2 === 0 ? -6 : 6);
+  }
+  g.lineTo(30, 0);
+  g.strokePath();
+  g.lineStyle(1.2, c.spring);
+  g.beginPath();
+  g.moveTo(3, -0.8);
+  for (let i = 0; i < 6; i++) {
+    g.lineTo(6 + i * 4, i % 2 === 0 ? -6.8 : 5.2);
+  }
+  g.strokePath();
+  // The glove: a round fist with a thumb and a cuff
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(28, -7, 7, 14, 2);
+  g.fillCircle(42, 0, 12.5);
+  g.fillCircle(36, 8, 5.5);
+  g.fillStyle(c.red);
+  g.fillRoundedRect(29, -6, 5, 12, 1.5);
+  g.fillCircle(42, 0, 11);
+  g.fillCircle(36, 8, 4.2);
+  g.fillStyle(c.shine, 0.7);
+  g.fillEllipse(39, -5.5, 10, 5);
+  return g;
+}
+
+/** A rubber chicken held by the neck: a long yellow body, a red comb, a beak and two dangling feet. */
+function drawChicken(g: Graphics): Graphics {
+  const c = ITEM_COLORS.chicken;
+  // Neck and body
+  shape(g, c.dark, [
+    [-10, -4],
+    [14, -5.5],
+    [30, -10],
+    [46, -8],
+    [51, 0],
+    [46, 9],
+    [28, 10],
+    [14, 5.5],
+    [-10, 4],
+  ]);
+  shape(g, c.body, [
+    [-9, -2.8],
+    [14, -4.2],
+    [30, -8.6],
+    [45, -6.8],
+    [49.5, 0],
+    [45, 7.8],
+    [28, 8.6],
+    [14, 4.2],
+    [-9, 2.8],
+  ]);
+  // Head at the grip end, with comb, beak and eye
+  g.fillStyle(c.dark);
+  g.fillCircle(-12, 0, 7);
+  g.fillStyle(c.body);
+  g.fillCircle(-12, 0, 5.8);
+  g.fillStyle(c.comb);
+  g.fillCircle(-12, -7, 2.6);
+  g.fillCircle(-15, -5.8, 2.2);
+  g.fillCircle(-9.5, -5.8, 2.2);
+  g.fillStyle(c.beak);
+  g.fillTriangle(-18, -1.5, -18, 2.5, -23, 0.5);
+  g.fillStyle(c.eye);
+  g.fillCircle(-13.5, -1, 1.2);
+  // Two thin legs with feet
+  g.lineStyle(1.8, c.beak);
+  g.lineBetween(46, 6, 53, 11);
+  g.lineBetween(49, 2, 57, 5);
+  g.lineBetween(53, 11, 56, 9.5);
+  g.lineBetween(53, 11, 55, 13);
+  return g;
+}
+
+/** A fish held by the tail: a gray body with a pale belly, fins, gills and a round eye. */
+function drawFish(g: Graphics): Graphics {
+  const c = ITEM_COLORS.fish;
+  // Tail, at the grip
+  shape(g, c.fin, [
+    [-10, -9],
+    [4, 0],
+    [-10, 9],
+    [-6, 0],
+  ]);
+  // Body
+  g.fillStyle(c.dark);
+  g.fillEllipse(26, 0, 52, 20);
+  g.fillStyle(c.body);
+  g.fillEllipse(26, -0.5, 49, 17);
+  g.fillStyle(c.belly, 0.9);
+  g.fillEllipse(27, 4, 40, 7);
+  shape(g, c.fin, [
+    [18, -8],
+    [30, -14],
+    [34, -8],
+  ]);
+  g.lineStyle(1.3, c.dark, 0.8);
+  g.beginPath();
+  g.arc(36, 0, 6, -1.1, 1.1);
+  g.strokePath();
+  g.fillStyle(0xffffff);
+  g.fillCircle(44, -2.5, 2.6);
+  g.fillStyle(c.eye);
+  g.fillCircle(44.5, -2.5, 1.4);
+  return g;
+}
+
+/** A flamethrower: a red fuel tank, a gun body with a grip, and a nozzle with a little flame. */
+function drawFlamethrower(g: Graphics): Graphics {
+  const gun = ITEM_COLORS.gun;
+  const c = ITEM_COLORS.flamethrower;
+  // Tank
+  g.fillStyle(c.tankDark);
+  g.fillRoundedRect(-25, -12, 20, 13, 5);
+  g.fillStyle(c.tank);
+  g.fillRoundedRect(-24, -11, 18, 11, 4.5);
+  g.fillStyle(0xffffff, 0.35);
+  g.fillRoundedRect(-22, -10, 14, 2.5, 1.2);
+  // Grip
+  shape(g, gun.gripDark, [
+    [-4, 1],
+    [3, 1],
+    [1, 11],
+    [-6, 11],
+  ]);
+  // Body and nozzle
+  g.fillStyle(gun.dark);
+  g.fillRoundedRect(-8, -8, 30, 10, 2);
+  g.fillRect(22, -6.5, 20, 6);
+  g.fillRect(40, -8, 5, 9);
+  g.fillStyle(gun.body);
+  g.fillRoundedRect(-7, -7, 28, 7.5, 1.5);
+  g.fillRect(22, -5.5, 18, 3.5);
+  g.fillStyle(gun.shine, 0.9);
+  g.fillRect(-5, -6.5, 24, 1.3);
+  g.lineStyle(1.5, gun.dark);
+  g.strokeRoundedRect(0, 2, 6, 5, 2);
+  // The pilot flame
+  g.fillStyle(c.flame);
+  g.fillTriangle(45, -6.5, 45, -0.5, 52, -3.5);
+  g.fillStyle(c.flameCore);
+  g.fillTriangle(45, -5, 45, -2, 49, -3.5);
   return g;
 }
 
