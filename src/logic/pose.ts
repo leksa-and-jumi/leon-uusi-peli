@@ -24,7 +24,7 @@ export interface Pose {
 }
 
 export type PoseKind =
-  'stand' | 'walk' | 'run' | 'dance' | 'held' | 'punch' | 'slam' | 'sit' | 'drive';
+  'stand' | 'walk' | 'run' | 'swim' | 'dance' | 'held' | 'punch' | 'slam' | 'sit' | 'drive';
 
 export const STAND: Pose = {
   frontArm: 0,
@@ -74,6 +74,20 @@ export const MOVES = {
   },
   held: { armsUp: 2.9, swingMs: 900, leg: 0.18, elbow: -0.2, knee: 0.35 },
   punch: { arm: -Math.PI / 2, backArm: 0.5, backElbow: -1.5, lean: 0.12 },
+  /**
+   * Swimming: lying forward in the water, the arms reaching out in front and pulling
+   * back in turn, the legs kicking.
+   */
+  swim: {
+    strokeMs: 760,
+    lean: 1.2,
+    reach: -2.5,
+    pull: 0.9,
+    elbow: -0.35,
+    kick: 0.4,
+    knee: 0.35,
+    head: -0.6,
+  },
   /** Crouching to slam something into the floor: knees bent, back bent, the arm down in front. */
   slam: {
     leg: -0.7,
@@ -137,6 +151,25 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         head: -move.waist * sway,
         lift: move.hop * Math.abs(beat),
         lean: move.lean * sway,
+      };
+    }
+    case 'swim': {
+      const move = MOVES.swim;
+      const stroke = Math.sin((timeMs / move.strokeMs) * Math.PI * 2);
+      return {
+        frontArm: move.reach + move.pull * stroke,
+        backArm: move.reach - move.pull * stroke,
+        frontLeg: move.kick * stroke,
+        backLeg: -move.kick * stroke,
+        frontElbow: move.elbow,
+        backElbow: move.elbow,
+        frontKnee: move.knee * Math.max(0, stroke),
+        backKnee: move.knee * Math.max(0, -stroke),
+        waist: 0,
+        // It holds its head up, to see where it is going
+        head: move.head,
+        lift: 0,
+        lean: move.lean,
       };
     }
     case 'slam': {
