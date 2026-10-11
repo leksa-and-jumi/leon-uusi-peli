@@ -22,6 +22,7 @@ import {
   THUNDER,
   THING_ACTIONS,
   TOPPLE,
+  TURN_ACTIONS,
   TV,
   VEHICLE_ACTIONS,
   VEHICLE_HULL,
@@ -53,6 +54,7 @@ import { floatStep } from '../logic/chase';
 import { shade } from '../logic/color';
 import { blockedX, boxAround, liftOut, overlaps, type Box } from '../logic/ground';
 import { aimAt, segmentHit } from '../logic/shot';
+import { stairSteps } from '../logic/stairs';
 import type { Spot } from '../logic/pick';
 import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
@@ -170,7 +172,8 @@ export class Block extends Body {
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
     const { blast, drive } = this.def;
     const moving = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
-    this.usualActions = this.def.gate ? GATE_ACTIONS : this.def.bridge ? BRIDGE_ACTIONS : moving;
+    const special = this.def.gate ? GATE_ACTIONS : this.def.bridge ? BRIDGE_ACTIONS : null;
+    this.usualActions = special ?? (this.def.stairs ? TURN_ACTIONS : moving);
     const { fill, dark, light } = this.def.colors;
     this.crumbs = [fill, dark, light];
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
@@ -297,6 +300,11 @@ export class Block extends Body {
       // An open gate: only the stone above the opening is solid. Dolls walk through under it.
       const box = this.box;
       return [{ ...box, bottom: box.bottom - gate.opening.height }];
+    }
+    if (this.def.stairs && this.fallen === 0) {
+      // Stairs are steps to walk up, the way they point
+      const { halfWidth, height } = this.shape;
+      return stairSteps(this.x, this.y, halfWidth, height, this.def.stairs, this.facing);
     }
     if (!this.prop || this.fallen === 0) return [this.box];
     const { halfWidth, height } = this.def;
@@ -1300,6 +1308,12 @@ export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
       return drawPillar(g, BLOCKS.pillar);
     case 'trampoline':
       return drawTrampoline(g, BLOCKS.trampoline);
+    case 'stairs':
+      return drawStairs(g, BLOCKS.stairs);
+    case 'steelCrate':
+      return drawSteelCrate(g, BLOCKS.steelCrate);
+    case 'fence':
+      return drawFence(g, BLOCKS.fence);
     default:
       return drawJunk(g, kind);
   }
@@ -1633,5 +1647,92 @@ function drawTrampoline(g: Graphics, def: BlockDef): Graphics {
   g.fillRoundedRect(left + 5, top + 2.3, halfWidth * 2 - 10, 1.6, 0.8);
   g.fillStyle(colors.detail);
   g.fillRoundedRect(left + 12, top + 1.5, halfWidth * 2 - 24, 4.5, 2);
+  return g;
+}
+
+/** Wooden stairs that climb to the right: every step a thick board on the one below. */
+function drawStairs(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const steps = def.stairs ?? 1;
+  const wide = (halfWidth * 2) / steps;
+  const rise = height / steps;
+  for (let i = 0; i < steps; i++) {
+    const left = -halfWidth + i * wide;
+    const top = -(i + 1) * rise;
+    g.fillStyle(colors.dark);
+    g.fillRect(left, top, wide, -top);
+    g.fillStyle(tone(colors.fill, i * 3 + 1));
+    g.fillRect(left + 1.2, top + 1.2, wide - 2.4, -top - 2.4);
+    // The board you step on, a little wider than the step
+    g.fillStyle(colors.dark);
+    g.fillRect(left - 1.5, top, wide + 1.5, 4);
+    g.fillStyle(colors.light);
+    g.fillRect(left - 0.5, top + 0.8, wide, 1.6);
+    g.lineStyle(1, colors.detail, 0.35);
+    g.lineBetween(left + wide * 0.5, top + 7, left + wide * 0.5, -3);
+  }
+  return g;
+}
+
+/** A steel crate: a plate with a raised rim, a cross pressed into it, and rivets all around. */
+function drawSteelCrate(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const width = halfWidth * 2;
+  const left = -halfWidth;
+  const top = -height;
+  g.fillStyle(colors.dark);
+  g.fillRect(left, top, width, height);
+  g.fillStyle(colors.fill);
+  g.fillRect(left + 2, top + 2, width - 4, height - 4);
+  g.fillStyle(colors.detail);
+  g.fillRect(left + 8, top + 8, width - 16, height - 16);
+  g.fillStyle(shade(colors.fill, -0.08));
+  g.fillRect(left + 10, top + 10, width - 20, height - 20);
+  g.lineStyle(3, colors.detail);
+  g.lineBetween(left + 10, top + 10, halfWidth - 10, -10);
+  g.lineBetween(left + 10, -10, halfWidth - 10, top + 10);
+  bevel(g, left + 2, top + 2, width - 4, height - 4, def);
+  g.fillStyle(colors.light);
+  for (const x of [left + 5, 0, halfWidth - 5]) {
+    for (const y of [top + 5, -5]) {
+      g.fillCircle(x, y, 1.7);
+    }
+  }
+  return g;
+}
+
+/** A wooden fence: pointed pickets on two rails. */
+function drawFence(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const pickets = 6;
+  const wide = 11;
+  const gap = (halfWidth * 2 - pickets * wide) / (pickets - 1);
+  g.fillStyle(colors.dark);
+  for (const y of [-height + 14, -16]) {
+    g.fillRect(-halfWidth, y, halfWidth * 2, 6);
+  }
+  g.fillStyle(colors.detail, 0.6);
+  for (const y of [-height + 15.2, -14.8]) {
+    g.fillRect(-halfWidth + 1, y, halfWidth * 2 - 2, 3.4);
+  }
+  for (let i = 0; i < pickets; i++) {
+    const left = -halfWidth + i * (wide + gap);
+    const middle = left + wide / 2;
+    g.fillStyle(colors.dark);
+    g.fillRect(left, -height + 8, wide, height - 8);
+    g.fillTriangle(left, -height + 8, left + wide, -height + 8, middle, -height);
+    g.fillStyle(tone(colors.fill, i * 3));
+    g.fillRect(left + 1.3, -height + 8, wide - 2.6, height - 9.3);
+    g.fillTriangle(
+      left + 1.3,
+      -height + 8.5,
+      left + wide - 1.3,
+      -height + 8.5,
+      middle,
+      -height + 2,
+    );
+    g.fillStyle(colors.light, 0.6);
+    g.fillRect(left + 2.4, -height + 9, 1.6, height - 12);
+  }
   return g;
 }

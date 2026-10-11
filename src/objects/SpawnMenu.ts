@@ -10,6 +10,7 @@ import {
   MENU,
   MONSTER_KINDS,
   PEOPLE,
+  PERSON,
   TABS,
   TRAP_KINDS,
   VEHICLE_KINDS,
@@ -19,7 +20,7 @@ import {
   type PersonLook,
   type TabId,
 } from '../config';
-import { slotAt, slotRect } from '../logic/menu';
+import { fitRow, slotAt, slotRect, type SlotRow } from '../logic/menu';
 import { drawBlock } from './Block';
 import { drawItem } from './itemShapes';
 import { PersonFigure } from './personShape';
@@ -148,12 +149,17 @@ export class SpawnMenu {
       return null;
     }
 
-    const index = slotAt(MENU.slots, CHOICES[this.tab].length, px, py);
+    const index = slotAt(this.row(), CHOICES[this.tab].length, px, py);
     if (index !== null) {
       this.selectedIndex = index;
       this.drawHighlight();
     }
     return null;
+  }
+
+  /** The slots of the open page: narrower than usual when the page holds many things. */
+  private row(): SlotRow {
+    return fitRow(MENU.slots, CHOICES[this.tab].length, MENU.slotsEnd);
   }
 
   /** Draw the open page: the panel, the tab buttons and a picture in every slot. */
@@ -184,7 +190,7 @@ export class SpawnMenu {
     }
 
     CHOICES[this.tab].forEach((choice, index) => {
-      const slot = slotRect(MENU.slots, index);
+      const slot = slotRect(this.row(), index);
       panel.fillStyle(MENU.slotColor);
       panel.fillRoundedRect(slot.x, slot.y, slot.width, slot.height, MENU.slotRadius);
 
@@ -201,7 +207,7 @@ export class SpawnMenu {
       if (choice.type === 'none') return;
       if (choice.type === 'person') {
         const figure = new PersonFigure(scene, choice.look).container
-          .setScale(MENU.personScale)
+          .setScale(fit(PERSON.halfWidth, PERSON.height, MENU.personScale))
           .setPosition(middleX, bottomY);
         this.pictures.push(figure.setDepth(MENU.depth + 1));
       } else if (choice.type === 'item') {
@@ -227,7 +233,7 @@ export class SpawnMenu {
   }
 
   private drawHighlight(): void {
-    const slot = slotRect(MENU.slots, this.selectedIndex);
+    const slot = slotRect(this.row(), this.selectedIndex);
     this.highlight.clear();
     this.highlight.lineStyle(MENU.selected.width, MENU.selected.color);
     this.highlight.strokeRoundedRect(slot.x, slot.y, slot.width, slot.height, MENU.slotRadius);

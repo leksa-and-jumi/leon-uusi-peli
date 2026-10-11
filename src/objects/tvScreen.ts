@@ -208,6 +208,19 @@ function drawStickFight(g: Graphics, sinceMs: number): void {
     g.fillStyle(c.enemy);
     g.fillCircle(enemyX + 11, ground - 1.5, 1.8);
   }
+  if (fight.fallen > 0) {
+    // Blood, like in the real game: a spray when it is hit, and a pool once it lies there
+    g.fillStyle(c.blood);
+    if (fight.fallen < 1) {
+      for (let i = 0; i < 5; i++) {
+        const out = fight.fallen * (5 + i * 1.6);
+        g.fillCircle(enemyX + out, ground - 8 + i * 1.2 + fight.fallen * i * 1.5, 0.9);
+      }
+    } else {
+      g.fillEllipse(enemyX + 5, ground + 0.6, 13, 2.2);
+      g.fillCircle(enemyX + 3, ground - 2.2, 0.9);
+    }
+  }
   figure(heroX, 1, c.hero, c.heroEdge);
   if (fight.shooting) {
     g.lineStyle(1, c.shot);

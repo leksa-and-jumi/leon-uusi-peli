@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { slotAt, slotRect } from './menu';
+import { fitRow, slotAt, slotRect } from './menu';
 
 const row = { x: 10, y: 5, width: 50, height: 60, gap: 10 };
 
@@ -53,5 +53,27 @@ describe('slotAt', () => {
 
   it('ignores slots that are not there', () => {
     expect(slotAt(row, 2, 150, 30)).toBeNull();
+  });
+});
+
+describe('fitRow', () => {
+  const row = { x: 200, y: 10, width: 60, height: 80, gap: 6 };
+
+  it('leaves a row alone that fits', () => {
+    expect(fitRow(row, 10, 1000)).toEqual(row);
+  });
+
+  it('makes the slots narrower when there are too many', () => {
+    const fitted = fitRow(row, 15, 980);
+    expect(fitted.width).toBeLessThan(60);
+    const end = fitted.x + 15 * fitted.width + 14 * fitted.gap;
+    expect(end).toBeLessThanOrEqual(980);
+    expect(end).toBeGreaterThan(980 - 15);
+  });
+
+  it('keeps where the row starts and how tall it is', () => {
+    const fitted = fitRow(row, 20, 980);
+    expect(fitted.x).toBe(200);
+    expect(fitted.height).toBe(80);
   });
 });

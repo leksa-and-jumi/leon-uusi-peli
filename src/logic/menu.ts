@@ -49,3 +49,15 @@ export function slotAt(row: SlotRow, count: number, px: number, py: number): num
   }
   return null;
 }
+
+/**
+ * A row of slots that has to hold `count` things before `maxRight`. When they don't
+ * fit, the slots are made narrower (and the gaps a little smaller) until they do.
+ */
+export function fitRow(row: SlotRow, count: number, maxRight: number): SlotRow {
+  const end = row.x + count * row.width + (count - 1) * row.gap;
+  if (count <= 0 || end <= maxRight) return row;
+  const gap = Math.max(2, row.gap - 2);
+  const width = Math.floor((maxRight - row.x - (count - 1) * gap) / count);
+  return { ...row, width, gap };
+}

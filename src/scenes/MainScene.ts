@@ -778,7 +778,7 @@ export class MainScene extends Phaser.Scene {
     if (gun.flame) this.sfx.crumble();
     else this.sfx.shot();
     // A cannon's shell is bigger and darker than a bullet; a flame or frost is a puff
-    const look = gun.shell ?? gun.flame ?? gun.frost ?? BULLET;
+    const look = gun.shell ?? gun.flame ?? gun.frost ?? gun.look ?? BULLET;
     for (const way of fan(aim, gun.pellets ?? 1, gun.spread ?? 0)) {
       const picture = this.add
         .rectangle(x, y, look.width, look.height, look.color)
@@ -831,7 +831,8 @@ export class MainScene extends Phaser.Scene {
         // A shell goes off where it hits. It doesn't hurt the tank it came out of.
         const atX = Phaser.Math.Clamp(bullet.x, AREA.left, AREA.right);
         const atY = Phaser.Math.Clamp(bullet.y, AREA.top, AREA.floorY);
-        this.blastAt(atX, atY, shell.blast, null, bullet.from);
+        // Nor the doll that fired it from its hand.
+        this.blastAt(atX, atY, shell.blast, null, bullet.from ?? bullet.shooter);
         bullet.picture.destroy();
         return false;
       }
@@ -851,7 +852,7 @@ export class MainScene extends Phaser.Scene {
         victim.freeze(frost.ms);
       } else if (victim) {
         const solids = this.solidBoxes(victim);
-        const wound = flame ? 'burn' : 'hole';
+        const wound = flame ? 'burn' : (bullet.gun.wound ?? 'hole');
         const deadly = victim.shot(bullet.direction, solids, bullet.gun.damage, wound);
         this.showHit(bullet.x, bullet.y, deadly, 'none');
       }
