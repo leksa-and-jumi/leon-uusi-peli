@@ -927,7 +927,7 @@ export class MainScene extends Phaser.Scene {
     for (const person of this.people) {
       if (!person.canBePicked || !caught(person)) continue;
       const direction = blastDirection(x, person.feet.x);
-      person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed, 'burn');
+      person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed, 'blast');
     }
 
     // A blast doesn't blow a pool away
@@ -1046,7 +1046,7 @@ export class MainScene extends Phaser.Scene {
         person.shortCircuit(away);
         continue;
       }
-      person.hit(away, this.solidBoxes(person), THUNDER.damage, THUNDER.pushSpeed, 'burn');
+      person.hit(away, this.solidBoxes(person), THUNDER.damage, THUNDER.pushSpeed, 'shock');
     }
     for (const block of this.blocks) {
       if (!block.canBePicked || !touchesFloor(block.box)) continue;
@@ -1111,7 +1111,9 @@ export class MainScene extends Phaser.Scene {
       this.beam(fromX, fromY, atX, atY);
     }
     const direction: Facing = atX < fromX ? -1 : 1;
-    const deadly = victim.hit(direction, this.solidBoxes(victim), damage, pushSpeed, 'burn');
+    // Lightning singes; a laser burns
+    const wound = spark ? 'shock' : 'burn';
+    const deadly = victim.hit(direction, this.solidBoxes(victim), damage, pushSpeed, wound);
     this.showHit(atX, atY, deadly, 'none');
   }
 
