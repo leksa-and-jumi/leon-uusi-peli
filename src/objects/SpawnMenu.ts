@@ -41,7 +41,7 @@ const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
   build: [NOTHING, ...BUILD_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   junk: [NOTHING, ...JUNK_KINDS],
   traps: [NOTHING, ...TRAP_KINDS],
-  elements: [NOTHING, ...ELEMENT_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
+  elements: [NOTHING, ...ELEMENT_KINDS],
   monsters: [NOTHING, ...MONSTER_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   vehicles: [NOTHING, ...VEHICLE_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
 };

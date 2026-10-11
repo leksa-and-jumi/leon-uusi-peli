@@ -246,6 +246,14 @@ export class Block extends Body {
     return this.def.burns === true;
   }
 
+  override get melts(): boolean {
+    return this.def.melts === true;
+  }
+
+  override get metal(): boolean {
+    return this.def.metal === true;
+  }
+
   /** A light piece floats in water, most of it under the surface. */
   protected override get floatDepth(): number | null {
     return this.def.floats ? this.shape.height * POOL.floatShare : null;
@@ -993,6 +1001,7 @@ export class Block extends Body {
       if (!overlaps(own, thing.box)) continue;
       thing.setOff(BLAST.chainMs);
       if (thing.burns) world.burn(thing);
+      else if (thing.melts) thing.sinkAway();
     }
   }
 
@@ -1158,7 +1167,8 @@ export class Block extends Body {
     // A boss hops when it stomps or smashes something
     const stomp = this.def.monster?.boss?.stomp;
     const hop = stomp ? stomp.hop * Math.sin((this.hopMs / stomp.hopMs) * Math.PI) : 0;
-    const bob = floats - hop;
+    // Melting in lava, it sinks into the floor
+    const bob = floats - hop + this.sunk;
     this.display.setPosition(
       this.fallen === 0 ? this.x : pivotX - this.fallen * halfWidth * Math.cos(tilt),
       (this.fallen === 0 ? this.y : this.y - halfWidth * Math.sin(tilt)) + bob,

@@ -580,6 +580,10 @@ export interface BlockDef {
   floats?: boolean;
   /** It is made of wood, rubber or plastic: lava burns it up. */
   burns?: boolean;
+  /** Lava melts it: it sinks in and nothing is left of it. */
+  melts?: boolean;
+  /** It is made of iron or steel: a magnet pulls it. */
+  metal?: boolean;
   /** It is a black hole: it pulls everything around it in, and it turns this fast (radians per second). */
   hole?: Pull & { spin: number };
 }
@@ -921,6 +925,9 @@ export const POOL = {
   floatShare: 0.6,
 } as const;
 
+/** The block of ice around a frozen doll. */
+export const ICE = { fill: 0x9be7ff, alpha: 0.5, edge: 0xffffff, shine: 0xffffff, pad: 6 } as const;
+
 /** A heavy doll with its head under water loses a life this often, until it has drowned. */
 export const DROWN = {
   everyMs: 1100,
@@ -1082,12 +1089,15 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0x8f969c, dark: 0x454b51, light: 0xc9cfd4, detail: 0x5d646a },
   },
   girder: {
+    melts: true,
+    metal: true,
     halfWidth: 90,
     height: 14,
     menuScale: 0.36,
     colors: { fill: 0x6f7f8c, dark: 0x2f3a43, light: 0xb1c1cc, detail: 0x232b31 },
   },
   barrel: {
+    metal: true,
     floats: true,
     halfWidth: 19,
     height: 50,
@@ -1096,6 +1106,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     blast: { fuseMs: 1500, radius: 150, damage: 3, pushSpeed: 700 },
   },
   glass: {
+    melts: true,
     halfWidth: 7,
     height: 120,
     menuScale: 0.6,
@@ -1119,6 +1130,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
   },
   // Dolls that stand, fall or lie on them lose a life again and again
   spikes: {
+    melts: true,
+    metal: true,
     halfWidth: 34,
     height: 16,
     menuScale: 0.9,
@@ -1135,6 +1148,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   saw: {
+    melts: true,
+    metal: true,
     halfWidth: 28,
     height: 14,
     menuScale: 0.9,
@@ -1169,6 +1184,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   tesla: {
+    melts: true,
     halfWidth: 14,
     height: 86,
     menuScale: 0.75,
@@ -1186,6 +1202,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   mine: {
+    metal: true,
     halfWidth: 16,
     height: 9,
     menuScale: 1.6,
@@ -1241,6 +1258,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xf4f6f7, dark: 0x8b979e, light: 0xffffff, detail: 0xc3ccd1 },
   },
   tv: {
+    melts: true,
     halfWidth: 31,
     height: 46,
     menuScale: 0.95,
@@ -1248,6 +1266,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     electric: true,
   },
   trashcan: {
+    melts: true,
+    metal: true,
     halfWidth: 20,
     height: 50,
     menuScale: 1.15,
@@ -1270,6 +1290,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xb5814a, dark: 0x60401f, light: 0xdcae78, detail: 0x8a5f33 },
   },
   fridge: {
+    melts: true,
+    metal: true,
     halfWidth: 27,
     height: 112,
     menuScale: 0.62,
@@ -1284,6 +1306,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xf57c00, dark: 0x9a4a00, light: 0xffb056, detail: 0xfafafa },
   },
   car: {
+    melts: true,
+    metal: true,
     halfWidth: 114,
     height: 88,
     menuScale: 1,
@@ -1299,6 +1323,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   truck: {
+    melts: true,
+    metal: true,
     halfWidth: 156,
     height: 124,
     menuScale: 1,
@@ -1315,6 +1341,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
   },
   // Slow and very tough, and its cannon fires shells that explode
   tank: {
+    melts: true,
+    metal: true,
     halfWidth: 119,
     height: 99,
     menuScale: 1,
@@ -1351,6 +1379,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   bike: {
+    melts: true,
+    metal: true,
     halfWidth: 58,
     height: 68,
     menuScale: 1,
@@ -1366,6 +1396,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   skibidi: {
+    melts: true,
     halfWidth: 27,
     height: 112,
     // Small enough in the menu for the head to fit in the slot too
@@ -1385,6 +1416,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   skibidiToilet: {
+    melts: true,
     halfWidth: 25,
     height: 58,
     menuScale: 0.75,
@@ -1404,6 +1436,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   skibidiCone: {
+    melts: true,
     halfWidth: 18,
     height: 42,
     menuScale: 0.95,
@@ -1423,6 +1456,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   skibidiTv: {
+    melts: true,
     halfWidth: 31,
     height: 46,
     menuScale: 0.9,
@@ -1443,6 +1477,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   chomper: {
+    melts: true,
     halfWidth: 20,
     height: 50,
     menuScale: 0.85,
@@ -1535,6 +1570,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   helicopter: {
+    melts: true,
+    metal: true,
     halfWidth: 96,
     height: 92,
     menuScale: 1,
@@ -1552,6 +1589,8 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     },
   },
   plane: {
+    melts: true,
+    metal: true,
     halfWidth: 112,
     height: 82,
     menuScale: 1,
@@ -1625,6 +1664,8 @@ export interface GunDef {
    * the dolls they hit, burn up what is made of wood and set off what explodes.
    */
   flame?: { reach: number; width: number; height: number; color: number };
+  /** A freeze ray: its bullets are puffs of frost that freeze a doll solid for `ms`. */
+  frost?: { ms: number; width: number; height: number; color: number };
   /** A cannon: its bullet is a big shell that goes off with this blast where it hits. */
   shell?: { blast: BlastDef; width: number; height: number; color: number };
 }
@@ -1677,6 +1718,18 @@ export interface ItemDef {
   floats?: boolean;
   /** It is made of wood: lava burns it up. */
   burns?: boolean;
+  /** Lava melts it: it sinks in and nothing is left of it. */
+  melts?: boolean;
+  /** It is made of iron or steel: a magnet pulls it. */
+  metal?: boolean;
+  /** It is a magnet: it pulls everything made of metal toward itself, and holds it. */
+  magnet?: Pull;
+  /**
+   * It is a balloon. Let go, it floats up until it is `below` the ceiling, this fast,
+   * and a doll that holds it is carried up with it, swaying a little. The doll's
+   * raised hand is `armShare` of its height above its head.
+   */
+  lifts?: { speed: number; below: number; sway: number; swayMs: number; armShare: number };
   /** Struck against the floor at least this fast (pixels per second), it calls down lightning. */
   thunder?: { minSpeed: number };
   /** The colors of the pieces it breaks into. */
@@ -1701,11 +1754,14 @@ export type WeaponKind =
 /** Junk a doll can hold, and hit others with. */
 export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 /** Odd weapons, on the traps page. */
-export type OddItemKind = 'glove' | 'chicken' | 'fish' | 'flamethrower';
+export type OddItemKind =
+  'glove' | 'chicken' | 'fish' | 'flamethrower' | 'freezeRay' | 'magnet' | 'balloon';
 export type ItemKind = WeaponKind | JunkItemKind | OddItemKind;
 
 export const ITEMS: Record<ItemKind, ItemDef> = {
   pistol: {
+    melts: true,
+    metal: true,
     crumbs: [0x455a64, 0x1c262b, 0x4e342e],
     halfWidth: 15,
     height: 20,
@@ -1723,6 +1779,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     },
   },
   mgun: {
+    melts: true,
+    metal: true,
     crumbs: [0x455a64, 0x1c262b, 0x4e342e],
     halfWidth: 32,
     height: 24,
@@ -1741,6 +1799,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // Slow, and it doesn't reach far, but five bullets fly out at once
   shotgun: {
+    melts: true,
+    metal: true,
     crumbs: [0x455a64, 0x1c262b, 0x4e342e],
     halfWidth: 37,
     height: 19,
@@ -1760,6 +1820,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     },
   },
   sword: {
+    melts: true,
+    metal: true,
     crumbs: [0xeef3f6, 0xb4c0c8, 0xffc107],
     halfWidth: 36,
     height: 18,
@@ -1771,6 +1833,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // So sharp that one swing takes a part of the doll clean off
   katana: {
+    melts: true,
+    metal: true,
     crumbs: [0xeef3f6, 0xb4c0c8, 0x1b1b1b],
     halfWidth: 39,
     height: 17,
@@ -1780,6 +1844,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 96, damage: 99, wound: 'cut', pushSpeed: 260 },
   },
   axe: {
+    melts: true,
+    metal: true,
     crumbs: [0xb4c0c8, 0xc9a46a, 0x7a5a2e],
     halfWidth: 28,
     height: 21,
@@ -1814,6 +1880,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // Heavy: it takes 2 lives and sends the doll flying
   hammer: {
+    melts: true,
+    metal: true,
     crumbs: [0xb4c0c8, 0xc9a46a, 0x7a5a2e],
     halfWidth: 27,
     height: 26,
@@ -1824,6 +1892,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // Slam it on the floor and lightning strikes: everything on the ground is gone
   thunderHammer: {
+    metal: true,
     crumbs: [0x78909c, 0xffd54f, 0x5d4037],
     halfWidth: 31,
     height: 30,
@@ -1834,6 +1903,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     thunder: { minSpeed: 600 },
   },
   knife: {
+    melts: true,
+    metal: true,
     crumbs: [0xeef3f6, 0xb4c0c8, 0x5d4037],
     halfWidth: 21,
     height: 11,
@@ -1865,6 +1936,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // A boxing glove on a spring: it doesn't hurt at all, but it sends a doll flying
   glove: {
+    melts: true,
     crumbs: [0xd32f2f, 0x8a1c1c, 0xb4c0c8],
     halfWidth: 33,
     height: 24,
@@ -1887,6 +1959,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // A big wet fish to slap with
   fish: {
+    burns: true,
     floats: true,
     crumbs: [0x78909c, 0xb0bec5, 0x455a64],
     halfWidth: 31,
@@ -1898,6 +1971,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   // It doesn't reach far, but what it reaches burns
   flamethrower: {
+    melts: true,
+    metal: true,
     crumbs: [0xc62828, 0x455a64, 0x1c262b],
     halfWidth: 36,
     height: 23,
@@ -1917,7 +1992,51 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       flame: { reach: 250, width: 16, height: 10, color: 0xff7a1a },
     },
   },
+  // A puff of frost from it freezes a doll solid for a while
+  freezeRay: {
+    melts: true,
+    crumbs: [0x4fc3f7, 0xe1f5fe, 0x0277bd],
+    halfWidth: 22,
+    height: 22,
+    menuScale: 1.5,
+    lie: { x: -15, y: -13 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 420,
+      damage: 0,
+      everyMs: 1000,
+      autoMs: 550,
+      bulletSpeed: 700,
+      muzzle: { x: 92, y: 86 },
+      barrelUp: 15,
+      frost: { ms: 6000, width: 14, height: 9, color: 0xb3e5fc },
+    },
+  },
+  // It pulls in everything made of metal: weapons, cars, steel beams, robots and knights
+  magnet: {
+    melts: true,
+    crumbs: [0xd32f2f, 0xb4c0c8, 0x7f1d1d],
+    halfWidth: 23,
+    height: 26,
+    menuScale: 1.3,
+    lie: { x: -7.5, y: -13 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    magnet: { radius: 250, speed: 430, least: 30, eat: 34 },
+  },
+  // It floats up, and takes the doll that holds it along
+  balloon: {
+    floats: true,
+    burns: true,
+    crumbs: [0xe53935, 0xff8a80, 0xfafafa],
+    halfWidth: 37,
+    height: 34,
+    menuScale: 0.85,
+    lie: { x: -37, y: -17 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    lifts: { speed: 130, below: 26, sway: 0.12, swayMs: 2300, armShare: 0.3 },
+  },
   bottle: {
+    melts: true,
     floats: true,
     crumbs: [0x2e7d4f, 0xa5e0bd, 0x174428],
     halfWidth: 26,
@@ -1929,6 +2048,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     breaksAt: 520,
   },
   pan: {
+    melts: true,
+    metal: true,
     crumbs: [0x3a3f44, 0x8b959c, 0x5d4037],
     halfWidth: 30,
     height: 32,
@@ -1982,8 +2103,17 @@ export const TRAP_KINDS: readonly (
   { type: 'item', kind: 'fish' },
   { type: 'item', kind: 'flamethrower' },
 ];
-/** The page of forces of nature. */
-export const ELEMENT_KINDS: readonly ElementKind[] = ['lava', 'water', 'blackHole'];
+/** The page of forces of nature, and of things with strange powers. */
+export const ELEMENT_KINDS: readonly (
+  { type: 'block'; kind: ElementKind } | { type: 'item'; kind: OddItemKind }
+)[] = [
+  { type: 'block', kind: 'lava' },
+  { type: 'block', kind: 'water' },
+  { type: 'block', kind: 'blackHole' },
+  { type: 'item', kind: 'freezeRay' },
+  { type: 'item', kind: 'magnet' },
+  { type: 'item', kind: 'balloon' },
+];
 export const BUILD_KINDS: readonly BuildKind[] = [
   'crate',
   'wall',
@@ -2045,6 +2175,9 @@ export const ITEM_COLORS = {
   chicken: { body: 0xffd54f, dark: 0xc79a1a, comb: 0xe53935, beak: 0xff9800, eye: 0x1b1b1b },
   fish: { body: 0x78909c, dark: 0x37474f, belly: 0xcfd8dc, eye: 0x1b1b1b, fin: 0x546e7a },
   flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
+  freezeRay: { body: 0x4fc3f7, dark: 0x0277bd, shine: 0xe1f5fe, crystal: 0xffffff, grip: 0x37474f },
+  magnet: { red: 0xd32f2f, dark: 0x7f1d1d, shine: 0xff8a80, tip: 0xcfd8dc, tipDark: 0x78909c },
+  balloon: { red: 0xe53935, dark: 0x9a1b1b, shine: 0xffcdd2, string: 0xfafafa },
   thunder: {
     steel: 0x78909c,
     dark: 0x37474f,

@@ -100,6 +100,14 @@ export class Item extends Body {
     return this.size.burns === true;
   }
 
+  override get melts(): boolean {
+    return this.size.melts === true;
+  }
+
+  override get metal(): boolean {
+    return this.size.metal === true;
+  }
+
   /** A light item floats in water. */
   protected override get floatDepth(): number | null {
     return this.size.floats ? this.size.height * POOL.floatShare : null;
@@ -270,11 +278,14 @@ export class Item extends Body {
       this.y = grip.y + this.size.height / 2;
     } else {
       const wasFalling = this.state === 'falling';
+      this.floatUp(deltaMs, world);
       this.glide(deltaMs, world);
       const state = this.physics(deltaMs, world);
       if (wasFalling && state === 'resting') this.strike(this.lastImpact, world);
       if (state === 'resting' && this.vx === 0) this.thrown = false;
-      this.lieAt(state === 'flying' ? this.spin : 0);
+      // A balloon let go stands up on its string
+      const upright = this.hovering && state === 'resting' ? -this.facing * (Math.PI / 2) : 0;
+      this.lieAt(state === 'flying' ? this.spin : upright);
       if (state !== 'flying') this.fire(deltaMs, world);
     }
 
@@ -357,6 +368,15 @@ export class Item extends Body {
     world.breakApart(this, this.vx * 0.5, -160);
   }
 
+  /** A balloon that nobody holds floats up, until it is just under the ceiling. */
+  private floatUp(deltaMs: number, world: World): void {
+    const lifts = this.size.lifts;
+    this.hovering = lifts !== undefined && !this.held;
+    if (!lifts || !this.hovering) return;
+    const top = world.area.top + lifts.below + this.size.halfWidth * 2;
+    this.y = Math.max(top, this.y - lifts.speed * (deltaMs / 1000));
+  }
+
   /** A gun set to fire nonstop shoots the way it points, wherever it is. */
   private fire(deltaMs: number, world: World): void {
     const gun = this.size.gun;
@@ -369,7 +389,8 @@ export class Item extends Body {
   }
 
   private lieAt(rotation: number): void {
-    this.display.setPosition(this.x + this.facing * this.size.lie.x, this.y + this.size.lie.y);
+    const y = this.y + this.size.lie.y + this.sunk;
+    this.display.setPosition(this.x + this.facing * this.size.lie.x, y);
     this.display.setScale(this.facing, 1);
     this.display.rotation = rotation;
   }

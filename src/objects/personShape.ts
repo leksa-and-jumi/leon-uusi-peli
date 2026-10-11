@@ -4,6 +4,7 @@ import {
   CHARRED,
   DOLL,
   EXTRA_COLORS,
+  ICE,
   PERSON,
   type PersonLook,
   type WoundKind,
@@ -91,6 +92,8 @@ export class PersonFigure {
   /** The part a blade has cut off, which isn't this doll's to move any more. */
   private severed: BodyPart | null = null;
   private readonly scene: Phaser.Scene;
+  /** The block of ice around it while it is frozen. Made the first time it is needed. */
+  private ice: Graphics | null = null;
   /** Burnt down to a black skeleton. What draws each of its parts again as bones. */
   private charred = false;
   /** Burnt by lava: its bones are much thinner than a skeleton's usually are. */
@@ -152,6 +155,27 @@ export class PersonFigure {
     this.eyes.setVisible(false);
     this.deadEyes.setVisible(false);
     this.brows.setVisible(false);
+  }
+
+  /** Frozen solid: a block of ice around the whole doll, or no ice any more. */
+  setIce(frozen: boolean): void {
+    if (!this.ice) {
+      const { pad } = ICE;
+      const width = PERSON.halfWidth * 2 + pad * 2;
+      const height = PERSON.height + pad * 2;
+      const g = this.scene.make.graphics({}, false);
+      g.fillStyle(ICE.fill, ICE.alpha);
+      g.fillRoundedRect(-width / 2, -PERSON.height - pad, width, height, 8);
+      g.lineStyle(2, ICE.edge, 0.8);
+      g.strokeRoundedRect(-width / 2, -PERSON.height - pad, width, height, 8);
+      g.lineStyle(3, ICE.shine, 0.7);
+      g.lineBetween(-width / 2 + 8, -PERSON.height + 4, -width / 2 + 22, -PERSON.height - 2);
+      g.lineBetween(-width / 2 + 7, -PERSON.height + 22, -width / 2 + 7, -PERSON.height + 52);
+      g.lineBetween(width / 2 - 9, -30, width / 2 - 9, -8);
+      this.ice = g;
+      this.container.add(g);
+    }
+    this.ice.setVisible(frozen);
   }
 
   /** How much thinner than usual it is drawn: lava leaves hardly anything of the bones. */

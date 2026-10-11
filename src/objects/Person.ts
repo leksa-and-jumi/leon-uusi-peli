@@ -173,6 +173,12 @@ export class Person extends Body {
   private twitchWaitMs = 0;
   private blown = false;
   private ashPending = false;
+  /**
+   * Frozen solid by a freeze ray: time left until it thaws, and how it stood when the
+   * frost got it (where its picture was from its feet, and how far it was turned).
+   */
+  private frozenMs = 0;
+  private iceAt = { dx: 0, dy: 0, rotation: 0 };
   /** Melting away in lava: time left until nothing of it is left, or `null`. */
   private meltMs: number | null = null;
   /** How far it has to sink to be under altogether. */
@@ -268,6 +274,32 @@ export class Person extends Body {
     this.bleedMs = 0;
     this.shortMs = 0;
     return true;
+  }
+
+  /** A robot and a knight in armor are made of metal: a magnet pulls them. */
+  override get metal(): boolean {
+    return this.look.machine === true || this.look.heavy === true;
+  }
+
+  /**
+   * A puff of frost has hit it: it is frozen solid in a block of ice, just as it
+   * stood, and can't do anything until it thaws or something breaks the ice.
+   */
+  freeze(ms: number): void {
+    if (this.dead || this.seat) return;
+    if (this.frozenMs <= 0) {
+      const { x, y, rotation } = this.drawn;
+      this.iceAt = { dx: x - this.x, dy: y - this.y, rotation };
+      this.figure.setIce(true);
+    }
+    this.frozenMs = ms;
+  }
+
+  /** The ice is gone: it thawed, or a hit broke it. */
+  private thaw(): void {
+    if (this.frozenMs <= 0) return;
+    this.frozenMs = 0;
+    this.figure.setIce(false);
   }
 
   /** Is it a machine (a robot)? Lightning doesn't just knock those out. */
@@ -513,6 +545,7 @@ export class Person extends Body {
     pushSpeed: number = KNOCK.pushSpeed,
     wound: WoundKind = 'bruise',
   ): boolean {
+    this.thaw();
     this.knockOver(direction, pushSpeed);
     return this.lose(damage, solids, wound);
   }
@@ -528,6 +561,7 @@ export class Person extends Body {
     wound: WoundKind = 'hole',
   ): boolean {
     if (this.dead) return false;
+    this.thaw();
     this.flinchMs = PERSON.flinch.ms;
     this.flinchDir = direction;
     const deadly = this.lose(damage, solids, wound);
@@ -590,6 +624,18 @@ export class Person extends Body {
       this.meltMs = Math.max(0, this.meltMs - deltaMs);
       if (this.meltMs === 0) this.leaveBones(world);
     }
+    if (this.frozenMs > 0) {
+      // Frozen solid: it only falls and can be carried, stiff as it is
+      this.frozenMs -= deltaMs;
+      if (this.frozenMs > 0 && this.meltMs === null) {
+        this.physics(deltaMs, world);
+        this.place(this.x + this.iceAt.dx, this.y + this.iceAt.dy, this.iceAt.rotation);
+        return;
+      }
+      this.figure.setIce(false);
+      this.frozenMs = 0;
+    }
+    this.carryUp(deltaMs, world);
     const wasFalling = this.state === 'falling';
     const fallSpeed = this.speed.y;
     this.wade(deltaMs, world);
@@ -616,6 +662,11 @@ export class Person extends Body {
       // Under water everything is slow: a doll tips over and settles in slow motion
       this.flopAbout(deltaMs * (this.submerged ? WATER.drag : 1), state, world);
       this.maybeGetUp(deltaMs, state, world);
+    } else if (this.hovering) {
+      // Hanging from a balloon, swaying a little
+      const lifts = this.item?.def.lifts;
+      const sway = lifts ? lifts.sway * Math.sin((this.clockMs / lifts.swayMs) * Math.PI * 2) : 0;
+      this.draw('held', sway);
     } else if (state !== 'resting') {
       this.draw(this.jumpVx === 0 ? 'held' : 'run', 0);
     } else {
@@ -815,6 +866,18 @@ export class Person extends Body {
       hitSomeone = true;
     }
     return hitSomeone;
+  }
+
+  /** A doll with a balloon in its hand is carried up, until it hangs just under the ceiling. */
+  private carryUp(deltaMs: number, world: World): void {
+    const balloon = this.item;
+    const lifts = balloon?.def.lifts;
+    this.hovering = lifts !== undefined && !this.dead && !this.ragdoll && !this.held;
+    if (!balloon || !lifts || !this.hovering) return;
+    // The balloon is above the doll's raised hand, and it has to fit under the ceiling too
+    const room = balloon.size.halfWidth * 2 + PERSON.height * lifts.armShare;
+    const top = world.area.top + PERSON.height + lifts.below + room;
+    this.y = Math.max(top, this.y - lifts.speed * (deltaMs / 1000));
   }
 
   /**
