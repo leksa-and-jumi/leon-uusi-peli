@@ -44,6 +44,12 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawFish(g);
     case 'flamethrower':
       return drawFlamethrower(g);
+    case 'freezeRay':
+      return drawFreezeRay(g);
+    case 'magnet':
+      return drawMagnet(g);
+    case 'balloon':
+      return drawBalloon(g);
     case 'bottle':
       return drawBottle(g);
     case 'pan':
@@ -314,6 +320,91 @@ function drawThunderHammer(g: Graphics): Graphics {
     [38, -1],
     [34.8, -1],
   ]);
+  return g;
+}
+
+/** A freeze ray: a pale blue ray gun with rings around its barrel and an ice crystal at the tip. */
+function drawFreezeRay(g: Graphics): Graphics {
+  const c = ITEM_COLORS.freezeRay;
+  shape(g, c.grip, [
+    [-4, -1],
+    [5, -1],
+    [2, 13],
+    [-7, 13],
+  ]);
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-7, -9, 26, 11, 4);
+  g.fillRect(19, -6, 12, 5);
+  g.fillStyle(c.body);
+  g.fillRoundedRect(-6, -8, 24, 8.5, 3.5);
+  g.fillRect(19, -5, 11, 3);
+  g.fillStyle(c.shine, 0.9);
+  g.fillRoundedRect(-4, -7.4, 19, 2, 1);
+  // Rings around the barrel, and the crystal the frost comes out of
+  g.fillStyle(c.dark);
+  for (const x of [21, 25]) {
+    g.fillRect(x, -8, 2, 9);
+  }
+  shape(g, c.dark, [
+    [29, -8],
+    [38, -3.5],
+    [29, 1],
+  ]);
+  shape(g, c.crystal, [
+    [30, -6],
+    [36, -3.5],
+    [30, -1],
+  ]);
+  g.lineStyle(1.5, c.dark);
+  g.strokeRoundedRect(6, 1, 6, 5, 2);
+  return g;
+}
+
+/** A horseshoe magnet held by its bend: two red arms with silver tips. */
+function drawMagnet(g: Graphics): Graphics {
+  const c = ITEM_COLORS.magnet;
+  // The bend, then the two arms
+  g.lineStyle(9, c.dark);
+  g.beginPath();
+  g.arc(0, 0, 9, Math.PI / 2, (Math.PI * 3) / 2);
+  g.strokePath();
+  g.lineStyle(6.4, c.red);
+  g.beginPath();
+  g.arc(0, 0, 9, Math.PI / 2, (Math.PI * 3) / 2);
+  g.strokePath();
+  for (const y of [-9, 9]) {
+    g.fillStyle(c.dark);
+    g.fillRect(0, y - 4.5, 30, 9);
+    g.fillStyle(c.red);
+    g.fillRect(0, y - 3.2, 22, 6.4);
+    g.fillStyle(c.shine, 0.7);
+    g.fillRect(0, y - 2.6, 20, 1.4);
+    g.fillStyle(c.tipDark);
+    g.fillRect(22, y - 4.5, 8, 9);
+    g.fillStyle(c.tip);
+    g.fillRect(22, y - 3.2, 6.8, 6.4);
+  }
+  return g;
+}
+
+/** A balloon on a string, held by the end of the string: it floats above the hand. */
+function drawBalloon(g: Graphics): Graphics {
+  const c = ITEM_COLORS.balloon;
+  g.lineStyle(1.3, c.string);
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.lineTo(12, 1.5);
+  g.lineTo(22, -1.5);
+  g.lineTo(32, 0);
+  g.strokePath();
+  // The knot, and the balloon itself
+  g.fillStyle(c.dark);
+  g.fillTriangle(30, 0, 35, -3, 35, 3);
+  g.fillEllipse(54, 0, 42, 34);
+  g.fillStyle(c.red);
+  g.fillEllipse(54, 0, 39.5, 31.5);
+  g.fillStyle(c.shine, 0.8);
+  g.fillEllipse(61, -7, 10, 6);
   return g;
 }
 

@@ -47,6 +47,11 @@ export class Part extends Body {
     return this.size.height * POOL.floatShare;
   }
 
+  /** Lava leaves nothing of it. */
+  override get melts(): boolean {
+    return true;
+  }
+
   isOn(): boolean {
     return false;
   }
@@ -88,7 +93,7 @@ export class Part extends Body {
         this.turn += this.twirl * seconds;
       }
     }
-    this.picture.setPosition(this.x, this.y - this.lift);
+    this.picture.setPosition(this.x, this.y - this.lift + this.sunk);
     this.picture.rotation = this.turn;
   }
 

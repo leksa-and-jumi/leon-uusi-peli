@@ -1,4 +1,4 @@
-import { PHYSICS, PICK_PADDING, THROW, WATER, type ActionId } from '../config';
+import { MELT, PHYSICS, PICK_PADDING, THROW, WATER, type ActionId } from '../config';
 import { bob, ceilingBounce, fallStep, springSpeed } from '../logic/fall';
 import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
 import { boxAround, groundBelow, liftOut, type Box } from '../logic/ground';
@@ -52,6 +52,27 @@ export abstract class Body {
     return false;
   }
 
+  /** Does lava melt it, so that nothing is left? */
+  get melts(): boolean {
+    return false;
+  }
+
+  /** Is it made of metal, so that a magnet pulls it? */
+  get metal(): boolean {
+    return false;
+  }
+
+  /** Lava has got it: it sinks in, and then it is gone without a trace. */
+  sinkAway(): void {
+    this.sinkMs ??= MELT.ms;
+  }
+
+  /** How far down it is drawn while it sinks away: all of it has gone under at the end. */
+  protected get sunk(): number {
+    if (this.sinkMs === null) return 0;
+    return (1 - this.sinkMs / MELT.ms) * (this.size.height + MELT.extra);
+  }
+
   /** Fire or a blast gets at it: something explosive goes off `ms` from now. Nothing else minds. */
   setOff(ms: number): void {
     // Most things don't explode, however soon
@@ -63,6 +84,8 @@ export abstract class Body {
   /** How fast it was falling when it last hit the ground (pixels per second). */
   protected lastImpact = 0;
   private fallSpeed = 0;
+  /** Sinking away in lava: time left until nothing is left of it, or `null`. */
+  private sinkMs: number | null = null;
   /** Its own clock for bobbing in water, so that not everything bobs in step. */
   private bobMs = Math.random() * WATER.bob.ms;
   /** Afloat in water right now. */
@@ -99,7 +122,7 @@ export abstract class Body {
 
   /** Thrown away and out of the screen: time to forget it. */
   get gone(): boolean {
-    return this.flownOut;
+    return this.flownOut || this.sinkMs === 0;
   }
 
   /** Can be grabbed and double-clicked (not while flying away). */
@@ -180,6 +203,7 @@ export abstract class Body {
 
   /** Fly, hang or fall, and say which it is. `resting` means standing on the ground. */
   protected physics(deltaMs: number, world: World): BodyState {
+    if (this.sinkMs !== null) this.sinkMs = Math.max(0, this.sinkMs - deltaMs);
     this.state = this.move(deltaMs, world);
     return this.state;
   }

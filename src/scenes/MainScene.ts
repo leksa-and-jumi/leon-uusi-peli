@@ -236,6 +236,7 @@ export class MainScene extends Phaser.Scene {
       things: (self) => [
         ...this.blocks.filter((block) => block !== self && block.canBePicked && !block.def.liquid),
         ...this.items.filter((item) => item.canBePicked && !item.isHeld),
+        ...this.parts.filter((part) => part.canBePicked),
       ],
       zapThing: (fromX, fromY, thing) => {
         this.zapThing(fromX, fromY, thing);
@@ -312,6 +313,7 @@ export class MainScene extends Phaser.Scene {
       body.update(delta, this.world);
     }
     this.pullIn(delta);
+    this.pullMetal(delta);
     if (this.spawnSoon && this.time.now - this.spawnSoon.atMs > DOUBLE_CLICK_MS) {
       const { x, y } = this.spawnSoon;
       this.spawnSoon = null;
@@ -389,6 +391,34 @@ export class MainScene extends Phaser.Scene {
         } else {
           body.tug(step.dx, step.dy, AREA);
         }
+      }
+    }
+  }
+
+  /**
+   * Every magnet pulls in what is made of metal: weapons, steel, vehicles, robots and
+   * knights. What gets to it sticks there. It leaves alone what you are holding, and
+   * things in a doll's hand or seat.
+   */
+  private pullMetal(delta: number): void {
+    for (const magnet of this.items) {
+      const pull = magnet.def.magnet;
+      if (!pull || !magnet.canBePicked) continue;
+      const at = magnet.box;
+      const magnetX = (at.left + at.right) / 2;
+      const magnetY = (at.top + at.bottom) / 2;
+      for (const body of this.everything()) {
+        if (body === magnet || body === this.dragged || !body.metal || !body.canBePicked) continue;
+        if (body instanceof Item && body.isHeld) continue;
+        if (body instanceof Person && (body.seated || body.holding === magnet)) continue;
+        const box = body instanceof Person ? body.hitBox : body.box;
+        const middleX = (box.left + box.right) / 2;
+        const middleY = (box.top + box.bottom) / 2;
+        const step = pullStep(middleX, middleY, magnetX, magnetY, pull, delta);
+        if (step === null) continue;
+        // Right at the magnet it sticks: it is held there and doesn't fall
+        if (step === 'eaten') body.tug(0, 0, AREA);
+        else body.tug(step.dx, step.dy, AREA);
       }
     }
   }
@@ -740,8 +770,8 @@ export class MainScene extends Phaser.Scene {
     // A flamethrower hisses; everything else bangs
     if (gun.flame) this.sfx.crumble();
     else this.sfx.shot();
-    // A cannon's shell is bigger and darker than a bullet, and a flame is a puff of fire
-    const look = gun.shell ?? gun.flame ?? BULLET;
+    // A cannon's shell is bigger and darker than a bullet; a flame or frost is a puff
+    const look = gun.shell ?? gun.flame ?? gun.frost ?? BULLET;
     for (const way of fan(aim, gun.pellets ?? 1, gun.spread ?? 0)) {
       const picture = this.add
         .rectangle(x, y, look.width, look.height, look.color)
@@ -800,15 +830,19 @@ export class MainScene extends Phaser.Scene {
       }
       const struck = hit === null ? undefined : solids[hit]?.body;
       const victim = hit === null ? undefined : targets[hit - solids.length];
+      const { frost } = bullet.gun;
       if (struck instanceof Block && flame) {
         // Fire sets off what explodes and burns up what is made of wood
         struck.setOff(BLAST.chainMs);
         if (struck.burns) this.world.burn(struck);
-      } else if (struck instanceof Block) {
+      } else if (struck instanceof Block && !frost) {
         if (struck.def.drive) this.sfx.clang();
         struck.shot(bullet.x, bullet.y, this.world);
       }
-      if (victim) {
+      if (victim && frost) {
+        // Frost doesn't hurt: it freezes the doll solid
+        victim.freeze(frost.ms);
+      } else if (victim) {
         const solids = this.solidBoxes(victim);
         const wound = flame ? 'burn' : 'hole';
         const deadly = victim.shot(bullet.direction, solids, bullet.gun.damage, wound);
