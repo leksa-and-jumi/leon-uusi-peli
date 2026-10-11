@@ -270,9 +270,16 @@ export class MainScene extends Phaser.Scene {
         color: COLORS.text,
         align: 'center',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(DEPTH.floorCover + 2);
 
-    this.stainLayer = this.add.graphics().setDepth(BLOOD.depth);
+    // The floor once more, in front of everything in the area: what sinks into it is
+    // hidden. The stains on it are drawn on top of that.
+    this.add
+      .rectangle(0, AREA.floorY, GAME_WIDTH, FLOOR.height, FLOOR.color)
+      .setOrigin(0)
+      .setDepth(DEPTH.floorCover);
+    this.stainLayer = this.add.graphics().setDepth(DEPTH.floorCover + 1);
     this.menu = new SpawnMenu(this);
     this.bubbles = new ActionBubbles(this);
 

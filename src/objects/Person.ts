@@ -174,6 +174,8 @@ export class Person extends Body {
   private ashPending = false;
   /** Melting away in lava: time left until nothing of it is left, or `null`. */
   private meltMs: number | null = null;
+  /** How far it has to sink to be under altogether. */
+  private meltDrop = 0;
   /** How long a heavy doll has had its head under water since it last lost a life, and in all. */
   private drownMs = 0;
   private underMs = 0;
@@ -242,16 +244,20 @@ export class Person extends Body {
 
   /** A robot that has blown up is gone. */
   override get gone(): boolean {
-    return super.gone || this.blown || this.meltMs === 0;
+    // A robot leaves nothing in lava; of anything else, a skeleton stays on the bottom
+    return super.gone || this.blown || (this.meltMs === 0 && this.machine);
   }
 
   /**
-   * Lava has got it: it is out at once, sinks in, fades and is gone for good. Says
-   * whether it has only just started to melt.
+   * Lava has got it: it is out at once and sinks in, feet first. Once it is under,
+   * all that is left of it is a thin burnt skeleton on the bottom. Says whether it
+   * has only just started to sink.
    */
   melt(solids: readonly Box[]): boolean {
     if (this.meltMs !== null) return false;
     this.meltMs = MELT.ms;
+    const body = this.hitBox;
+    this.meltDrop = body.bottom - body.top + MELT.extra;
     this.leaveSeat();
     this.lose(this.lives, solids, null);
     this.spray = 0;
@@ -570,7 +576,10 @@ export class Person extends Body {
       this.bleed(deltaMs, world);
       return;
     }
-    if (this.meltMs !== null) this.meltMs = Math.max(0, this.meltMs - deltaMs);
+    if (this.meltMs !== null && this.meltMs > 0) {
+      this.meltMs = Math.max(0, this.meltMs - deltaMs);
+      if (this.meltMs === 0) this.leaveBones(world);
+    }
     const wasFalling = this.state === 'falling';
     const fallSpeed = this.speed.y;
     this.wade(deltaMs, world);
@@ -824,6 +833,20 @@ export class Person extends Body {
     if (!this.lose(1, world.solidBoxes(this), null)) return;
     this.knockOver(this.facing, 0);
     world.hitEffect(this.x, surface, true, 'none');
+  }
+
+  /**
+   * It has sunk into the lava altogether. What comes to lie on the bottom is a very
+   * thin, burnt skeleton: it lies down flat at once, where the lava hides it.
+   */
+  private leaveBones(world: World): void {
+    if (this.machine) return;
+    this.figure.burnToBones(true);
+    this.knockOver(this.facing, 0);
+    const frameMs = 16;
+    for (let ms = 0; ms < MELT.settleMs; ms += frameMs) {
+      this.flopAbout(frameMs, 'resting', world);
+    }
   }
 
   /** Go limp and tip over on the spot, gently: nothing has hit it. */
@@ -1198,7 +1221,7 @@ export class Person extends Body {
   private place(x: number, y: number, rotation: number): void {
     const { container } = this.figure;
     container.setPosition(x, y);
-    container.setScale(this.facing, 1);
+    container.setScale(this.facing * this.figure.thinness, 1);
     container.rotation = rotation;
     // Lying flat on the ground, it is drawn behind the building pieces: it lies under them
     const flat = this.isDown && Math.abs(Math.sin(rotation)) > 0.7;
@@ -1206,11 +1229,12 @@ export class Person extends Body {
     // sitting on a motorbike it is in front
     const sitting = this.seat?.seatInFront ? DEPTH.rider : DEPTH.driver;
     container.setDepth(this.seat ? sitting : flat ? DEPTH.downDoll : DEPTH.person);
-    if (this.meltMs !== null) {
-      // Melting in lava: it sinks in and fades away
-      const left = this.meltMs / MELT.ms;
-      container.setAlpha(left);
-      container.y += (1 - left) * MELT.sink;
+    // What lava has left is so thin that, lying down, it lies right on the floor
+    const thin = this.figure.thinness;
+    if (thin < 1) container.y += (1 - thin) * PERSON.halfWidth * Math.abs(Math.sin(rotation));
+    if (this.meltMs !== null && this.meltMs > 0) {
+      // Sinking into lava, feet first: the floor hides what has gone under
+      container.y += (1 - this.meltMs / MELT.ms) * this.meltDrop;
     }
     this.drawn = { x, y, rotation };
   }

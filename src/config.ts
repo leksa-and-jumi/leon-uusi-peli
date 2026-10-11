@@ -61,6 +61,8 @@ export const DEPTH = {
   item: 30,
   /** Water and lava are in front of what is in them. */
   liquid: 32,
+  /** The floor is drawn once more over everything that sinks into it. */
+  floorCover: 33,
   bullet: 40,
   /** A ghost floats in front of everything else in the area. */
   ghost: 45,
@@ -927,8 +929,13 @@ export const DROWN = {
   tip: 0.25,
 } as const;
 
-/** A doll in lava melts away: it sinks this far and fades in this long, and then it is gone. */
-export const MELT = { ms: 900, sink: 26 } as const;
+/**
+ * A doll in lava sinks into it, feet first, in this long: all of it and `extra` more
+ * goes down under the floor. What is left lies on the bottom: a burnt skeleton, so
+ * thin that the lava hides it. `settleMs` is how long it is given to come to lie flat
+ * there, all at once, before anybody can see it.
+ */
+export const MELT = { ms: 1500, extra: 14, settleMs: 2600 } as const;
 
 /** The bar above a boss that shows how much more it can take. */
 export const BOSS_BAR = {
@@ -981,6 +988,8 @@ export const CHARRED = {
   /** How thick a bone is, and how big the knobs at its ends are. */
   thick: 4,
   knob: 3.2,
+  /** What lava leaves is burnt much thinner still: it is only this share as thick. */
+  thinScale: 0.4,
 } as const;
 
 /** A puff of smoke: a gray ball that rises, grows and fades. */
@@ -2044,7 +2053,6 @@ export const BLOOD = {
   sweepHeight: 16,
   /** A spray of blood starts off upward this fast (pixels per second). */
   sprayLift: -140,
-  depth: 5,
 } as const;
 
 /** The TV plays these programs one after the other, with a blink of snow in between. */
