@@ -82,6 +82,12 @@ export class Sfx {
     this.tone(SOUND.spook.tone);
   }
 
+  /** A rubber chicken hits something. */
+  squeak(): void {
+    if (!this.ready('squeak')) return;
+    this.tone(SOUND.squeak.tone);
+  }
+
   /** Something falls into water. */
   splash(): void {
     if (!this.ready('splash')) return;

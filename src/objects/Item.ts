@@ -54,6 +54,8 @@ export class Item extends Body {
   private tossed = false;
   /** Thrown, and not come to rest yet: only then can it break on what it hits. */
   private thrown = false;
+  /** A bomb thrown by a doll: it goes off the moment it hits the ground or anybody. */
+  private armed = false;
   /** Smashed to pieces. */
   private broken = false;
   /** The doll that let go of it. That doll doesn't take it back while it still lies by its feet. */
@@ -160,6 +162,20 @@ export class Item extends Body {
     this.vx = speedX * scale;
     this.tossed = true;
     this.thrown = true;
+  }
+
+  /**
+   * Thrown by a doll, in an arc (speeds in pixels per second). A bomb thrown like
+   * this is armed: it goes off where it comes down, or `fuseMs` from now at the latest.
+   */
+  lob(speedX: number, speedY: number, solids: readonly Box[], fuseMs: number): void {
+    this.release(solids, speedY);
+    this.vx = speedX;
+    this.tossed = true;
+    this.thrown = true;
+    this.armed = true;
+    this.setOff(fuseMs);
+    this.spark?.setVisible(true);
   }
 
   isOn(action: ActionId): boolean {
@@ -297,6 +313,11 @@ export class Item extends Body {
       this.tossed = false;
     }
 
+    // An armed bomb goes off as soon as it flies into somebody other than its thrower
+    const hitsSomebody = (person: Person): boolean =>
+      person !== this.dropper && person.canBePicked && overlaps(this.box, person.hitBox);
+    if (this.armed && world.people.some(hitsSomebody)) this.fuseMs = 0;
+
     const melee = this.size.melee;
     if (!this.tossed || !melee || Math.abs(this.vx) < ITEM_TOSS.hitSpeed) return;
     const victim = world.people.find((person) => person.canBeHit && overlaps(this.box, person.box));
@@ -304,7 +325,7 @@ export class Item extends Body {
     const direction = this.vx < 0 ? -1 : 1;
     const solids = world.solidBoxes(victim);
     const deadly = victim.hit(direction, solids, melee.damage, melee.pushSpeed, melee.wound);
-    world.hitEffect(victim.feet.x, this.y - height / 2, deadly, 'clang');
+    world.hitEffect(victim.feet.x, this.y - height / 2, deadly, melee.sound ?? 'clang');
     this.tossed = false;
     if (this.size.stick) {
       this.stickInto(victim, direction);
@@ -329,6 +350,7 @@ export class Item extends Body {
   private strike(speed: number, world: World): void {
     const thunder = this.size.thunder;
     if (thunder && this.thrown && speed >= thunder.minSpeed) world.thunder(this);
+    if (this.armed) this.fuseMs = 0;
     const breaksAt = this.size.breaksAt;
     if (this.broken || !this.thrown || breaksAt === undefined || speed < breaksAt) return;
     this.broken = true;

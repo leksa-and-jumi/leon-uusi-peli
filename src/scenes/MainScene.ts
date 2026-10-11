@@ -47,14 +47,7 @@ import { addDrop, wipe, type Stain } from '../logic/blood';
 import { jagged } from '../logic/bolt';
 import { floatLine } from '../logic/fall';
 import { pullStep } from '../logic/pull';
-import {
-  crumbAlpha,
-  crumbCount,
-  crumbStep,
-  scatter,
-  settleTurn,
-  type Crumb,
-} from '../logic/debris';
+import { crumbAlpha, crumbCount, crumbStep, scatter, type Crumb } from '../logic/debris';
 import { onFloor, overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
@@ -67,6 +60,7 @@ import { ActionBubbles } from '../objects/ActionBubbles';
 import { Block } from '../objects/Block';
 import { Body } from '../objects/Body';
 import { Item } from '../objects/Item';
+import { Part } from '../objects/Part';
 import { Person } from '../objects/Person';
 import { SpawnMenu } from '../objects/SpawnMenu';
 import type { HitSound, World } from '../objects/World';
@@ -92,17 +86,15 @@ interface Bullet {
   /** The doll that fired it, or `null` for a gun firing on its own. */
   shooter: Person | null;
   picture: Phaser.GameObjects.Rectangle;
+  /** How far it has flown. A flame only gets so far. */
+  flown: number;
 }
 
-/**
- * A flying piece of something that broke, a drop of blood (then `blood` is its color),
- * or a part cut off a doll (then `flat` is how far above the floor it lies).
- */
+/** A flying piece of something that broke, or a drop of blood (then `blood` is its color). */
 interface Piece {
   crumb: Crumb;
-  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc | Phaser.GameObjects.Container;
+  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc;
   blood: number | null;
-  flat: number | null;
   /** How long it lies there before it starts to fade, and how long fading takes. */
   lieMs: number;
   fadeMs: number;
@@ -119,6 +111,8 @@ export class MainScene extends Phaser.Scene {
   private people: Person[] = [];
   private blocks: Block[] = [];
   private items: Item[] = [];
+  /** The parts that have been cut off dolls and lie around. */
+  private parts: Part[] = [];
   private bullets: Bullet[] = [];
   private pieces: Piece[] = [];
   /** Blood on the floor. It stays until it is wiped away with the broom. */
@@ -157,6 +151,7 @@ export class MainScene extends Phaser.Scene {
     this.people = [];
     this.blocks = [];
     this.items = [];
+    this.parts = [];
     this.bullets = [];
     this.pieces = [];
     this.stains = [];
@@ -194,8 +189,8 @@ export class MainScene extends Phaser.Scene {
       zap: (fromX, fromY, victim, damage, pushSpeed, spark) => {
         this.zap(fromX, fromY, victim, damage, pushSpeed, spark);
       },
-      sever: (picture, lift, direction) => {
-        this.sever(picture, lift, direction);
+      sever: (picture, lift, reach, direction, gentle) => {
+        this.sever(picture, lift, reach, direction, gentle);
       },
       thunder: (source, spare) => {
         this.thunder(source, spare);
@@ -338,7 +333,7 @@ export class MainScene extends Phaser.Scene {
 
   /** Everything in the area, from the back to the front. */
   private everything(): Body[] {
-    return [...this.blocks, ...this.people, ...this.items];
+    return [...this.blocks, ...this.people, ...this.parts, ...this.items];
   }
 
   /**
@@ -541,7 +536,7 @@ export class MainScene extends Phaser.Scene {
         melee.pushSpeed,
         melee.wound,
       );
-      this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly, 'clang');
+      this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly, melee.sound ?? 'clang');
       if (weapon instanceof Item && weapon.def.stick) {
         // It sinks in and stays there: the hand lets go of it
         weapon.stickInto(person, direction);
@@ -598,7 +593,7 @@ export class MainScene extends Phaser.Scene {
         return;
       }
     }
-    if (body instanceof Person || body instanceof Item) {
+    if (body instanceof Person || body instanceof Item || body instanceof Part) {
       const speed = throwSpeed(recentSamples(this.dragTrail, this.time.now, TOSS.windowMs));
       body.throwWith(speed.x, speed.y, this.solidBoxes(body));
     } else {
@@ -698,6 +693,8 @@ export class MainScene extends Phaser.Scene {
       this.blocks = [...this.blocks.filter((other) => other !== body), body];
     } else if (body instanceof Item) {
       this.items = [...this.items.filter((other) => other !== body), body];
+    } else if (body instanceof Part) {
+      this.parts = [...this.parts.filter((other) => other !== body), body];
     }
     body.bringToTop();
   }
@@ -723,6 +720,7 @@ export class MainScene extends Phaser.Scene {
     this.people = this.people.filter((body) => !all.has(body));
     this.blocks = this.blocks.filter((body) => !all.has(body));
     this.items = this.items.filter((body) => !all.has(body));
+    this.parts = this.parts.filter((body) => !all.has(body));
     this.bullets = this.bullets.filter((bullet) => {
       if (!bullet.shooter || !all.has(bullet.shooter)) return true;
       bullet.picture.destroy();
@@ -739,16 +737,17 @@ export class MainScene extends Phaser.Scene {
     aim: Spot = { x: direction, y: 0 },
     from: Body | null = null,
   ): void {
-    this.sfx.shot();
-    // A shotgun sends several bullets out at once, fanned out
-    // A cannon's shell is bigger and darker than a bullet
-    const look = gun.shell ?? BULLET;
+    // A flamethrower hisses; everything else bangs
+    if (gun.flame) this.sfx.crumble();
+    else this.sfx.shot();
+    // A cannon's shell is bigger and darker than a bullet, and a flame is a puff of fire
+    const look = gun.shell ?? gun.flame ?? BULLET;
     for (const way of fan(aim, gun.pellets ?? 1, gun.spread ?? 0)) {
       const picture = this.add
         .rectangle(x, y, look.width, look.height, look.color)
         .setDepth(DEPTH.bullet);
       picture.rotation = Math.atan2(way.y, way.x);
-      this.bullets.push({ x, y, aim: way, from, direction, gun, shooter, picture });
+      this.bullets.push({ x, y, aim: way, from, direction, gun, shooter, picture, flown: 0 });
     }
   }
 
@@ -760,7 +759,10 @@ export class MainScene extends Phaser.Scene {
       const step = bullet.gun.bulletSpeed * (delta / 1000);
       bullet.x += bullet.aim.x * step;
       bullet.y += bullet.aim.y * step;
+      bullet.flown += step;
       bullet.picture.setPosition(bullet.x, bullet.y);
+      const { flame } = bullet.gun;
+      if (flame) bullet.picture.setAlpha(Math.max(0.2, 1 - bullet.flown / flame.reach));
 
       // Bullets hit every living doll in their way: standing, lying, falling or held in
       // the hand. A doll's own bullets fly past dolls of its color, and out of its vehicle.
@@ -780,6 +782,11 @@ export class MainScene extends Phaser.Scene {
         bullet.x > AREA.right ||
         bullet.y < AREA.top ||
         bullet.y > AREA.floorY;
+      if (hit === null && flame && bullet.flown >= flame.reach) {
+        // The flame has burnt out
+        bullet.picture.destroy();
+        return false;
+      }
       if (hit === null && !flownOut) return true;
 
       const { shell } = bullet.gun;
@@ -793,12 +800,18 @@ export class MainScene extends Phaser.Scene {
       }
       const struck = hit === null ? undefined : solids[hit]?.body;
       const victim = hit === null ? undefined : targets[hit - solids.length];
-      if (struck instanceof Block) {
+      if (struck instanceof Block && flame) {
+        // Fire sets off what explodes and burns up what is made of wood
+        struck.setOff(BLAST.chainMs);
+        if (struck.burns) this.world.burn(struck);
+      } else if (struck instanceof Block) {
         if (struck.def.drive) this.sfx.clang();
         struck.shot(bullet.x, bullet.y, this.world);
       }
       if (victim) {
-        const deadly = victim.shot(bullet.direction, this.solidBoxes(victim), bullet.gun.damage);
+        const solids = this.solidBoxes(victim);
+        const wound = flame ? 'burn' : 'hole';
+        const deadly = victim.shot(bullet.direction, solids, bullet.gun.damage, wound);
         this.showHit(bullet.x, bullet.y, deadly, 'none');
       }
       bullet.picture.destroy();
@@ -1011,24 +1024,18 @@ export class MainScene extends Phaser.Scene {
   }
 
   /**
-   * A part cut off a doll: it flies off, drops to the floor, lies there flat for a
-   * good while and then fades away.
+   * A part cut off a doll: it comes away, drops to the floor and lies there, where it
+   * can be picked up like any other thing. With too many lying around, the oldest goes.
    */
-  private sever(picture: Phaser.GameObjects.Container, lift: number, direction: Facing): void {
-    picture.setDepth(DEBRIS.depth);
-    const crumb: Crumb = {
-      x: picture.x,
-      y: picture.y + lift,
-      vx: direction * SEVER.push * (0.5 + Math.random()),
-      vy: -SEVER.lift,
-      size: 0,
-      turn: picture.rotation,
-      spin: direction * SEVER.spin,
-      ageMs: 0,
-    };
-    const { lieMs, fadeMs } = SEVER;
-    this.pieces.push({ crumb, picture, blood: null, lieMs, fadeMs, flat: lift });
-    this.trimPieces();
+  private sever(
+    picture: Phaser.GameObjects.Container,
+    lift: number,
+    reach: number,
+    direction: Facing,
+    gentle: boolean,
+  ): void {
+    this.parts.push(new Part(picture, lift, reach, direction, gentle));
+    if (this.parts.length > SEVER.max) this.forgetOldest(this.parts);
   }
 
   /** A laser hits a doll: the doll takes the hit. With `spark` it is lightning. */
@@ -1095,7 +1102,6 @@ export class MainScene extends Phaser.Scene {
         blood: null,
         lieMs: DEBRIS.lieMs,
         fadeMs: DEBRIS.fadeMs,
-        flat: null,
       });
     }
     this.trimPieces();
@@ -1116,7 +1122,6 @@ export class MainScene extends Phaser.Scene {
         blood: null,
         lieMs: ASH.lieMs,
         fadeMs: ASH.fadeMs,
-        flat: null,
       });
     }
     this.trimPieces();
@@ -1132,7 +1137,7 @@ export class MainScene extends Phaser.Scene {
       const picture = this.add
         .circle(crumb.x, crumb.y, crumb.size / 2, color)
         .setDepth(DEBRIS.depth);
-      this.pieces.push({ crumb, picture, blood: color, lieMs: 0, fadeMs: 0, flat: null });
+      this.pieces.push({ crumb, picture, blood: color, lieMs: 0, fadeMs: 0 });
     }
     this.trimPieces();
   }
@@ -1158,11 +1163,6 @@ export class MainScene extends Phaser.Scene {
     let stained = false;
     this.pieces = this.pieces.filter((piece) => {
       piece.crumb = crumbStep(piece.crumb, physics, delta);
-      if (piece.flat !== null && piece.crumb.y >= AREA.floorY) {
-        // A part cut off a doll doesn't stand on end: it turns to lie flat
-        const turn = settleTurn(piece.crumb.turn, delta, SEVER.settleMs);
-        piece.crumb = { ...piece.crumb, turn, spin: 0 };
-      }
       const { x, y, turn, ageMs } = piece.crumb;
       if (piece.blood !== null && y >= AREA.floorY) {
         this.stains = addDrop(this.stains, x, piece.blood, BLOOD.stain);
@@ -1176,7 +1176,7 @@ export class MainScene extends Phaser.Scene {
         piece.picture.destroy();
         return false;
       }
-      piece.picture.setPosition(x, y - (piece.flat ?? 0)).setAlpha(alpha);
+      piece.picture.setPosition(x, y).setAlpha(alpha);
       piece.picture.rotation = turn;
       return true;
     });
@@ -1216,6 +1216,7 @@ export class MainScene extends Phaser.Scene {
   private showHit(x: number, y: number, deadly: boolean, sound: HitSound): void {
     if (sound === 'punch') this.sfx.punch();
     if (sound === 'clang') this.sfx.clang();
+    if (sound === 'squeak') this.sfx.squeak();
     if (deadly) this.sfx.out();
     const emoji = deadly ? HIT_FX.deadEmoji : HIT_FX.emoji;
     this.popUp(x, y, emoji, HIT_FX.fontSize, deadly ? HIT_FX.deadMs : HIT_FX.ms, HIT_FX.grow);

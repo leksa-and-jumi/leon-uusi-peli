@@ -536,6 +536,7 @@ export const TABS = [
   { id: 'vehicles', emoji: '🚗' },
   { id: 'monsters', emoji: '👾' },
   { id: 'traps', emoji: '⚠️' },
+  { id: 'elements', emoji: '🌊' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -1009,11 +1010,20 @@ export const SEVER = {
   push: 170,
   lift: 300,
   spin: 5,
+  /** A saw doesn't fling the part off: it comes away this much more gently. */
+  gentle: 0.25,
+  /** At most this many loose parts lie around; the oldest goes first. */
+  max: 40,
   /** Lying on the floor it turns flat in about this long. */
   settleMs: 140,
-  lieMs: 16000,
-  fadeMs: 2500,
 } as const;
+
+/**
+ * An angry doll with a bomb throws it at the one it is after: from at least `margin`
+ * outside the blast and at most `range` away, in a high arc that takes `flightMs`.
+ * The bomb goes off where it lands, or after `fuseMs` at the latest.
+ */
+export const LOB = { margin: 40, range: 520, flightMs: 700, fuseMs: 1500 } as const;
 
 /** The laser a monster shoots from its eyes. */
 export const LASER = {
@@ -1131,9 +1141,9 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0x5d6770, dark: 0x2b3238, light: 0x9aa7b4, detail: 0xffc107 },
     hazard: {
       kind: 'touch',
-      damage: 2,
-      pushSpeed: 420,
-      wound: 'slash',
+      damage: 99,
+      pushSpeed: 40,
+      wound: 'saw',
       sound: 'clang',
       everyMs: 500,
       side: 0,
@@ -1610,6 +1620,11 @@ export interface GunDef {
   /** A shotgun: this many bullets at once, fanned out over `spread` (radians). */
   pellets?: number;
   spread?: number;
+  /**
+   * A flamethrower: its bullets are puffs of fire that only get `reach` far. They burn
+   * the dolls they hit, burn up what is made of wood and set off what explodes.
+   */
+  flame?: { reach: number; width: number; height: number; color: number };
   /** A cannon: its bullet is a big shell that goes off with this blast where it hits. */
   shell?: { blast: BlastDef; width: number; height: number; color: number };
 }
@@ -1617,9 +1632,9 @@ export interface GunDef {
 /**
  * The mark a hit leaves on a doll: a bruise from a fist or something blunt, a slash
  * from a blade, a stab from a point, a hole from a bullet, a burn from a blast. A `cut`
- * goes right through: a part of the doll comes off.
+ * goes right through: a part of the doll comes off. A `saw` cuts it in two at the waist.
  */
-export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'cut';
+export type WoundKind = 'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'cut' | 'saw';
 
 /** Something to hit with: reaches further and hurts more than a fist. */
 export interface MeleeDef {
@@ -1629,6 +1644,8 @@ export interface MeleeDef {
   wound: WoundKind;
   /** How fast the one who is hit slides away. */
   pushSpeed: number;
+  /** What a hit with it sounds like, when not the usual clang. */
+  sound?: 'punch' | 'squeak';
 }
 
 export interface BombDef extends BlastDef {
@@ -1683,7 +1700,9 @@ export type WeaponKind =
   | 'dynamite';
 /** Junk a doll can hold, and hit others with. */
 export type JunkItemKind = 'bottle' | 'pan' | 'broom';
-export type ItemKind = WeaponKind | JunkItemKind;
+/** Odd weapons, on the traps page. */
+export type OddItemKind = 'glove' | 'chicken' | 'fish' | 'flamethrower';
+export type ItemKind = WeaponKind | JunkItemKind | OddItemKind;
 
 export const ITEMS: Record<ItemKind, ItemDef> = {
   pistol: {
@@ -1844,6 +1863,60 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: 0, along: 10 },
     bomb: { fuseMs: 3000, radius: 250, damage: 4, pushSpeed: 850 },
   },
+  // A boxing glove on a spring: it doesn't hurt at all, but it sends a doll flying
+  glove: {
+    crumbs: [0xd32f2f, 0x8a1c1c, 0xb4c0c8],
+    halfWidth: 33,
+    height: 24,
+    menuScale: 1,
+    lie: { x: -20, y: -12 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    melee: { reach: 84, damage: 0, wound: 'bruise', pushSpeed: 1500, sound: 'punch' },
+  },
+  // A rubber chicken: no damage, lots of squeaking
+  chicken: {
+    floats: true,
+    burns: true,
+    crumbs: [0xffd54f, 0xf9a825, 0xe53935],
+    halfWidth: 31,
+    height: 22,
+    menuScale: 1.05,
+    lie: { x: -20, y: -11 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 72, damage: 0, wound: 'bruise', pushSpeed: 240, sound: 'squeak' },
+  },
+  // A big wet fish to slap with
+  fish: {
+    floats: true,
+    crumbs: [0x78909c, 0xb0bec5, 0x455a64],
+    halfWidth: 31,
+    height: 20,
+    menuScale: 1.05,
+    lie: { x: -22, y: -10 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 74, damage: 1, wound: 'bruise', pushSpeed: 440, sound: 'punch' },
+  },
+  // It doesn't reach far, but what it reaches burns
+  flamethrower: {
+    crumbs: [0xc62828, 0x455a64, 0x1c262b],
+    halfWidth: 36,
+    height: 23,
+    menuScale: 0.95,
+    lie: { x: -10, y: -11 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 230,
+      damage: 1,
+      everyMs: 170,
+      autoMs: 90,
+      bulletSpeed: 520,
+      muzzle: { x: 104, y: 86 },
+      barrelUp: 14,
+      pellets: 2,
+      spread: 0.22,
+      flame: { reach: 250, width: 16, height: 10, color: 0xff7a1a },
+    },
+  },
   bottle: {
     floats: true,
     crumbs: [0x2e7d4f, 0xa5e0bd, 0x174428],
@@ -1893,9 +1966,9 @@ export const WEAPON_KINDS: readonly WeaponKind[] = [
   'thunderHammer',
   'knife',
 ];
-/** The traps page: the traps, and the things with a fuse. */
+/** The traps page: the traps, the things with a fuse, and the odd weapons. */
 export const TRAP_KINDS: readonly (
-  { type: 'block'; kind: TrapKind | ElementKind } | { type: 'item'; kind: WeaponKind }
+  { type: 'block'; kind: TrapKind } | { type: 'item'; kind: WeaponKind | OddItemKind }
 )[] = [
   { type: 'block', kind: 'spikes' },
   { type: 'block', kind: 'saw' },
@@ -1904,10 +1977,13 @@ export const TRAP_KINDS: readonly (
   { type: 'block', kind: 'mine' },
   { type: 'item', kind: 'bomb' },
   { type: 'item', kind: 'dynamite' },
-  { type: 'block', kind: 'lava' },
-  { type: 'block', kind: 'water' },
-  { type: 'block', kind: 'blackHole' },
+  { type: 'item', kind: 'glove' },
+  { type: 'item', kind: 'chicken' },
+  { type: 'item', kind: 'fish' },
+  { type: 'item', kind: 'flamethrower' },
 ];
+/** The page of forces of nature. */
+export const ELEMENT_KINDS: readonly ElementKind[] = ['lava', 'water', 'blackHole'];
 export const BUILD_KINDS: readonly BuildKind[] = [
   'crate',
   'wall',
@@ -1965,6 +2041,10 @@ export const ITEM_COLORS = {
   bomb: { body: 0x1b1b1b, shine: 0x8a8a8a, cap: 0x9e9e9e, fuse: 0xbcaaa4, spark: 0xffb300 },
   dynamite: { stick: 0xd32f2f, dark: 0x7f1d1d, light: 0xff8a80, band: 0x3e2723, fuse: 0xbcaaa4 },
   katana: { grip: 0x1b1b1b, wrap: 0xffd54f, guard: 0xb8860b, guardLight: 0xffd54f },
+  glove: { red: 0xd32f2f, dark: 0x8a1c1c, shine: 0xff8a80, spring: 0xb4c0c8, springDark: 0x6f7b83 },
+  chicken: { body: 0xffd54f, dark: 0xc79a1a, comb: 0xe53935, beak: 0xff9800, eye: 0x1b1b1b },
+  fish: { body: 0x78909c, dark: 0x37474f, belly: 0xcfd8dc, eye: 0x1b1b1b, fin: 0x546e7a },
+  flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
   thunder: {
     steel: 0x78909c,
     dark: 0x37474f,
@@ -2023,6 +2103,7 @@ export const BLOOD = {
     hole: { burst: 18, bleedMs: 6000 },
     burn: { burst: 9, bleedMs: 2200 },
     cut: { burst: 70, bleedMs: 14000 },
+    saw: { burst: 70, bleedMs: 14000 },
   },
   /** Where a part is cut off, this many more drops spray out, and the cut end looks like this. */
   cutSpray: 60,
@@ -2160,6 +2241,10 @@ export const SOUND = {
   /** A ghost scaring a doll: an eerie rising howl. */
   spook: {
     tone: { wave: 'sine', from: 260, to: 720, seconds: 0.35, volume: 0.3 },
+  },
+  /** A rubber chicken: a short, silly squeak. */
+  squeak: {
+    tone: { wave: 'square', from: 900, to: 1700, seconds: 0.13, volume: 0.25 },
   },
   /** Something falls into water: a soft, wet splash. */
   splash: {

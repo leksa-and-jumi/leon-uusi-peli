@@ -9,7 +9,7 @@ import type { Body } from './Body';
 import type { Person } from './Person';
 
 /** What a hit sounds like: a fist, a weapon, or nothing extra (a bullet already banged). */
-export type HitSound = 'punch' | 'clang' | 'none';
+export type HitSound = 'punch' | 'clang' | 'squeak' | 'none';
 
 /** What everything in the area needs to know about the world around it each frame. */
 export interface World {
@@ -62,8 +62,18 @@ export interface World {
   zapThing: (fromX: number, fromY: number, thing: Body) => void;
   /** A monster swallows this doll whole: the doll is gone. */
   swallow: (by: Body, victim: Person) => void;
-  /** A part cut off a doll flies off this way and lies around. `lift` keeps it on top of the floor. */
-  sever: (picture: Phaser.GameObjects.Container, lift: number, direction: Facing) => void;
+  /**
+   * A part cut off a doll comes away this way and lies around, where it can be picked
+   * up. `lift` keeps it on top of the floor, `reach` is how long it is to each side,
+   * and `gentle` when it isn't flung off but just comes away.
+   */
+  sever: (
+    picture: Phaser.GameObjects.Container,
+    lift: number,
+    reach: number,
+    direction: Facing,
+    gentle: boolean,
+  ) => void;
   /**
    * Lightning strikes this thing and runs along the floor: every doll that touches the
    * floor is out, except `spare`, the doll that slammed it down.
