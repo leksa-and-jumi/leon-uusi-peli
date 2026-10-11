@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { recentSamples, throwSpeed } from './toss';
+import { lobSpeed, recentSamples, throwSpeed } from './toss';
 
 describe('recentSamples', () => {
   it('keeps only the samples inside the time window', () => {
@@ -39,5 +39,27 @@ describe('throwSpeed', () => {
 
   it('skips samples taken at the same moment', () => {
     expect(throwSpeed([at(5, 0), at(5, 10), at(5, 20)])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('lobSpeed', () => {
+  it('throws upward to land at the same height', () => {
+    const speed = lobSpeed(0, 500, 300, 500, 1800, 1);
+    expect(speed.x).toBe(300);
+    expect(speed.y).toBe(-900);
+  });
+
+  it('really comes down on the spot after that long', () => {
+    const gravity = 1800;
+    const seconds = 0.7;
+    const speed = lobSpeed(100, 400, 520, 480, gravity, seconds);
+    const x = 100 + speed.x * seconds;
+    const y = 400 + speed.y * seconds + (gravity * seconds * seconds) / 2;
+    expect(x).toBeCloseTo(520);
+    expect(y).toBeCloseTo(480);
+  });
+
+  it('throws the other way for a spot on the left', () => {
+    expect(lobSpeed(300, 500, 0, 500, 1800, 1).x).toBe(-300);
   });
 });

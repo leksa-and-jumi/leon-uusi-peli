@@ -550,8 +550,25 @@ class Painter {
         const down = human.style === 'long' ? 33 : 15;
         g.fillRoundedRect(back - 1.5, head.y - 9, 8.5, down, 4);
       }
-      g.lineStyle(1.4, shade(human.skin, -0.5));
-      g.lineBetween(5.5, head.y + 8, 11, head.y + 8);
+      if (human.beard) {
+        g.fillEllipse(6, head.y + 8.5, 16, 11);
+      } else {
+        g.lineStyle(1.4, shade(human.skin, -0.5));
+        g.lineBetween(5.5, head.y + 8, 11, head.y + 8);
+      }
+    }
+    if (this.look.extra === 'crown') {
+      // A golden crown with three points and a red jewel
+      const c = EXTRA_COLORS.crown;
+      g.fillStyle(c.dark);
+      g.fillRect(-10.5, top - 1.5, 21, 7);
+      g.fillStyle(c.gold);
+      g.fillRect(-9.5, top - 0.5, 19, 5);
+      for (const x of [-9.5, -3, 3.5]) {
+        g.fillTriangle(x, top - 0.5, x + 6, top - 0.5, x + 3, top - 8);
+      }
+      g.fillStyle(c.jewel);
+      g.fillCircle(0, top + 2, 1.8);
     }
 
     if (this.look.extra === 'headband') {

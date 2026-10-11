@@ -34,6 +34,10 @@
 
 🇫🇮 **Linna 🏰:** oma sivunsa, jolla on harmaita kivipaloja, jotka pinoutuvat niin kuin kaikki muutkin. **Torni** on korkea, ja sen huipulla on sakarat. **Linnanmuurissakin** on sakarat, ja nuket voivat seistä niiden takana. **Portissa** on rautaristikko: tuplaklikkaa porttia ja paina 🚪, niin ristikko nousee ja nuket kävelevät kiven ali suoraan läpi; paina uudestaan, niin se laskeutuu (ja litistää sen, joka seisoo alla). **Laskusilta** seisoo pystyssä: 🌉 laskee sen siihen suuntaan, mihin se osoittaa, ja nostaa sen taas ylös, ja 🔄 kääntää sen. Blokin tai muurin päälle laskettuna se jää nojaamaan rampiksi. **Viiri** on punainen lippu tangossa, ihan vain koristeeksi.
 
+🇬🇧 **Catapult:** on the castle page. Every couple of seconds it hurls a boulder in a high arc at the closest living doll in front of it: the boulder takes 2 lives, knocks the doll flying, and smashes when it lands. 🔄 turns the catapult around. It doesn't shoot at dolls right next to it.
+
+🇫🇮 **Katapultti:** linnasivulla. Parin sekunnin välein se sinkoaa kivenlohkareen korkeassa kaaressa lähimpään edessään olevaan elävään nukkeen: lohkare vie 2 elämää, lennättää nuken ja hajoaa osuessaan maahan. 🔄 kääntää katapultin. Se ei ammu ihan vieressä olevia nukkeja.
+
 🇬🇧 **Gravity ⚖️:** pieces have to balance. A beam or a crate whose middle hangs out past what it stands on tips toward its heavy side and slides off. Tall pieces (brick walls and fridges) fall over onto their side when they lose their balance, or when you throw or swing a doll into them or throw a weapon at them, and they knock over the next tall piece like dominoes. A doll knocked down beside a piece lies next to it, not through it.
 
 🇫🇮 **Painovoima ⚖️:** palojen pitää pysyä tasapainossa. Palkki tai laatikko, jonka keskikohta roikkuu tuen ohi, kallistuu painavamman puolensa suuntaan ja liukuu pois. Korkeat palat (tiiliseinät ja jääkaapit) kaatuvat kyljelleen, kun ne menettävät tasapainonsa tai kun heität tai heilautat nuken niitä päin tai heität niitä aseella, ja ne kaatavat seuraavan korkean palan kuin dominot. Palan viereen kaadettu nukke makaa sen vieressä eikä sen läpi.
@@ -106,6 +110,10 @@
 
 🇫🇮 **Tavalliset ihmiset 🧑:** nukkesivun kolme viimeistä eivät ole nukkeja vaan ihmisiä, joilla on iho, hiukset ja vaatteet: mies sinisessä paidassa, pitkähiuksinen nainen keltaisessa ja kalju viiksekäs vaari. He tekevät kaiken, minkä nuketkin, ja jokainen heistä on oma puolensa.
 
+🇬🇧 **King and queen 👑:** the very last two on the dolls page. The king has a beard, a red robe and a golden crown, 5 lives and a hard punch. The queen has long golden hair, a purple dress and a crown, and 4 lives.
+
+🇫🇮 **Kuningas ja kuningatar 👑:** nukkesivun kaksi viimeistä. Kuninkaalla on parta, punainen viitta ja kultainen kruunu, 5 elämää ja kova isku. Kuningattarella on pitkät kultaiset hiukset, violetti mekko ja kruunu, ja 4 elämää.
+
 🇬🇧 **Bullets 🔫:** a bullet takes a life but doesn't knock a doll over; only the last one makes it fall. Bullets also hit dolls that are lying down, falling, or hanging from your hand.
 
 🇫🇮 **Luodit 🔫:** luoti vie elämän mutta ei kaada nukkea; vasta viimeinen kaataa sen. Luodit osuvat myös nukkeihin, jotka makaavat, putoavat tai roikkuvat kädestäsi.
@@ -129,6 +137,10 @@
 🇬🇧 **The boss 👹:** the last one on the monsters page: a huge purple brute with horns. It walks toward the closest living doll and smashes whatever stands in its way. It stomps the dolls near its feet (3 lives, and the ground shakes) and shoots a laser from its eyes at the one it is after (2 lives). The bar above its head shows how much more it can take: 30 bullets, and a blast counts as 5. When the bar is empty it goes up in a huge explosion.
 
 🇫🇮 **Pomo 👹:** hirviösivun viimeinen: valtava violetti sarvipäinen jätti. Se kävelee kohti lähintä elävää nukkea ja murskaa kaiken, mikä on sen tiellä. Se tömistää jalkojensa lähellä olevat nuket (3 elämää, ja maa tärisee) ja ampuu silmistään laserin siihen, jota se jahtaa (2 elämää). Palkki sen pään päällä näyttää, kuinka paljon se vielä kestää: 30 luotia, ja räjähdys on 5 luodin arvoinen. Kun palkki on tyhjä, se räjähtää valtavasti.
+
+🇬🇧 **Dragon 🐉:** on the monsters page. It flies up under the ceiling, beating its wings, hangs a little to the side of the closest living doll and breathes a stream of fire down on it, then takes a breath and does it again. Its fire burns dolls down to black skeletons, burns up wooden things and sets off barrels and TNT. 15 bullets bring it down, with a big bang.
+
+🇫🇮 **Lohikäärme 🐉:** hirviösivulla. Se lentää katon alle siipiään räpytellen, pysyttelee vähän sivussa lähimmästä elävästä nukesta ja syöksee sen päälle tulivirran, vetää sitten henkeä ja tekee saman uudestaan. Sen tuli polttaa nuket mustiksi luurangoiksi, polttaa puiset jutut ja räjäyttää tynnyrit ja TNT:n. 15 luotia pudottaa sen, ja se räjähtää isosti.
 
 🇬🇧 **On a phone or a tablet 📱:** the game works with a finger just like with the mouse: tap the menu, tap the gray area to put things in, drag with your finger, and double-tap for the action bubbles. Hold the phone sideways. The ⛶ button makes the game fill the whole screen. You can also add the game to the home screen (in the browser's menu: "Add to Home Screen"), and then it opens like an app.
 

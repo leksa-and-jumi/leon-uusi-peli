@@ -37,3 +37,22 @@ export function throwSpeed(samples: readonly DragSample[], span = 2): { x: numbe
   }
   return best;
 }
+
+/**
+ * How to throw something in a high arc so that it comes down on a spot: the speed it
+ * has to leave with (pixels per second, up is negative) to get from one point to
+ * another in `seconds`, with `gravity` pulling it down all the way.
+ */
+export function lobSpeed(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  gravity: number,
+  seconds: number,
+): { x: number; y: number } {
+  return {
+    x: (toX - fromX) / seconds,
+    y: (toY - fromY) / seconds - (gravity * seconds) / 2,
+  };
+}

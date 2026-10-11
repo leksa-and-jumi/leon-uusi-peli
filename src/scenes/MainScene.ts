@@ -227,6 +227,12 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.shake(QUAKE.ms, QUAKE.strength);
         this.sfx.thud(1);
       },
+      fling: (kind, x, y, speedX, speedY) => {
+        const item = new Item(this, kind, x, y);
+        this.items.push(item);
+        item.fling(speedX, speedY, this.solidBoxes(item));
+        if (this.blocks.length + this.items.length > THINGS_MAX) this.forgetOldest(this.items);
+      },
       smoke: (x, y) => {
         this.puff(x, y);
       },

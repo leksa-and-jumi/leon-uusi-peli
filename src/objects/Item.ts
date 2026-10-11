@@ -186,6 +186,18 @@ export class Item extends Body {
     this.spark?.setVisible(true);
   }
 
+  /**
+   * Hurled by a catapult, in an arc (speeds in pixels per second). Nobody catches it
+   * on its way: it hits the first doll it flies into.
+   */
+  fling(speedX: number, speedY: number, solids: readonly Box[]): void {
+    this.release(solids, speedY);
+    this.vx = speedX;
+    this.tossed = true;
+    this.thrown = true;
+    this.noPickupMs = PICKUP_WAIT_MS * 2;
+  }
+
   isOn(action: ActionId): boolean {
     if (action === 'fuse') return this.fuseMs !== null;
     if (action === 'fire') return this.firing;

@@ -152,7 +152,7 @@ export interface PersonLook {
   /** Eye color, when it isn't the usual dark. */
   eye?: number;
   /** Something extra that shows what kind of doll it is. */
-  extra?: 'antenna' | 'headband' | 'helmet' | 'patches';
+  extra?: 'antenna' | 'headband' | 'helmet' | 'patches' | 'crown';
   /** How many hits it takes, when not the usual `PERSON.lives`. */
   lives?: number;
   /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
@@ -182,6 +182,8 @@ export interface PersonLook {
     skin: number;
     hair: number;
     style: 'short' | 'long' | 'bald';
+    /** A full beard, of the color of the hair. */
+    beard?: boolean;
     shirt: number;
     sleeves: 'short' | 'long';
     trousers: number;
@@ -288,6 +290,39 @@ export const PEOPLE: readonly PersonLook[] = [
       shoes: 0x3e2723,
     },
   },
+  // The king and the queen: golden crowns, and a little tougher than the others
+  {
+    body: 0xb71c1c,
+    joint: 0x7f1d1d,
+    extra: 'crown',
+    lives: 5,
+    punch: 2,
+    human: {
+      skin: 0xf1c27d,
+      hair: 0x5d4037,
+      style: 'short',
+      beard: true,
+      shirt: 0xb71c1c,
+      sleeves: 'long',
+      trousers: 0x4a148c,
+      shoes: 0x212121,
+    },
+  },
+  {
+    body: 0x8e24aa,
+    joint: 0x4a148c,
+    extra: 'crown',
+    lives: 4,
+    human: {
+      skin: 0xffdbac,
+      hair: 0xf9a825,
+      style: 'long',
+      shirt: 0x8e24aa,
+      sleeves: 'long',
+      trousers: 0x8e24aa,
+      shoes: 0xffd54f,
+    },
+  },
 ];
 
 /** The colors of the extras that the special dolls wear. */
@@ -296,6 +331,7 @@ export const EXTRA_COLORS = {
   headband: { band: 0xd32f2f, dark: 0x8e1c1c },
   helmet: { visor: 0x263238, crest: 0x1e88e5, crestDark: 0x0d47a1 },
   patches: { blotch: 0x5a6e38 },
+  crown: { gold: 0xffd54f, dark: 0xb8860b, jewel: 0xe53935 },
 } as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */
@@ -659,6 +695,23 @@ export interface BlockDef {
   bridge?: boolean;
   /** It is a flight of stairs with this many steps: dolls walk up it, the way it points. */
   stairs?: number;
+  /**
+   * It is a catapult: every `everyMs` it hurls a thing at the closest doll in front of
+   * it, between `tooClose` and `range` away, in an arc that takes `flightMs`. The
+   * thing leaves from this spot on it, and its arm turns at `pivot`.
+   */
+  launcher?: {
+    item: ItemKind;
+    everyMs: number;
+    range: number;
+    tooClose: number;
+    flightMs: number;
+    x: number;
+    up: number;
+    pivot: { x: number; up: number };
+    /** How the arm leans while it waits, how far it swings over, and how long it takes back. */
+    arm: { rest: number; swing: number; backMs: number; length: number };
+  };
 }
 
 /** The pieces on the building page. */
@@ -691,13 +744,14 @@ export type MonsterKind =
   | 'ghost'
   | 'batMonster'
   | 'ufo'
-  | 'boss';
+  | 'boss'
+  | 'dragon';
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
 export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine';
 /** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
 export type ElementKind = 'lava' | 'water' | 'blackHole';
 /** The pieces of a castle. */
-export type CastleKind = 'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner';
+export type CastleKind = 'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner' | 'catapult';
 export type BlockKind =
   BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind | ElementKind | CastleKind;
 
@@ -768,6 +822,21 @@ export interface MonsterDef {
    * shoots straight down at it once it is at most `aim` pixels off to the side.
    */
   saucer?: { below: number; aim: number };
+  /**
+   * A dragon: it flies `below` the ceiling, keeps `keep` pixels to the side of the doll
+   * it is after, and breathes fire at it from its `mouth` for `breathMs` at a time.
+   * It takes `hull` bullets, and its wings beat once every `flapMs`.
+   */
+  dragon?: {
+    hull: number;
+    below: number;
+    keep: number;
+    breathMs: number;
+    mouth: { x: number; up: number };
+    wing: { x: number; up: number };
+    flapMs: number;
+    gun: GunDef;
+  };
   /**
    * A boss: huge and tough. It takes `hull` bullets (a blast counts as `blastHits`),
    * and a bar above its head shows how many are left. It shoots its laser from its
@@ -1388,6 +1457,25 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xb07a45, dark: 0x5e3a1a, light: 0xdcaa70, detail: 0x6f7b83 },
     bridge: true,
   },
+  // A siege engine: it hurls boulders at the dolls in front of it
+  catapult: {
+    burns: true,
+    halfWidth: 50,
+    height: 58,
+    menuScale: 0.7,
+    colors: { fill: 0xb07a45, dark: 0x5e3a1a, light: 0xdcaa70, detail: 0x6f7b83 },
+    launcher: {
+      item: 'boulder',
+      everyMs: 2600,
+      range: 640,
+      tooClose: 130,
+      flightMs: 900,
+      x: 24,
+      up: 84,
+      pivot: { x: 6, up: 44 },
+      arm: { rest: -1.05, swing: 1.5, backMs: 700, length: 46 },
+    },
+  },
   banner: {
     burns: true,
     halfWidth: 6,
@@ -1713,6 +1801,41 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       },
     },
   },
+  dragon: {
+    halfWidth: 62,
+    height: 64,
+    menuScale: 0.55,
+    colors: { fill: 0x2e7d32, dark: 0x1b4d1f, light: 0x9ccc65, detail: 0xffb300 },
+    // It flies over the dolls and breathes fire on them. 15 bullets bring it down.
+    monster: {
+      attack: 'laser',
+      range: 760,
+      everyMs: 1700,
+      damage: 1,
+      pushSpeed: 0,
+      speed: 150,
+      blast: { radius: 170, damage: 3, pushSpeed: 700 },
+      dragon: {
+        hull: 15,
+        below: 46,
+        keep: 170,
+        breathMs: 900,
+        mouth: { x: 64, up: 40 },
+        wing: { x: -8, up: 46 },
+        flapMs: 520,
+        gun: {
+          range: 470,
+          damage: 1,
+          everyMs: 90,
+          autoMs: 90,
+          bulletSpeed: 560,
+          muzzle: { x: 0, y: 0 },
+          barrelUp: 0,
+          flame: { reach: 470, width: 18, height: 11, color: 0xff7a1a },
+        },
+      },
+    },
+  },
   helicopter: {
     melts: true,
     metal: true,
@@ -1907,7 +2030,9 @@ export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 /** Odd weapons, on the traps page. */
 export type OddItemKind =
   'glove' | 'chicken' | 'fish' | 'flamethrower' | 'freezeRay' | 'magnet' | 'balloon';
-export type ItemKind = WeaponKind | JunkItemKind | OddItemKind;
+/** What a catapult hurls. It isn't in the menu. */
+export type AmmoKind = 'boulder';
+export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind;
 
 export const ITEMS: Record<ItemKind, ItemDef> = {
   pistol: {
@@ -2212,6 +2337,17 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       flame: { reach: 250, width: 16, height: 10, color: 0xff7a1a },
     },
   },
+  // A catapult's boulder: it knocks down the doll it hits, and smashes when it lands
+  boulder: {
+    crumbs: [0x9e9e9e, 0x616161, 0xd0d0d0],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.5,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 10 },
+    melee: { reach: 60, damage: 2, wound: 'bruise', pushSpeed: 700, sound: 'punch' },
+    breaksAt: 260,
+  },
   // A puff of frost from it freezes a doll solid for a while
   freezeRay: {
     melts: true,
@@ -2332,6 +2468,7 @@ export const CASTLE_KINDS: readonly CastleKind[] = [
   'rampart',
   'gate',
   'drawbridge',
+  'catapult',
   'banner',
 ];
 /** The page of forces of nature, and of things with strange powers. */
@@ -2369,6 +2506,7 @@ export const MONSTER_KINDS: readonly MonsterKind[] = [
   'ghost',
   'batMonster',
   'ufo',
+  'dragon',
   'boss',
 ];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
@@ -2409,6 +2547,7 @@ export const ITEM_COLORS = {
   chicken: { body: 0xffd54f, dark: 0xc79a1a, comb: 0xe53935, beak: 0xff9800, eye: 0x1b1b1b },
   fish: { body: 0x78909c, dark: 0x37474f, belly: 0xcfd8dc, eye: 0x1b1b1b, fin: 0x546e7a },
   flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
+  boulder: { fill: 0x9e9e9e, dark: 0x616161, light: 0xd0d0d0 },
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },
   rocket: { tube: 0x5b6628, dark: 0x23280f, shine: 0x9aab55, nose: 0xc62828, grip: 0x3e2723 },
   laser: { body: 0xeceff1, dark: 0x78909c, glow: 0xff1744, grip: 0x37474f },

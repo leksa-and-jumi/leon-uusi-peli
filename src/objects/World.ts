@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import type { BlastDef, GunDef } from '../config';
+import type { BlastDef, GunDef, ItemKind } from '../config';
 import type { Spring } from '../logic/fall';
 import type { Box } from '../logic/ground';
 import type { Spot } from '../logic/pick';
@@ -97,6 +97,8 @@ export interface World {
   smash: (thing: Body, direction: Facing) => void;
   /** The ground shakes under a stomp. */
   quake: () => void;
+  /** A new item of this kind is hurled from this spot, at this speed (pixels per second). */
+  fling: (kind: ItemKind, x: number, y: number, speedX: number, speedY: number) => void;
   /** A puff of smoke rises from this spot. */
   smoke: (x: number, y: number) => void;
   /** A little spark flies off something at this spot. */

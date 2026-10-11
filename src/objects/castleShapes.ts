@@ -28,6 +28,17 @@ export function drawCastle(g: Graphics, kind: CastleKind, whole: boolean): Graph
       return drawBridge(g, def);
     case 'banner':
       return drawBanner(g, def);
+    case 'catapult':
+      drawCatapultFrame(g, def);
+      if (whole && def.launcher) {
+        const { pivot, arm } = def.launcher;
+        g.save();
+        g.translateCanvas(pivot.x, -pivot.up);
+        g.rotateCanvas(arm.rest);
+        drawCatapultArm(g, def);
+        g.restore();
+      }
+      return g;
   }
 }
 
@@ -172,6 +183,69 @@ function drawBridge(g: Graphics, def: BlockDef): Graphics {
   }
   g.lineStyle(2, colors.detail);
   g.strokeCircle(0, -height + 20, 3.5);
+  return g;
+}
+
+/** The frame of a catapult: a beam on two wheels, with two posts that hold the arm up. */
+function drawCatapultFrame(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, colors } = def;
+  const pivot = def.launcher?.pivot ?? { x: 0, up: 40 };
+  // The posts, leaning together at the top
+  for (const [width, color] of [
+    [7, colors.dark],
+    [4.4, colors.fill],
+  ] as const) {
+    g.lineStyle(width, color);
+    g.lineBetween(pivot.x - 22, -12, pivot.x, -pivot.up);
+    g.lineBetween(pivot.x + 22, -12, pivot.x, -pivot.up);
+  }
+  // The beam they stand on
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(-halfWidth + 4, -18, halfWidth * 2 - 8, 9, 2);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(-halfWidth + 5.5, -16.5, halfWidth * 2 - 11, 6, 1.5);
+  g.fillStyle(colors.light, 0.7);
+  g.fillRect(-halfWidth + 8, -15.8, halfWidth * 2 - 16, 1.5);
+  // Wheels with iron rims
+  for (const x of [-halfWidth + 16, halfWidth - 16]) {
+    g.fillStyle(colors.detail);
+    g.fillCircle(x, -11, 11);
+    g.fillStyle(colors.dark);
+    g.fillCircle(x, -11, 9);
+    g.fillStyle(colors.fill);
+    g.fillCircle(x, -11, 7.4);
+    g.lineStyle(1.6, colors.dark);
+    g.lineBetween(x - 7, -11, x + 7, -11);
+    g.lineBetween(x, -18, x, -4);
+    g.fillStyle(colors.detail);
+    g.fillCircle(x, -11, 2.2);
+  }
+  g.fillStyle(colors.detail);
+  g.fillCircle(pivot.x, -pivot.up, 3.4);
+  return g;
+}
+
+/**
+ * The arm of a catapult, turning around (0, 0): a long beam pointing up with a bucket
+ * at its end, and a short end below with a heavy weight.
+ */
+export function drawCatapultArm(g: Graphics, def: BlockDef): Graphics {
+  const { colors } = def;
+  const length = def.launcher?.arm.length ?? 40;
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(-3.5, -length, 7, length + 16, 2);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(-2.2, -length + 1.3, 4.4, length + 13.4, 1.4);
+  // The bucket the boulder lies in
+  g.lineStyle(3, colors.dark);
+  g.beginPath();
+  g.arc(0, -length - 2, 8, 0.15 * Math.PI, 0.85 * Math.PI);
+  g.strokePath();
+  // The weight that pulls the short end down
+  g.fillStyle(colors.detail);
+  g.fillRoundedRect(-8, 10, 16, 13, 2);
+  g.fillStyle(shade(colors.detail, 0.3), 0.8);
+  g.fillRect(-6, 11.5, 12, 2);
   return g;
 }
 
