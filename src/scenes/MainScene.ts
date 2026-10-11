@@ -11,6 +11,7 @@ import {
   CRUSH,
   DEBRIS,
   DEPTH,
+  DISSOLVE,
   DOUBLE_CLICK_MS,
   FLOOR,
   GAME_HEIGHT,
@@ -659,6 +660,12 @@ export class MainScene extends Phaser.Scene {
       case 'drive':
         if (body instanceof Block) body.toggleDrive();
         break;
+      case 'gate':
+        if (body instanceof Block) body.toggleGate();
+        break;
+      case 'bridge':
+        if (body instanceof Block) body.toggleBridge(this.world);
+        break;
     }
   }
 
@@ -1195,9 +1202,18 @@ export class MainScene extends Phaser.Scene {
       right: AREA.right,
     };
     let stained = false;
+    const pools = this.pools();
     this.pieces = this.pieces.filter((piece) => {
       piece.crumb = crumbStep(piece.crumb, physics, delta);
       const { x, y, turn, ageMs } = piece.crumb;
+      const inWater = (pool: Box): boolean =>
+        x >= pool.left && x <= pool.right && y >= pool.top && y <= pool.bottom;
+      if (piece.blood !== null && piece.crumb.vy >= 0 && pools.some(inWater)) {
+        // A drop that falls into water doesn't get to the floor: it spreads out and is gone
+        this.dissolve(x, y, piece.blood);
+        piece.picture.destroy();
+        return false;
+      }
       if (piece.blood !== null && y >= AREA.floorY) {
         this.stains = addDrop(this.stains, x, piece.blood, BLOOD.stain);
         stained = true;
@@ -1215,6 +1231,22 @@ export class MainScene extends Phaser.Scene {
       return true;
     });
     if (stained) this.drawStains();
+  }
+
+  /** A drop in water: a faint cloud of its color that spreads out and fades away. */
+  private dissolve(x: number, y: number, color: number): void {
+    const cloud = this.add
+      .circle(x, y, DISSOLVE.radius, color, DISSOLVE.alpha)
+      .setDepth(DEPTH.liquid + 0.5);
+    this.tweens.add({
+      targets: cloud,
+      scale: DISSOLVE.grow,
+      alpha: 0,
+      duration: DISSOLVE.ms,
+      onComplete: () => {
+        cloud.destroy();
+      },
+    });
   }
 
   /** A broom dragged along the floor wipes away the stains under it. */
