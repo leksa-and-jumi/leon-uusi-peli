@@ -6,7 +6,10 @@ import {
   BLOCKS,
   BOING,
   BOSS_BAR,
+  BRIDGE_ACTIONS,
   BULLET_HOLE,
+  CASTLE_KINDS,
+  GATE_ACTIONS,
   LAVA,
   CHOMPER,
   DEPTH,
@@ -28,6 +31,7 @@ import {
   type BlastDef,
   type BlockDef,
   type BlockKind,
+  type CastleKind,
   type ElementKind,
   type TrapKind,
   type VehicleKind,
@@ -54,6 +58,7 @@ import type { PersonSize, PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body, type BodyState } from './Body';
 import type { Person } from './Person';
+import { drawCastle, drawGrille } from './castleShapes';
 import { drawElement, drawLiquid, drawSwirl } from './elementShapes';
 import { drawJunk, drawMonsterHead } from './junkShapes';
 import { drawFlames, drawSawBlade, drawTrap } from './trapShapes';
@@ -124,6 +129,10 @@ export class Block extends Body {
   private fried = false;
   private smokeWaitMs = 0;
   private burnOutMs: number | null = null;
+  /** A gate: is it open, its grille, and how much of the grille is down (1 is closed). */
+  private gateOpen = false;
+  private readonly grille: Phaser.GameObjects.Graphics | null = null;
+  private grilleDown = 1;
   /** A pool: its picture, drawn again every frame. A black hole: its rings, which turn. */
   private readonly waves: Phaser.GameObjects.Graphics | null = null;
   /**
@@ -160,7 +169,8 @@ export class Block extends Body {
     }
     this.shape = { halfWidth: this.def.halfWidth, height: this.def.height };
     const { blast, drive } = this.def;
-    this.usualActions = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
+    const moving = blast ? BARREL_ACTIONS : drive ? VEHICLE_ACTIONS : THING_ACTIONS;
+    this.usualActions = this.def.gate ? GATE_ACTIONS : this.def.bridge ? BRIDGE_ACTIONS : moving;
     const { fill, dark, light } = this.def.colors;
     this.crumbs = [fill, dark, light];
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
@@ -225,6 +235,12 @@ export class Block extends Body {
       this.swirl = drawSwirl(blank(), this.def).setPosition(0, -this.def.height / 2);
       picture.add(this.swirl);
     }
+    const { gate } = this.def;
+    if (gate) {
+      // The grille hangs in the opening, behind the stone
+      this.grille = drawGrille(blank(), this.def).setPosition(0, -gate.opening.height);
+      picture.addAt(this.grille, 0);
+    }
     this.showHull();
   }
 
@@ -276,6 +292,12 @@ export class Block extends Body {
    * up its slope when it leans on something.
    */
   get solidParts(): Box[] {
+    const gate = this.def.gate;
+    if (gate && this.gateOpen && this.fallen === 0) {
+      // An open gate: only the stone above the opening is solid. Dolls walk through under it.
+      const box = this.box;
+      return [{ ...box, bottom: box.bottom - gate.opening.height }];
+    }
     if (!this.prop || this.fallen === 0) return [this.box];
     const { halfWidth, height } = this.def;
     const { pivotX, angle } = this.prop;
@@ -461,7 +483,33 @@ export class Block extends Body {
   /** A barrel that has been set off, or a vehicle that is driving, glows on its bubble. */
   isOn(action: ActionId): boolean {
     if (action === 'drive') return this.driving;
+    if (action === 'gate') return this.gateOpen;
+    if (action === 'bridge') return this.fallen !== 0;
     return action === 'fuse' && this.fuseMs !== null;
+  }
+
+  /** Pull the grille of a gate up, or let it down again. */
+  toggleGate(): void {
+    if (this.def.gate) this.gateOpen = !this.gateOpen;
+  }
+
+  /** Let a drawbridge down the way it points, or pull it up again. */
+  toggleBridge(world: World): void {
+    if (!this.def.bridge) return;
+    if (this.fallen === 0) this.topple(this.facing, world);
+    else this.standUp();
+  }
+
+  /** Stand a piece that has fallen back up, on the corner it fell over. */
+  private standUp(): void {
+    if (this.fallen === 0) return;
+    const { halfWidth, height } = this.def;
+    const pivotX = this.prop?.pivotX ?? this.x - this.fallen * (height / 2);
+    this.x = pivotX - this.fallen * halfWidth;
+    this.fallen = 0;
+    this.prop = null;
+    this.tipping = null;
+    this.shape = { halfWidth, height };
   }
 
   /** Make a vehicle drive, or stop it again. */
@@ -977,8 +1025,14 @@ export class Block extends Body {
    * burns up the loose items that get into it. A black hole keeps turning.
    */
   private flow(deltaMs: number, world: World, state: BodyState): void {
-    const { liquid, hole } = this.def;
+    const { liquid, hole, gate } = this.def;
     if (this.swirl && hole) this.swirl.rotation += hole.spin * (deltaMs / 1000);
+    if (this.grille && gate) {
+      // The grille is pulled up into the stone, or let down again
+      const wanted = this.gateOpen ? 0.06 : 1;
+      this.grilleDown += (wanted - this.grilleDown) * Math.min(1, deltaMs / gate.ms);
+      this.grille.setScale(1, this.grilleDown);
+    }
     if (!this.waves || !liquid || !this.pool) return;
     // It spreads over the floor, and its depth follows what was poured in or drained
     const { left, right, floorY } = world.area;
@@ -1195,6 +1249,10 @@ function isVehicle(kind: BlockKind): kind is VehicleKind {
   return BLOCKS[kind].drive !== undefined;
 }
 
+function isCastle(kind: BlockKind): kind is CastleKind {
+  return (CASTLE_KINDS as readonly BlockKind[]).includes(kind);
+}
+
 function isElement(kind: BlockKind): kind is ElementKind {
   return BLOCKS[kind].liquid !== undefined || BLOCKS[kind].hole !== undefined;
 }
@@ -1208,6 +1266,7 @@ function isTrap(kind: BlockKind): kind is TrapKind {
  * only: its head is a picture of its own, so that it can pop in and out.
  */
 function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
+  if (isCastle(kind)) return drawCastle(g, kind, false);
   if (isElement(kind)) return drawElement(g, kind, false);
   if (isTrap(kind)) return drawTrap(g, kind, false);
   const body = BLOCKS[kind].monster?.body;
@@ -1217,6 +1276,7 @@ function drawJunkOrPiece(g: Graphics, kind: BlockKind): Graphics {
 /** Draws a building piece with code. The middle of its bottom edge is at (0, 0). */
 export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
   if (isVehicle(kind)) return drawParkedVehicle(g, kind);
+  if (isCastle(kind)) return drawCastle(g, kind, true);
   if (isElement(kind)) return drawElement(g, kind, true);
   if (isTrap(kind)) return drawTrap(g, kind, true);
   switch (kind) {

@@ -445,6 +445,8 @@ export const ACTION_EMOJI = {
   fuse: '🔥',
   fire: '💥',
   drive: '🏁',
+  gate: '🚪',
+  bridge: '🌉',
 } as const;
 
 export type ActionId = keyof typeof ACTION_EMOJI;
@@ -460,6 +462,9 @@ export const PERSON_ACTIONS: readonly ActionId[] = [
 ];
 /** The bubbles of a building piece or an item, and of a bomb. */
 export const THING_ACTIONS: readonly ActionId[] = ['throw'];
+/** A castle gate opens and closes; a drawbridge turns around, and goes down and up. */
+export const GATE_ACTIONS: readonly ActionId[] = ['throw', 'gate'];
+export const BRIDGE_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'bridge'];
 /** A doll with no lives left, or a vehicle that is broken for good, can only be thrown away. */
 export const WRECK_ACTIONS: readonly ActionId[] = ['throw'];
 export const BOMB_ACTIONS: readonly ActionId[] = ['throw', 'fuse'];
@@ -494,13 +499,13 @@ export const MENU = {
   color: 0x2b2b2b,
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
-  // Big buttons, two under each other in four columns: easy to hit with a finger
-  tabs: { x: 6, y: 7, width: 44, height: 41, gap: 4, vertical: true, wrap: 2 },
+  // Buttons, two under each other in five columns
+  tabs: { x: 6, y: 7, width: 36, height: 41, gap: 4, vertical: true, wrap: 2 },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
-  tabFontSize: '24px',
-  slots: { x: 202, y: 10, width: 58, height: 80, gap: 6 },
+  tabFontSize: '22px',
+  slots: { x: 210, y: 10, width: 58, height: 80, gap: 6 },
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
   slotColor: 0x9e9e9e,
@@ -537,6 +542,7 @@ export const TABS = [
   { id: 'monsters', emoji: '👾' },
   { id: 'traps', emoji: '⚠️' },
   { id: 'elements', emoji: '🌊' },
+  { id: 'castle', emoji: '🏰' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -586,6 +592,13 @@ export interface BlockDef {
   metal?: boolean;
   /** It is a black hole: it pulls everything around it in, and it turns this fast (radians per second). */
   hole?: Pull & { spin: number };
+  /**
+   * It is a gate. Open, only the part above its `opening` is solid, so dolls walk
+   * through under it; closed, all of it is. Its grille goes up and down in `ms`.
+   */
+  gate?: { opening: { halfWidth: number; height: number }; ms: number };
+  /** It is a drawbridge: from its bubble it is let down the way it points, and pulled up again. */
+  bridge?: boolean;
 }
 
 /** The pieces on the building page. */
@@ -620,8 +633,10 @@ export type MonsterKind =
 export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine';
 /** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
 export type ElementKind = 'lava' | 'water' | 'blackHole';
+/** The pieces of a castle. */
+export type CastleKind = 'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner';
 export type BlockKind =
-  BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind | ElementKind;
+  BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind | ElementKind | CastleKind;
 
 /**
  * A trap. One that hurts by `touch` gets every doll that touches it, a `zap` trap
@@ -924,6 +939,9 @@ export const POOL = {
   /** A light thing floats with this much of its height under the surface. */
   floatShare: 0.6,
 } as const;
+
+/** Blood that falls into water spreads out into a faint cloud and is gone. */
+export const DISSOLVE = { radius: 3, grow: 4.5, alpha: 0.45, ms: 1100 } as const;
 
 /** The block of ice around a frozen doll. */
 export const ICE = { fill: 0x9be7ff, alpha: 0.5, edge: 0xffffff, shine: 0xffffff, pad: 6 } as const;
@@ -1250,6 +1268,41 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 1,
     colors: { fill: 0x050208, dark: 0x4a148c, light: 0xff9800, detail: 0xffe082 },
     hole: { radius: 260, speed: 560, least: 28, eat: 30, spin: 3.2 },
+  },
+  // Castle pieces: gray stone, and they stack like everything else
+  tower: {
+    halfWidth: 32,
+    height: 190,
+    menuScale: 0.42,
+    colors: { fill: 0x9e9e9e, dark: 0x4a4a4a, light: 0xd0d0d0, detail: 0x757575 },
+  },
+  rampart: {
+    halfWidth: 50,
+    height: 90,
+    menuScale: 0.6,
+    colors: { fill: 0x9e9e9e, dark: 0x4a4a4a, light: 0xd0d0d0, detail: 0x757575 },
+  },
+  gate: {
+    halfWidth: 44,
+    height: 170,
+    menuScale: 0.45,
+    colors: { fill: 0x9e9e9e, dark: 0x4a4a4a, light: 0xd0d0d0, detail: 0x2b2b2b },
+    gate: { opening: { halfWidth: 34, height: 130 }, ms: 260 },
+  },
+  drawbridge: {
+    burns: true,
+    halfWidth: 8,
+    height: 150,
+    menuScale: 0.5,
+    colors: { fill: 0xb07a45, dark: 0x5e3a1a, light: 0xdcaa70, detail: 0x6f7b83 },
+    bridge: true,
+  },
+  banner: {
+    burns: true,
+    halfWidth: 6,
+    height: 112,
+    menuScale: 0.65,
+    colors: { fill: 0xc62828, dark: 0x5d4037, light: 0xffd54f, detail: 0x8d6e63 },
   },
   toilet: {
     halfWidth: 25,
@@ -2102,6 +2155,14 @@ export const TRAP_KINDS: readonly (
   { type: 'item', kind: 'chicken' },
   { type: 'item', kind: 'fish' },
   { type: 'item', kind: 'flamethrower' },
+];
+/** The castle page. */
+export const CASTLE_KINDS: readonly CastleKind[] = [
+  'tower',
+  'rampart',
+  'gate',
+  'drawbridge',
+  'banner',
 ];
 /** The page of forces of nature, and of things with strange powers. */
 export const ELEMENT_KINDS: readonly (

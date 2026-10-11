@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import {
   BLOCKS,
   BUILD_KINDS,
+  CASTLE_KINDS,
   ELEMENT_KINDS,
   GAME_WIDTH,
   ITEMS,
@@ -42,13 +43,15 @@ const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
   junk: [NOTHING, ...JUNK_KINDS],
   traps: [NOTHING, ...TRAP_KINDS],
   elements: [NOTHING, ...ELEMENT_KINDS],
+  castle: [NOTHING, ...CASTLE_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   monsters: [NOTHING, ...MONSTER_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   vehicles: [NOTHING, ...VEHICLE_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
 };
 
 /**
  * The menu along the top. The small buttons on the left switch between the pages
- * (dolls, weapons, building pieces, junk, vehicles, monsters, traps and forces of nature); the big slots
+ * (dolls, weapons, building pieces, junk, vehicles, monsters, traps, forces of nature and
+ * castle pieces); the big slots
  * pick what the next click puts into the area.
  */
 export class SpawnMenu {
