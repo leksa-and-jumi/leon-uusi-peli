@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import { ACTION_EMOJI, BUBBLES, MAX_BUBBLES, type ActionId } from '../config';
 import { bubbleAt, bubbleCenters, type Point } from '../logic/bubbles';
 import type { PlaceArea } from '../logic/place';
+import { SHARP } from '../screen';
 import type { Body } from './Body';
 
 /**
@@ -21,6 +22,7 @@ export class ActionBubbles {
     this.labels = Array.from({ length: MAX_BUBBLES }, () =>
       scene.add
         .text(0, 0, '', { fontSize: BUBBLES.fontSize })
+        .setResolution(SHARP)
         .setOrigin(0.5)
         .setDepth(BUBBLES.depth)
         .setVisible(false),
