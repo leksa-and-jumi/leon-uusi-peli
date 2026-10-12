@@ -925,6 +925,9 @@ export class MainScene extends Phaser.Scene {
       body.stuckItems.forEach((item) => all.add(item));
     }
     for (const body of all) {
+      // An item that goes while a doll holds it (a stink bomb that went off) leaves an empty hand
+      const holder = body instanceof Item ? body.heldBy : null;
+      if (holder && !all.has(holder)) holder.lost(body as Item);
       if (this.dragged === body) this.dragged = null;
       if (this.bubbles.target === body) this.bubbles.close();
       if (this.lastClick?.target === body) this.lastClick = null;
@@ -1588,10 +1591,12 @@ export class MainScene extends Phaser.Scene {
         this.stinkPuff(cloud.x, cloud.y, cloud.radius);
       }
       cloud.hurtMs += delta;
-      if (cloud.hurtMs < cloud.everyMs) continue;
-      cloud.hurtMs = 0;
+      const hurts = cloud.hurtMs >= cloud.everyMs;
+      if (hurts) cloud.hurtMs = 0;
       for (const person of this.people) {
         if (!person.canBePicked || !inBlast(cloud.x, cloud.y, person.box, cloud.radius)) continue;
+        // In the cloud it is down on its knees, choking, and every now and then that costs a life
+        if (!person.gag(STINK.gagMs) || !hurts) continue;
         if (!person.choke(this.solidBoxes(person))) continue;
         const head = person.box.top - 14;
         this.popUp(

@@ -160,6 +160,8 @@ export class Person extends Body {
   private slamMs = 0;
   /** How long it has been pushing out a stream of fire without a rest. */
   private streamMs = 0;
+  /** Time left of choking on a stink cloud: it is down on its knees and can do nothing else. */
+  private gagMs = 0;
   /** Time left before the next punch or shot. */
   private waitMs = 0;
   private inReach = false;
@@ -504,6 +506,16 @@ export class Person extends Body {
   }
 
   /**
+   * It is in a stink cloud. With nothing to breathe through it starts to choke, and
+   * goes on choking for `ms` after this. Says whether it is choking.
+   */
+  gag(ms: number): boolean {
+    if (this.dead || this.breathes) return false;
+    this.gagMs = ms;
+    return true;
+  }
+
+  /**
    * Something foul to breathe: a doll with nothing to breathe through loses a life,
    * and the last one makes it fall over. Says whether it choked.
    */
@@ -678,6 +690,13 @@ export class Person extends Body {
     this.item = item;
     item.takenBy(this);
     this.figure.holdInHand(item.display, item.def.hand.rotation, item.def.hand.along);
+  }
+
+  /** The item in its hand is gone: it went off, or was taken out of the game. The hand is empty. */
+  lost(item: Item): void {
+    if (this.item !== item) return;
+    this.item = null;
+    this.figure.letGoOf(item.display);
   }
 
   /** Let go of the item in the hand, if there is one. */
@@ -879,6 +898,7 @@ export class Person extends Body {
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
     this.flinchMs = Math.max(0, this.flinchMs - deltaMs);
+    this.gagMs = Math.max(0, this.gagMs - deltaMs);
     if (this.seat) {
       this.sitStill(this.seat, deltaMs, world);
       this.bleed(deltaMs, world);
@@ -948,6 +968,9 @@ export class Person extends Body {
       this.draw('held', sway);
     } else if (state !== 'resting') {
       this.draw(this.jumpVx === 0 ? 'held' : 'run', 0);
+    } else if (this.gagMs > 0 && !this.dead) {
+      // Choking: down on its knees, hands at its throat. It can't walk, dance or fight now
+      this.draw('choke', 0);
     } else {
       this.draw(this.act(deltaMs, world), 0);
     }

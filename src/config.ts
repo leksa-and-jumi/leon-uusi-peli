@@ -3645,6 +3645,8 @@ export const STINK = {
   fontSize: '28px',
   emojiMs: 800,
   emojiGrow: 1.3,
+  /** A doll goes on choking for this long after its last breath of the cloud. */
+  gagMs: 300,
 } as const;
 
 export const BLAST = {

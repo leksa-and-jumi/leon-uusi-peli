@@ -67,6 +67,22 @@ describe('poseFor', () => {
     expect(poseFor('punch', 0).frontArm).toBeCloseTo(-Math.PI / 2);
   });
 
+  it('chokes on its knees, with both hands up at its throat', () => {
+    const pose = poseFor('choke', 0);
+    expect(pose.frontKnee).toBeGreaterThan(1.4);
+    expect(pose.backKnee).toBeGreaterThan(1.4);
+    expect(pose.lift).toBeLessThan(-15);
+    expect(pose.frontElbow).toBeLessThan(-2);
+    expect(pose.backElbow).toBeLessThan(-2);
+  });
+
+  it('heaves back and forth with every cough', () => {
+    const one = poseFor('choke', 105);
+    const other = poseFor('choke', 315);
+    expect(one.waist).toBeGreaterThan(other.waist);
+    expect(one.head).toBeGreaterThan(other.head);
+  });
+
   it('pushes with both arms stretched out in front, feet apart', () => {
     const pose = poseFor('push', 0);
     expect(pose.frontArm).toBeCloseTo(-Math.PI / 2);
