@@ -4,6 +4,7 @@ import {
   BLOOD,
   GEAR,
   JET,
+  MUSCLE,
   POWER,
   type GearKind,
   type GearSlot,
@@ -117,6 +118,13 @@ export class PersonFigure {
   private readonly brows: Graphics;
   /** The wound marks on its chest: one more for every time it is hurt. */
   private readonly wounds: Graphics;
+  /**
+   * How many times its usual size it is, and the muscles that bulge on it when it is
+   * bigger. They are made the first time they are needed, in the color of its skin.
+   */
+  private size = 1;
+  private muscles: Graphics[] = [];
+  private readonly skin: number;
   /** The glow around a doll with a superpower. Made the first time it is needed. */
   private aura: Graphics | null = null;
   /** The gear it has on: the picture of each piece. */
@@ -170,6 +178,7 @@ export class PersonFigure {
     paint.part = 'trunk';
     this.faceless = look.extra === 'helmet';
     this.bloodColor = look.blood ?? BLOOD.color;
+    this.skin = look.human?.skin ?? look.body;
     this.wounds = scene.make.graphics({}, false).setPosition(0, -waist.y);
     this.eyes = paint.eyes().setVisible(!this.faceless);
     this.deadEyes = paint.deadEyes().setVisible(false);
@@ -519,6 +528,81 @@ export class PersonFigure {
       this.container.add(g);
     }
     this.ice.setVisible(frozen);
+  }
+
+  /** How many times its usual size it is drawn. */
+  get bulk(): number {
+    return this.size;
+  }
+
+  /**
+   * Make the doll this many times its usual size. Bigger than usual, it is muscular
+   * too: its shoulders, arms, thighs and chest bulge, and its belly has six squares.
+   */
+  setBulk(size: number): void {
+    this.size = size;
+    const big = size > 1;
+    if (big && this.muscles.length === 0) this.muscles = this.addMuscles();
+    this.muscles.forEach((muscle) => muscle.setVisible(big));
+  }
+
+  private addMuscles(): Graphics[] {
+    const edge = shade(this.skin, MUSCLE.edge);
+    const shine = shade(this.skin, MUSCLE.shine);
+    // A muscle: a bulge with a dark edge and a shine on it
+    const bulge = (g: Graphics, x: number, y: number, width: number, height: number): void => {
+      g.fillStyle(edge);
+      g.fillEllipse(x, y, width + 2.4, height + 2.4);
+      g.fillStyle(this.skin);
+      g.fillEllipse(x, y, width, height);
+      g.fillStyle(shine, MUSCLE.shineAlpha);
+      g.fillEllipse(x - width * 0.14, y - height * 0.2, width * 0.5, height * 0.38);
+    };
+    const on = (part: Container, draw: (g: Graphics) => void): Graphics => {
+      const g = this.scene.make.graphics({}, false);
+      draw(g);
+      // Over the part's own shape, under what hangs from it
+      part.addAt(g, 1);
+      return g;
+    };
+    const { upperArm, forearm, thigh } = SHAPE;
+    const arm = (limb: Limb): Graphics[] => [
+      on(limb.upper, (g) => {
+        bulge(g, 0, 1, 18, 17);
+        bulge(g, 2.5, upperArm.length * 0.55, 15, 18);
+      }),
+      on(limb.lower, (g) => {
+        bulge(g, 1, forearm.length * 0.4, 12.5, 15);
+      }),
+    ];
+    const leg = (limb: Limb): Graphics =>
+      on(limb.upper, (g) => {
+        bulge(g, 1.5, thigh.length * 0.48, 17, 24);
+      });
+    const chest = this.scene.make.graphics({}, false).setPosition(0, -SHAPE.waist.y);
+    const { x, y, width } = SHAPE.chest;
+    bulge(chest, x + width * 0.27, y + 8, 15.5, 13);
+    bulge(chest, x + width * 0.75, y + 8, 15.5, 13);
+    chest.fillStyle(shade(this.skin, MUSCLE.line));
+    for (const row of [16.5, 21.5]) {
+      for (const column of [-5.5, 0.6]) {
+        chest.fillRoundedRect(column, y + row, 5, 3.6, 1.2);
+      }
+    }
+    chest.fillStyle(this.skin);
+    for (const row of [16.5, 21.5]) {
+      for (const column of [-5.5, 0.6]) {
+        chest.fillRoundedRect(column + 0.6, y + row + 0.6, 3.8, 2.4, 0.9);
+      }
+    }
+    this.upperBody.addAt(chest, this.upperBody.getIndex(this.wounds));
+    return [
+      ...arm(this.backArm),
+      ...arm(this.frontArm),
+      leg(this.backLeg),
+      leg(this.frontLeg),
+      chest,
+    ];
   }
 
   /** How much thinner than usual it is drawn: lava leaves hardly anything of the bones. */
