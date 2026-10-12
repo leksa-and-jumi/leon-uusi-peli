@@ -45,13 +45,15 @@ const SHAPE = {
 
 /**
  * Where the middle of a piece of gear is on a doll. The one on the arm is measured
- * from the shoulder of the front arm, down the arm; the others from between the feet.
+ * from the shoulder of the front arm, down the arm, and the one on each foot from the
+ * knee, down the shin; the others from between the feet.
  */
 const GEAR_AT: Record<GearSlot, { x: number; y: number }> = {
   face: { x: 5, y: -100 },
   head: { x: 0, y: -114 },
   chest: { x: 0, y: -77 },
   arm: { x: 4, y: 17 },
+  feet: { x: 2, y: 19 },
 };
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -113,7 +115,7 @@ export class PersonFigure {
   /** The wound marks on its chest: one more for every time it is hurt. */
   private readonly wounds: Graphics;
   /** The gear it has on: the picture of each piece. */
-  private readonly gear = new Map<GearSlot, Graphics>();
+  private readonly gear = new Map<GearSlot, Graphics[]>();
   private woundCount = 0;
   /** A knight's face is hidden behind its helmet: no eyes, no eyebrows. */
   private readonly faceless: boolean;
@@ -391,6 +393,14 @@ export class PersonFigure {
     this.takeOff(slot);
     const at = GEAR_AT[slot];
     const picture = drawGear(this.scene.make.graphics({}, false), kind);
+    if (slot === 'feet') {
+      // One on each foot
+      const other = drawGear(this.scene.make.graphics({}, false), kind);
+      this.backLeg.lower.add(other.setPosition(at.x, at.y));
+      this.frontLeg.lower.add(picture.setPosition(at.x, at.y));
+      this.gear.set(slot, [picture, other]);
+      return;
+    }
     if (slot === 'arm') {
       this.frontArm.upper.add(picture.setPosition(at.x, at.y));
     } else if (slot === 'chest') {
@@ -400,18 +410,18 @@ export class PersonFigure {
     } else {
       this.headPart.add(picture.setPosition(at.x, at.y - SHAPE.neck.y));
     }
-    this.gear.set(slot, picture);
+    this.gear.set(slot, [picture]);
   }
 
   /** The piece of gear in this place is gone: taken off, or broken. */
   takeOff(slot: GearSlot): void {
-    this.gear.get(slot)?.destroy();
+    this.gear.get(slot)?.forEach((picture) => picture.destroy());
     this.gear.delete(slot);
   }
 
   /** A hit has left a crack in a piece of gear: a short jagged line somewhere on it. */
   crackGear(slot: GearSlot, random: () => number = Math.random): void {
-    const g = this.gear.get(slot);
+    const g = this.gear.get(slot)?.[0];
     if (!g) return;
     const { crackSpan, crackBits } = GEAR;
     let x = (random() - 0.5) * crackSpan;
@@ -429,7 +439,7 @@ export class PersonFigure {
 
   /** Where in the area the middle of a piece of gear is right now. */
   gearSpot(slot: GearSlot): Spot | null {
-    const g = this.gear.get(slot);
+    const g = this.gear.get(slot)?.[0];
     if (!g) return null;
     const placing = g.getWorldTransformMatrix();
     return { x: placing.tx, y: placing.ty };

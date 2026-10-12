@@ -17,6 +17,12 @@ export function drawGear(g: Graphics, kind: GearKind): Graphics {
       return drawVest(g);
     case 'shield':
       return drawShield(g);
+    case 'knightArmor':
+      return drawKnightArmor(g);
+    case 'spaceHelmet':
+      return drawSpaceHelmet(g);
+    case 'rubberBoots':
+      return drawRubberBoot(g);
   }
 }
 
@@ -82,6 +88,68 @@ function drawVest(g: Graphics): Graphics {
     g.fillStyle(c.shine, 0.4);
     g.fillRoundedRect(-10, y + 1.2, 20, 2, 1);
   }
+  return g;
+}
+
+/** A knight's breastplate: bright steel with a ridge down the middle, a round plate on each shoulder and a golden belt. */
+function drawKnightArmor(g: Graphics): Graphics {
+  const c = ITEM_COLORS.knightArmor;
+  for (const x of [-15, 15]) {
+    g.fillStyle(c.dark);
+    g.fillCircle(x, -11, 7.6);
+    g.fillStyle(c.fill);
+    g.fillCircle(x, -11, 6.1);
+  }
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-17, -15, 34, 31, 7);
+  g.fillStyle(c.fill);
+  g.fillRoundedRect(-15.5, -13.5, 31, 28, 6);
+  g.fillStyle(c.shine, 0.55);
+  g.fillRoundedRect(-12, -11, 6.5, 19, 3);
+  g.fillStyle(c.dark, 0.55);
+  g.fillRect(-0.7, -12.5, 1.4, 21);
+  g.fillStyle(c.trim);
+  g.fillRect(-15.5, 9, 31, 3.2);
+  return g;
+}
+
+/**
+ * A space helmet: a glass bubble around the whole head, with a white ring where it
+ * sits on the shoulders. Its middle is where a helmet's is, so the bubble hangs below it.
+ */
+function drawSpaceHelmet(g: Graphics): Graphics {
+  const c = ITEM_COLORS.spaceHelmet;
+  const middle = 10;
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-14.5, middle + 12.5, 29, 6.5, 3);
+  g.fillStyle(c.white);
+  g.fillRoundedRect(-13.5, middle + 13.5, 27, 3.6, 1.8);
+  g.fillStyle(c.glass, 0.28);
+  g.fillCircle(0, middle, 19.5);
+  g.lineStyle(2.2, c.white, 0.95);
+  g.strokeCircle(0, middle, 19.5);
+  g.lineStyle(2.6, 0xffffff, 0.75);
+  g.beginPath();
+  g.arc(0, middle, 15, Math.PI * 1.1, Math.PI * 1.45);
+  g.strokePath();
+  return g;
+}
+
+/** One rubber boot: yellow, with a tall leg, a round toe and a dark sole. A doll wears one on each foot. */
+function drawRubberBoot(g: Graphics): Graphics {
+  const c = ITEM_COLORS.rubberBoots;
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-9, -11, 14, 16, 3);
+  g.fillRoundedRect(-9.5, 0, 21, 10.5, 4);
+  g.fillStyle(c.fill);
+  g.fillRoundedRect(-7.8, -9.8, 11.6, 15, 2.5);
+  g.fillRoundedRect(-8.3, 1.2, 18.6, 7, 3.2);
+  g.fillStyle(c.shine, 0.8);
+  g.fillRoundedRect(-6.5, -8.5, 2.6, 11, 1.3);
+  g.fillStyle(c.sole);
+  g.fillRoundedRect(-9.5, 8, 21, 2.6, 1.3);
+  g.fillStyle(c.dark);
+  g.fillRect(-9, -11, 14, 2);
   return g;
 }
 

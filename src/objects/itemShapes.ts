@@ -36,7 +36,7 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
     case 'knife':
       return drawKnife(g);
     case 'bomb':
-      return drawBomb(g);
+      return drawBomb(g, ITEM_COLORS.bomb);
     case 'dynamite':
       return drawDynamite(g);
     case 'glove':
@@ -71,9 +71,22 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawBottle(g);
     case 'gasMask':
     case 'armyHelmet':
+    case 'spaceHelmet':
     case 'vest':
+    case 'knightArmor':
     case 'shield':
       return drawGear(g, kind);
+    case 'rubberBoots':
+      // A pair of them, one a little behind the other
+      for (const x of [-5, 5]) {
+        g.save();
+        g.translateCanvas(x, 0);
+        drawGear(g, kind);
+        g.restore();
+      }
+      return g;
+    case 'stinkBomb':
+      return drawBomb(g, ITEM_COLORS.stinkBomb);
     case 'pan':
       return drawPan(g);
     case 'broom':
@@ -1013,8 +1026,11 @@ function drawBat(g: Graphics): Graphics {
   return g;
 }
 
-function drawBomb(g: Graphics): Graphics {
-  const c = ITEM_COLORS.bomb;
+/** A round bomb with a cap and a curly fuse, in these colors: black, or green for a stink bomb. */
+function drawBomb(
+  g: Graphics,
+  c: { body: number; shine: number; cap: number; fuse: number },
+): Graphics {
   // A curly fuse
   g.lineStyle(2.6, c.fuse);
   g.beginPath();

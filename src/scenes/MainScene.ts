@@ -35,6 +35,7 @@ import {
   SEVER,
   SHADOW,
   SMOKE,
+  STINK,
   SOUND,
   SPARK,
   SWING,
@@ -131,6 +132,19 @@ export class MainScene extends Phaser.Scene {
   private stains: Stain[] = [];
   private stainLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
+  /**
+   * The clouds stink bombs have left: where, how big, how long each still hangs there
+   * (`ms`), how often it hurts, and the time saved up toward its next hurt and its next puff.
+   */
+  private fumes: {
+    x: number;
+    y: number;
+    radius: number;
+    ms: number;
+    everyMs: number;
+    hurtMs: number;
+    puffMs: number;
+  }[] = [];
   private floorShadowLayer!: Phaser.GameObjects.Graphics;
   private dragged: Body | null = null;
   private lastClick: Click | null = null;
@@ -169,6 +183,7 @@ export class MainScene extends Phaser.Scene {
     this.bullets = [];
     this.pieces = [];
     this.stains = [];
+    this.fumes = [];
     this.solids = [];
     this.dragged = null;
     this.lastClick = null;
@@ -394,6 +409,7 @@ export class MainScene extends Phaser.Scene {
     this.chant(delta);
     this.updateBullets(delta);
     this.updatePieces(delta);
+    this.updateFumes(delta);
     this.sweep();
     this.handOutItems();
     this.swing(delta);
@@ -1063,6 +1079,13 @@ export class MainScene extends Phaser.Scene {
     source: Body | null,
     spare: Body | null,
   ): void {
+    if (blast.stink) {
+      // A stink bomb: no blast, only its own pieces and a foul cloud
+      if (source) this.crumble(source, 0, -DEBRIS.blastLift / 2);
+      this.fumes.push({ x, y, radius: blast.radius, ...blast.stink, hurtMs: 0, puffMs: 0 });
+      this.sfx.wind();
+      return;
+    }
     const rider = spare instanceof Block ? spare.rider : null;
     const caught = (body: Body): boolean =>
       body !== source && body !== spare && body !== rider && inBlast(x, y, body.box, blast.radius);
@@ -1186,6 +1209,8 @@ export class MainScene extends Phaser.Scene {
       const body = person.hitBox;
       if (!touchesFloor(body) && !wet.some((pool) => overlaps(pool, body))) continue;
       const away: Facing = person.feet.x < x ? -1 : 1;
+      // Rubber boots: the lightning in the floor doesn't get into the doll
+      if (person.immuneTo('shock')) continue;
       if (person.machine) {
         // A robot isn't knocked out by lightning: it short-circuits, and blows up later
         person.shortCircuit(away);
@@ -1458,8 +1483,63 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The stink clouds hang where they are: green puffs keep coming, and every now and
+   * then each doll in a cloud that has nothing to breathe through chokes and loses a life.
+   */
+  private updateFumes(delta: number): void {
+    for (const cloud of this.fumes) {
+      cloud.ms -= delta;
+      cloud.puffMs += delta;
+      while (cloud.puffMs >= STINK.puffEveryMs) {
+        cloud.puffMs -= STINK.puffEveryMs;
+        this.stinkPuff(cloud.x, cloud.y, cloud.radius);
+      }
+      cloud.hurtMs += delta;
+      if (cloud.hurtMs < cloud.everyMs) continue;
+      cloud.hurtMs = 0;
+      for (const person of this.people) {
+        if (!person.canBePicked || !inBlast(cloud.x, cloud.y, person.box, cloud.radius)) continue;
+        if (!person.choke(this.solidBoxes(person))) continue;
+        const head = person.box.top - 14;
+        this.popUp(
+          person.feet.x,
+          head,
+          STINK.emoji,
+          STINK.fontSize,
+          STINK.emojiMs,
+          STINK.emojiGrow,
+        );
+      }
+    }
+    this.fumes = this.fumes.filter((cloud) => cloud.ms > 0);
+  }
+
+  /** One green puff somewhere in a stink cloud: it drifts, swells and fades. */
+  private stinkPuff(x: number, y: number, radius: number): void {
+    const far = Math.sqrt(Math.random()) * radius;
+    const angle = Math.random() * Math.PI * 2;
+    const startX = x + Math.cos(angle) * far;
+    const startY = Math.min(y + Math.sin(angle) * far * 0.7, AREA.floorY - 4);
+    const color = STINK.colors[Math.floor(Math.random() * STINK.colors.length)] ?? 0;
+    const size = STINK.radius.min + Math.random() * (STINK.radius.max - STINK.radius.min);
+    const ball = this.add.circle(startX, startY, size, color, STINK.alpha).setDepth(STINK.depth);
+    this.tweens.add({
+      targets: ball,
+      x: startX + (Math.random() * 2 - 1) * STINK.drift,
+      y: startY - Math.random() * STINK.drift,
+      scale: STINK.grow,
+      alpha: 0,
+      duration: STINK.puffMs,
+      onComplete: () => {
+        ball.destroy();
+      },
+    });
+  }
+
   /** Take away every flying piece and every stain. */
   private clearMess(): void {
+    this.fumes = [];
     this.pieces.forEach((piece) => piece.picture.destroy());
     this.pieces = [];
     this.stains = [];
