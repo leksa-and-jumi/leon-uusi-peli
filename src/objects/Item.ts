@@ -269,6 +269,11 @@ export class Item extends Body {
   }
 
   /** A doll takes it. From now on it moves with the doll's hand. */
+  /** The doll that has it in its hand, if any. */
+  get heldBy(): Person | null {
+    return this.holder;
+  }
+
   takenBy(person: Person): void {
     this.holder = person;
     this.held = false;

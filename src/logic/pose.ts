@@ -32,6 +32,7 @@ export type PoseKind =
   | 'held'
   | 'punch'
   | 'push'
+  | 'choke'
   | 'slam'
   | 'sit'
   | 'drive';
@@ -112,6 +113,24 @@ export const MOVES = {
     kick: 0.4,
     knee: 0.35,
     head: -0.6,
+  },
+  /**
+   * Choking on something foul: down on both knees, both hands at the throat, the
+   * back and the head heaving forward and back with every cough.
+   */
+  choke: {
+    leg: -0.22,
+    backLeg: 0.12,
+    knee: 1.75,
+    backKnee: 1.55,
+    drop: 26,
+    arm: -0.62,
+    backArm: -0.45,
+    elbow: -2.25,
+    waist: 0.28,
+    head: 0.22,
+    heave: 0.16,
+    coughMs: 420,
   },
   /** Crouching to slam something into the floor: knees bent, back bent, the arm down in front. */
   slam: {
@@ -195,6 +214,25 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         head: move.head,
         lift: 0,
         lean: move.lean,
+      };
+    }
+    case 'choke': {
+      const move = MOVES.choke;
+      const cough = Math.sin((timeMs / move.coughMs) * Math.PI * 2);
+      return {
+        frontArm: move.arm,
+        backArm: move.backArm,
+        frontLeg: move.leg,
+        backLeg: move.backLeg,
+        frontElbow: move.elbow,
+        backElbow: move.elbow,
+        frontKnee: move.knee,
+        backKnee: move.backKnee,
+        waist: move.waist + move.heave * cough,
+        head: move.head + move.heave * cough,
+        // On its knees the doll is that much lower
+        lift: -move.drop,
+        lean: 0,
       };
     }
     case 'slam': {
