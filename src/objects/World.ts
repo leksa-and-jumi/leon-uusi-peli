@@ -117,6 +117,8 @@ export interface World {
   spark: (x: number, y: number) => void;
   /** Lightning (`spark`) or a laser flashes from one spot to another, with its sound. It hurts nobody. */
   flash: (fromX: number, fromY: number, toX: number, toY: number, spark: boolean) => void;
+  /** A swirling portal opens with its middle at this spot, stays for a while and closes again. */
+  portal: (x: number, y: number) => void;
   /** A superpower does something at this spot: sparkles of its color fly up. */
   sparkle: (x: number, y: number, color: number) => void;
   /** A ghost scares this doll: an eerie sound. */

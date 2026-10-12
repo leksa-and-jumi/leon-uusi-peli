@@ -6,6 +6,7 @@ import {
   CLING,
   JET,
   JET_ACTIONS,
+  PORTAL,
   POWER,
   type PowerDef,
   type PowerKind,
@@ -211,6 +212,12 @@ export class Person extends Body {
   private power: { kind: PowerKind; def: PowerDef } | null = null;
   private castMs = 0;
   private healMs = 0;
+  /**
+   * On its way through a portal: where it set out from and where it comes out, how
+   * long it has been on its way, and whether it has got to the other side yet.
+   */
+  private warp: { fromX: number; toX: number; toY: number; ms: number; across: boolean } | null =
+    null;
   private sparkles = 0;
   /** Its jetpack is switched on, and the time left until the next puff of smoke from it. */
   private jetOn = false;
@@ -435,23 +442,27 @@ export class Person extends Body {
     const middle = PERSON.height / 2;
     const hop = power.teleport;
     if (hop && this.castMs <= 0 && Math.abs(at.x - this.x) > hop.from) {
-      world.sparkle(this.x, this.y - middle, power.color);
-      world.smoke(this.x, this.y - middle);
+      // A portal opens in front of it, and another one a step before the spot it is going to
       const gap = ANGRY.reach * 0.8 + (target instanceof Person ? 0 : target.def.halfWidth);
       const edge = PERSON.halfWidth;
-      this.x = clamp(at.x - toward * gap, world.area.left + edge, world.area.right - edge);
-      this.y = Math.min(at.y, world.area.floorY);
+      const toX = clamp(at.x - toward * gap, world.area.left + edge, world.area.right - edge);
+      const toY = Math.min(at.y, world.area.floorY);
       this.facing = toward;
-      this.castMs = hop.everyMs;
-      world.sparkle(this.x, this.y - middle, power.color);
-      return 'stand';
+      world.portal(this.x + toward * PORTAL.step, this.heightAt(middle));
+      world.portal(toX - toward * PORTAL.step, toY - middle);
+      world.sparkle(this.x + toward * PORTAL.step, this.heightAt(middle), power.color);
+      // It lets go of the ceiling to step through
+      this.onCeiling = false;
+      this.warp = { fromX: this.x, toX, toY, ms: 0, across: false };
+      this.castMs = hop.everyMs + PORTAL.ms;
+      return 'walk';
     }
     const zap = power.zap;
     if (!zap) return null;
     const box = target.box;
     const to = { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 };
-    const eyes = { x: this.x + toward * POWER.eyes.x, y: this.y - POWER.eyes.up };
-    const hand = { x: this.x + toward * PERSON.hand.x, y: this.y - PERSON.hand.y };
+    const eyes = { x: this.x + toward * POWER.eyes.x, y: this.heightAt(POWER.eyes.up) };
+    const hand = { x: this.x + toward * PERSON.hand.x, y: this.heightAt(PERSON.hand.y) };
     const from = zap.from === 'eyes' ? eyes : hand;
     if (Math.hypot(to.x - from.x, to.y - from.y) > zap.range) return null;
     // Not through a wall. A monster is a wall itself, so there is no telling with those
@@ -895,6 +906,7 @@ export class Person extends Body {
       this.figure.setIce(false);
       this.frozenMs = 0;
     }
+    if (this.travel(deltaMs, world)) return;
     if (this.hang(deltaMs, world)) return;
     this.carryUp(deltaMs, world);
     this.fly(deltaMs, world);
@@ -1159,6 +1171,56 @@ export class Person extends Body {
   }
 
   /**
+   * How high a spot of the doll is in the area: `height` above its feet. A doll on the
+   * ceiling is upside down, so there its feet are at the top and the spot is below them.
+   */
+  private heightAt(height: number): number {
+    return this.onCeiling ? this.y - PERSON.height + height : this.y - height;
+  }
+
+  /**
+   * On its way through a portal: it steps into the one in front of it, getting
+   * thinner and fainter, and then out of the other one, where it is going. Says
+   * whether it is on its way.
+   */
+  private travel(deltaMs: number, world: World): boolean {
+    const warp = this.warp;
+    if (!warp) return false;
+    const { container } = this.figure;
+    if (this.dead || this.held) {
+      this.warp = null;
+      container.setAlpha(1);
+      return false;
+    }
+    warp.ms += deltaMs;
+    const half = PORTAL.ms / 2;
+    if (warp.ms >= half && !warp.across) {
+      warp.across = true;
+      this.y = warp.toY;
+    }
+    // How far it is into a portal: more and more in the first one, less and less in the second
+    const part = warp.across ? 2 - warp.ms / half : warp.ms / half;
+    const inside = clamp(part, 0, 1);
+    const from = warp.across ? warp.toX : warp.fromX;
+    const way = warp.across ? -this.facing : this.facing;
+    this.x = from + way * PORTAL.step * inside;
+    this.hovering = true;
+    this.physics(deltaMs, world);
+    this.figure.setPose(this.standingPose('walk'));
+    this.place(this.x, this.y, 0);
+    const { wide, tall } = PORTAL.squeeze;
+    container.setScale(container.scaleX * (1 - wide * inside), 1 - tall * inside);
+    container.setAlpha(1 - inside);
+    if (warp.ms >= PORTAL.ms) {
+      this.warp = null;
+      this.x = warp.toX;
+      container.setAlpha(1);
+    }
+    this.bleed(deltaMs, world);
+    return true;
+  }
+
+  /**
    * With magnet boots on, a doll whose head gets to the ceiling sticks to it, feet
    * first: it stands there head down, and walks and dances there. It comes off when
    * it is grabbed, or dies, or loses its boots. Says whether it is on the ceiling.
@@ -1182,7 +1244,10 @@ export class Person extends Body {
     this.hovering = true;
     this.y = top + PERSON.height;
     this.physics(deltaMs, world);
-    let pose: PoseKind = this.activity === 'dance' ? 'dance' : 'stand';
+    // It fights up there too: with the others on the ceiling, hand to hand
+    let pose: PoseKind = 'stand';
+    if (this.activity === 'dance') pose = 'dance';
+    if (this.activity === 'angry') pose = this.rage(deltaMs, world);
     if (this.activity === 'walk') {
       const edge = PERSON.halfWidth;
       const walker = walkStep(
@@ -1591,7 +1656,7 @@ export class Person extends Body {
     this.punchMs = streams ? 0 : ANGRY.punchMs;
     if (canShoot) {
       const { muzzle } = gun;
-      world.shoot(this, this.x + this.facing * muzzle.x, this.y - muzzle.y, this.facing, gun);
+      world.shoot(this, this.x + this.facing * muzzle.x, this.heightAt(muzzle.y), this.facing, gun);
       this.waitMs = gun.everyMs;
       const burst = gun.flame?.burst;
       if (burst) {
@@ -1720,7 +1785,7 @@ export class Person extends Body {
 
   /** Would a bullet from the gun fly straight into the target, with nothing in the way? */
   private clearShot(target: Person | Block, gun: GunDef, solids: readonly Box[]): boolean {
-    const bulletY = this.y - gun.muzzle.y;
+    const bulletY = this.heightAt(gun.muzzle.y);
     const box = target.box;
     if (bulletY < box.top || bulletY > box.bottom) return false;
     if (Math.abs(target.feet.x - this.x) > gun.range) return false;

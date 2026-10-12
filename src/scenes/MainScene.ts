@@ -30,6 +30,7 @@ import {
   PERSON,
   PHYSICS,
   PICK_PADDING,
+  PORTAL,
   POWER,
   POWER_KINDS,
   PICK_PADDING_TOUCH,
@@ -303,6 +304,9 @@ export class MainScene extends Phaser.Scene {
         }
         this.bolt(fromX, fromY, toX, toY, SPARK);
         this.sfx.zap();
+      },
+      portal: (x, y) => {
+        this.openPortal(x, y);
       },
       sparkle: (x, y, color) => {
         const { count, spread, rise, radius, ms, depth } = POWER.sparkle;
@@ -1623,6 +1627,54 @@ export class MainScene extends Phaser.Scene {
         ball.destroy();
       },
     });
+  }
+
+  /**
+   * A portal: a tall oval with a dark middle and a bright rim, and arms of light in it
+   * that turn. It opens, stays while a doll steps through, and closes again.
+   */
+  private openPortal(x: number, y: number): void {
+    const { width, height, rim, rimWidth, fill, arms, dots, twist, colors, openMs } = PORTAL;
+    const back = this.make.graphics({}, false);
+    back.fillStyle(rim);
+    back.fillEllipse(0, 0, width + rimWidth * 2, height + rimWidth * 2);
+    back.fillStyle(fill);
+    back.fillEllipse(0, 0, width, height);
+    // The arms are drawn in a circle and squeezed into the oval, so that they can turn in it
+    const swirl = this.make.graphics({}, false);
+    const reach = height / 2 - 3;
+    for (let arm = 0; arm < arms; arm++) {
+      for (let dot = 1; dot <= dots; dot++) {
+        const far = dot / dots;
+        const angle = (arm / arms) * Math.PI * 2 + dot * twist;
+        swirl.fillStyle(colors[arm % colors.length] ?? rim, 0.25 + 0.7 * far);
+        swirl.fillCircle(
+          Math.cos(angle) * reach * far,
+          Math.sin(angle) * reach * far,
+          1.5 + 4 * far,
+        );
+      }
+    }
+    const squeezed = this.make.container({ x: 0, y: 0 }, false).add(swirl);
+    squeezed.setScale(width / height, 1);
+    const portal = this.add.container(x, y, [back, squeezed]).setDepth(PORTAL.depth).setScale(0);
+    this.tweens.add({
+      targets: swirl,
+      rotation: Math.PI * 2 * PORTAL.turns,
+      duration: PORTAL.ms + openMs * 2,
+    });
+    this.tweens.add({
+      targets: portal,
+      scale: 1,
+      duration: openMs,
+      hold: PORTAL.ms,
+      yoyo: true,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        portal.destroy();
+      },
+    });
+    this.sfx.wind();
   }
 
   /** Take away every flying piece and every stain. */

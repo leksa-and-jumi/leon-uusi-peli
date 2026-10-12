@@ -30,29 +30,49 @@ export function drawGear(g: Graphics, kind: GearKind): Graphics {
   }
 }
 
-/** A gas mask: a rubber face piece with a strap, two round glass eyes and a filter in front. */
+/**
+ * A gas mask that covers the whole face: two straps around the head, a rubber face
+ * piece, one wide glass to see through, a valve under it, and two big filters with a
+ * yellow ring, one in front and one on the side.
+ */
 function drawGasMask(g: Graphics): Graphics {
   const c = ITEM_COLORS.gasMask;
+  // The straps, around the back of the head
   g.fillStyle(c.dark);
-  g.fillRect(-19, -5, 17, 3.2);
-  g.fillEllipse(1, 1, 24, 22);
+  g.fillRoundedRect(-22, -9, 20, 3.4, 1.5);
+  g.fillRoundedRect(-21, 1, 19, 3.4, 1.5);
+  // The face piece
+  g.fillEllipse(1, 0.5, 29, 27);
   g.fillStyle(c.rubber);
-  g.fillEllipse(1, 1, 21, 19);
-  for (const x of [-4.5, 4.5]) {
+  g.fillEllipse(1, 0.5, 26, 24);
+  g.fillStyle(c.light, 0.55);
+  g.fillEllipse(-3, -7.5, 13, 5);
+  // The glass
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-9.5, -9.5, 21, 11, 5);
+  g.fillStyle(c.glass);
+  g.fillRoundedRect(-8, -8, 18, 8, 3.8);
+  g.fillStyle(0xffffff, 0.75);
+  g.fillRoundedRect(-6, -7, 7, 1.8, 0.9);
+  // The side filter, the front filter and the valve between them
+  const filter = (x: number, y: number, radius: number): void => {
     g.fillStyle(c.dark);
-    g.fillCircle(x, -3.5, 4.7);
-    g.fillStyle(c.glass);
-    g.fillCircle(x, -3.5, 3.4);
-    g.fillStyle(0xffffff, 0.85);
-    g.fillCircle(x - 1, -4.6, 1.1);
-  }
+    g.fillCircle(x, y, radius);
+    g.fillStyle(c.ring);
+    g.fillCircle(x, y, radius - 1.3);
+    g.fillStyle(c.filter);
+    g.fillCircle(x, y, radius - 2.6);
+    g.fillStyle(c.dark);
+    for (const row of [-1.6, 0, 1.6]) {
+      g.fillRect(x - (radius - 3.6), y + row - 0.4, (radius - 3.6) * 2, 0.8);
+    }
+  };
+  filter(-5, 8.5, 5.6);
+  filter(10, 7.5, 7.2);
   g.fillStyle(c.dark);
-  g.fillCircle(8, 6.5, 6);
-  g.fillStyle(c.filter);
-  g.fillCircle(8, 6.5, 4.6);
-  g.fillStyle(c.dark);
-  g.fillCircle(8, 6.5, 1.5);
-  g.fillRect(4.4, 6, 7.2, 1);
+  g.fillCircle(2.5, 5, 2.4);
+  g.fillStyle(c.light);
+  g.fillCircle(2.5, 5, 1.2);
   return g;
 }
 

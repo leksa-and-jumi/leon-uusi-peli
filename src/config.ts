@@ -2597,6 +2597,32 @@ export const JET = {
   flame: { min: 12, max: 22, width: 5, outer: 0xff7a1a, core: 0xffee58 },
 } as const;
 
+/**
+ * Teleporting: a swirling portal opens a `step` in front of the doll, and another one
+ * where it is going. The doll steps into the first, getting thinner and fainter, and
+ * out of the second. The whole trip takes `ms`. A portal is a tall oval with a dark
+ * middle, a bright rim and arms of light that turn, `turns` times around in all; it
+ * opens and closes in `openMs`.
+ */
+export const PORTAL = {
+  ms: 900,
+  step: 36,
+  width: 50,
+  height: 128,
+  openMs: 170,
+  turns: 2.5,
+  rim: 0xb388ff,
+  rimWidth: 5,
+  fill: 0x150c2e,
+  arms: 3,
+  dots: 16,
+  twist: 0.34,
+  colors: [0x7c4dff, 0xb388ff, 0xede7f6],
+  depth: 19,
+  /** Stepping in, the doll gets this much thinner and shorter at the most. */
+  squeeze: { wide: 0.9, tall: 0.12 },
+} as const;
+
 /** Magnet boots: a doll whose head gets this close to the ceiling sticks to it, feet first. */
 export const CLING = { snap: 16 } as const;
 
@@ -3062,14 +3088,14 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   // Gear: a doll that touches a piece puts it on. The middle of each picture is its own middle
   gasMask: {
     melts: true,
-    crumbs: [0x2e3338, 0x4a5157, 0x80deea],
-    halfWidth: 14,
-    height: 22,
-    menuScale: 2,
-    lie: { x: 0, y: -11 },
+    crumbs: [0x3f4a3c, 0x1f2520, 0x4dd0e1],
+    halfWidth: 17,
+    height: 28,
+    menuScale: 1.7,
+    lie: { x: 0, y: -15 },
     hand: { rotation: 0, along: 0 },
-    // Its power: air to breathe
-    gear: { slot: 'face', hits: 2, air: true },
+    // Its power: air to breathe. It is tough, too
+    gear: { slot: 'face', hits: 12, air: true },
   },
   armyHelmet: {
     melts: true,
@@ -3427,7 +3453,14 @@ export const ITEM_COLORS = {
   flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
   firework: { tube: 0xe53935, dark: 0x8a1c1c, stripe: 0xffffff, cone: 0xffd54f, stick: 0x8d6e63 },
   boulder: { fill: 0x9e9e9e, dark: 0x616161, light: 0xd0d0d0 },
-  gasMask: { rubber: 0x4a5157, dark: 0x23272b, glass: 0x80deea, filter: 0x90a4ae },
+  gasMask: {
+    rubber: 0x4b5a47,
+    dark: 0x1f2520,
+    light: 0x7d8f78,
+    glass: 0x4dd0e1,
+    filter: 0xb0bec5,
+    ring: 0xfbc02d,
+  },
   armyHelmet: { fill: 0x556b2f, dark: 0x33401c, shine: 0xc5d39a },
   vest: { fill: 0x37474f, dark: 0x1c262b, plate: 0x78909c, shine: 0xffffff },
   shield: { fill: 0x1e88e5, dark: 0x263238, rim: 0xb0bec5, cross: 0xffc107 },
