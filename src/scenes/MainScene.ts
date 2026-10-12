@@ -267,6 +267,10 @@ export class MainScene extends Phaser.Scene {
         const reach = (): number => (Math.random() * 2 - 1) * THUNDER.sparkReach;
         this.bolt(x, y, x + reach(), y + reach(), SPARK);
       },
+      monsters: () =>
+        this.blocks.filter(
+          ({ def }) => def.monster !== undefined && def.monster.ghost === undefined,
+        ),
       things: (self) => [
         ...this.blocks.filter((block) => block !== self && block.canBePicked && !block.def.liquid),
         ...this.items.filter((item) => item.canBePicked && !item.isHeld),
@@ -1346,6 +1350,7 @@ export class MainScene extends Phaser.Scene {
     if (sound === 'punch') this.sfx.punch();
     if (sound === 'clang') this.sfx.clang();
     if (sound === 'squeak') this.sfx.squeak();
+    if (sound === 'zap') this.sfx.zap();
     if (deadly) this.sfx.out();
     const emoji = deadly ? HIT_FX.deadEmoji : HIT_FX.emoji;
     this.popUp(x, y, emoji, HIT_FX.fontSize, deadly ? HIT_FX.deadMs : HIT_FX.ms, HIT_FX.grow);

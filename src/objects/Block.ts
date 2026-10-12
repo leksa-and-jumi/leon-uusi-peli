@@ -18,6 +18,7 @@ import {
   PHYSICS,
   POOL,
   SKIBIDI,
+  LASER_TOWER,
   TESLA,
   THUNDER,
   THING_ACTIONS,
@@ -403,9 +404,9 @@ export class Block extends Body {
 
   /**
    * Hit by a bullet at this spot. A barrel goes off at once. A vehicle gets a hole,
-   * and the last bullet it can take blows it up.
+   * and the last bullet it can take blows it up. A hard hit counts as several bullets.
    */
-  shot(px: number, py: number, world: World): void {
+  shot(px: number, py: number, world: World, hits = 1): void {
     const { drive, monster, fragile } = this.def;
     if (fragile) {
       this.shatter(world);
@@ -416,7 +417,7 @@ export class Block extends Body {
       return;
     }
     if (this.exploded) return;
-    this.hull -= 1;
+    this.hull -= hits;
     this.showHull();
     // The hole goes where the bullet hit, measured on its own drawing
     const scale = drive?.scale ?? 1;
@@ -1305,12 +1306,14 @@ export class Block extends Body {
     if (hazard.kind === 'zap') {
       this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
       if (this.zapWaitMs > 0 || this.fallen !== 0 || state !== 'resting') return;
-      // A lightning coil shoots from the ball on its top, a storm cloud from its underside
-      const ballY = this.def.cloud ? own.bottom : own.top + TESLA.ballDown;
+      // A lightning coil shoots from the ball on its top, a storm cloud from its underside,
+      // a laser tower from its eye
+      const down = hazard.laser ? LASER_TOWER.eyeDown : TESLA.ballDown;
+      const ballY = this.def.cloud ? own.bottom : own.top + down;
       const victim = this.closestDoll(world, ballY, hazard.range ?? 0, null, false);
       if (!victim) return;
       this.zapWaitMs = hazard.everyMs;
-      world.zap(this.x, ballY, victim, hazard.damage, hazard.pushSpeed, true);
+      world.zap(this.x, ballY, victim, hazard.damage, hazard.pushSpeed, !hazard.laser);
       return;
     }
 

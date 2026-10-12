@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLOCKS, FIRE, SAW, TESLA, type BlockDef, type TrapKind } from '../config';
+import { BLOCKS, FIRE, LASER_TOWER, SAW, TESLA, type BlockDef, type TrapKind } from '../config';
 import { shade } from '../logic/color';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -28,6 +28,8 @@ export function drawTrap(g: Graphics, kind: TrapKind, whole: boolean): Graphics 
       return drawBurner(g, def);
     case 'tesla':
       return drawTesla(g, def);
+    case 'laserTower':
+      return drawLaserTower(g, def);
     case 'mine':
       return drawMine(g, def);
     case 'cactus':
@@ -150,6 +152,45 @@ export function drawFlames(
     g.fillStyle(FIRE.core);
     g.fillTriangle(x - 2.2, top, x + 2.2, top, x + lean * 0.4, top - tall * 0.36);
   }
+  return g;
+}
+
+/** A laser tower: a wide foot, a steel post with dark bands, and a head with one red eye. */
+function drawLaserTower(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const { eyeDown, eyeRadius, headHeight } = LASER_TOWER;
+  const eyeY = -height + eyeDown;
+  const neck = -height + headHeight - 2;
+  // Foot
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(-halfWidth, -8, halfWidth * 2, 8, 2.5);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(-halfWidth + 1.5, -6.5, halfWidth * 2 - 3, 3, 1.5);
+  // Post, with a shine down one side and dark bands around it
+  g.fillStyle(colors.dark);
+  g.fillRect(-5, neck, 10, -8 - neck);
+  g.fillStyle(colors.fill);
+  g.fillRect(-3.5, neck, 7, -8 - neck);
+  g.fillStyle(colors.light);
+  g.fillRect(-3.5, neck, 2, -8 - neck);
+  g.fillStyle(colors.dark);
+  for (let y = -19; y > neck + 5; y -= 11) {
+    g.fillRect(-5, y, 10, 2.5);
+  }
+  // Head
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(-halfWidth + 1, -height, halfWidth * 2 - 2, headHeight, 6);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(-halfWidth + 2.5, -height + 1.5, halfWidth * 2 - 5, headHeight - 3, 5);
+  g.fillStyle(colors.light, 0.7);
+  g.fillRoundedRect(-halfWidth + 5, -height + 3, halfWidth * 2 - 10, 2.5, 1.2);
+  // The eye: a red lens in a dark ring
+  g.fillStyle(colors.dark);
+  g.fillCircle(0, eyeY, eyeRadius + 1.8);
+  g.fillStyle(colors.detail);
+  g.fillCircle(0, eyeY, eyeRadius);
+  g.fillStyle(0xffffff, 0.9);
+  g.fillCircle(-1.8, eyeY - 1.8, 1.8);
   return g;
 }
 

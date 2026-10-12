@@ -5,17 +5,20 @@ import type { Box } from '../logic/ground';
 import type { Spot } from '../logic/pick';
 import type { PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
+import type { Block } from './Block';
 import type { Body } from './Body';
 import type { Person } from './Person';
 
 /** What a hit sounds like: a fist, a weapon, or nothing extra (a bullet already banged). */
-export type HitSound = 'punch' | 'clang' | 'squeak' | 'none';
+export type HitSound = 'punch' | 'clang' | 'squeak' | 'zap' | 'none';
 
 /** What everything in the area needs to know about the world around it each frame. */
 export interface World {
   area: PlaceArea;
   bottom: number;
   people: readonly Person[];
+  /** The monsters an angry doll can fight: all but the ghostly ones, which nothing can hit. */
+  monsters: () => Block[];
   /** The boxes of all the solid things, except `body` itself. */
   solidBoxes: (body: Body) => Box[];
   /** Show a hit at this spot, and play its sound. `deadly` when it was the last one. */
