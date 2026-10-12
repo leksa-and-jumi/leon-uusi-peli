@@ -12,6 +12,7 @@ import {
   PEOPLE,
   PERSON,
   TABS,
+  FIGHTERS,
   GEAR_KINDS,
   POWER_KINDS,
   TRAP_KINDS,
@@ -42,6 +43,7 @@ const FIRST_THING = 1;
 
 const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
   people: [NOTHING, ...PEOPLE.map((look): SpawnChoice => ({ type: 'person', look }))],
+  fighters: [NOTHING, ...FIGHTERS.map((look): SpawnChoice => ({ type: 'person', look }))],
   items: [NOTHING, ...WEAPON_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
   build: [NOTHING, ...BUILD_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   junk: [NOTHING, ...JUNK_KINDS],

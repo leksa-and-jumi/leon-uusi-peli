@@ -898,6 +898,136 @@ class Painter {
     return this.limb(shoulderX, shoulderY, upperShape, upperArm.length, lowerShape, fore);
   }
 
+  /**
+   * What the fighters wear on their heads, drawn over the head: a viking's horned
+   * helmet, a pirate's hat and eye patch, a samurai's helmet and mask, an alien's
+   * feelers and big eyes, a demon's horns and beard, a mummy's bandages.
+   */
+  private headgear(g: Graphics, top: number, back: number): void {
+    const { head, eye } = SHAPE;
+    const dome = (color: number, radius: number, down: number): void => {
+      g.fillStyle(color);
+      g.beginPath();
+      g.arc(0, head.y - down, radius, Math.PI, 0);
+      g.closePath();
+      g.fillPath();
+    };
+    switch (this.look.extra) {
+      case 'vikingHelmet': {
+        const c = EXTRA_COLORS.vikingHelmet;
+        // The horns, one on each side, curving up
+        for (const side of [-1, 1]) {
+          g.fillStyle(c.hornDark);
+          g.fillTriangle(side * 9, top + 9, side * 14.5, top + 3, side * 21, top - 13);
+          g.fillStyle(c.horn);
+          g.fillTriangle(side * 10.5, top + 7.5, side * 14, top + 4, side * 20, top - 11);
+        }
+        dome(c.dark, head.radius + 1.5, 4);
+        dome(c.steel, head.radius, 4);
+        g.fillStyle(c.shine, 0.6);
+        g.fillEllipse(-4, top + 3.5, 11, 4.5);
+        g.fillStyle(c.dark);
+        g.fillRoundedRect(back - 1.5, head.y - 5.5, head.radius * 2 + 3, 4, 1.5);
+        // The nose guard
+        g.fillRoundedRect(4, head.y - 3, 3.2, 8.5, 1.2);
+        break;
+      }
+      case 'pirateHat': {
+        const c = EXTRA_COLORS.pirateHat;
+        // The patch over one eye, and its strap
+        g.lineStyle(1.3, c.hat);
+        g.lineBetween(back + 1, head.y - 6, eye.front + 3, eye.y - 1);
+        g.fillStyle(c.hat);
+        g.fillCircle(eye.front, eye.y, 3.9);
+        // The hat: a wide brim turned up, a crown, golden trim and a skull
+        g.fillEllipse(0, top + 4.5, 39, 9);
+        g.fillStyle(c.light);
+        g.fillEllipse(0, top + 3.5, 34, 5);
+        g.fillStyle(c.hat);
+        g.fillRoundedRect(-12, top - 10, 24, 14, 5);
+        g.fillStyle(c.trim);
+        g.fillRect(-12, top + 1, 24, 1.6);
+        g.fillStyle(c.skull);
+        g.fillCircle(1, top - 5, 3);
+        g.fillRect(-0.8, top - 3.5, 3.6, 2.6);
+        g.fillStyle(c.hat);
+        g.fillCircle(0, top - 5.3, 0.9);
+        g.fillCircle(2.2, top - 5.3, 0.9);
+        break;
+      }
+      case 'kabuto': {
+        const c = EXTRA_COLORS.kabuto;
+        // The neck guard flares out at the back, and a mask covers the mouth
+        g.fillStyle(c.helmet);
+        g.fillTriangle(back + 3, head.y - 6, back - 9, head.y + 10, back + 7, head.y + 8);
+        g.fillStyle(c.mask);
+        g.fillRoundedRect(-1, head.y + 3.5, head.radius - 1, 9, 3);
+        g.fillStyle(c.gold);
+        g.fillRect(1, head.y + 7.5, head.radius - 5, 1.2);
+        // The golden crescent on the front, and the helmet itself
+        for (const side of [-1, 1]) {
+          g.fillTriangle(side * 1.5, top + 3, side * 6, top + 4, side * 14, top - 13);
+        }
+        dome(c.helmet, head.radius + 1.5, 5);
+        dome(c.light, head.radius - 1, 6);
+        dome(c.helmet, head.radius - 3.5, 6.5);
+        g.fillStyle(c.gold);
+        g.fillRoundedRect(back - 1.5, head.y - 6.5, head.radius * 2 + 3, 2.6, 1.2);
+        g.fillCircle(2, top + 4, 2.2);
+        break;
+      }
+      case 'feelers': {
+        const c = EXTRA_COLORS.feelers;
+        // Two feelers with a glowing tip, and big black eyes
+        g.lineStyle(1.8, c.stalk);
+        for (const side of [-1, 1]) {
+          g.lineBetween(side * 5, top + 2, side * 9, top - 7);
+          g.lineBetween(side * 9, top - 7, side * 12, top - 12);
+        }
+        g.fillStyle(c.tip);
+        g.fillCircle(-12, top - 12, 2.8);
+        g.fillCircle(12, top - 12, 2.8);
+        g.fillStyle(c.eye);
+        g.fillEllipse(eye.back - 1, eye.y, 7, 10);
+        g.fillEllipse(eye.front + 1, eye.y, 7.5, 10.5);
+        break;
+      }
+      case 'horns': {
+        const c = EXTRA_COLORS.horns;
+        for (const side of [-1, 1]) {
+          g.fillStyle(c.horn);
+          g.fillTriangle(side * 4, top + 3, side * 11, top + 6, side * 13, top - 12);
+          g.fillStyle(c.tip);
+          g.fillTriangle(side * 10.5, top - 4, side * 12.2, top - 4, side * 13, top - 12);
+        }
+        // A pointed beard on its chin
+        g.fillStyle(c.beard);
+        g.fillTriangle(4, head.y + 11, 11.5, head.y + 10, 9, head.y + 20);
+        break;
+      }
+      case 'bandages': {
+        const c = EXTRA_COLORS.bandages;
+        // A dark gap for the eyes, bandages wound around the head, and a loose end at the back
+        g.fillStyle(c.dark);
+        g.fillRoundedRect(-4, eye.y - 3.6, head.radius + 2.5, 7.2, 3);
+        g.fillStyle(c.line);
+        g.fillRect(back - 1, head.y + 3, 3.5, 15);
+        g.lineStyle(1.5, c.line);
+        for (const [from, to] of [
+          [-10, -7],
+          [-6.5, -10],
+          [6, 9],
+          [10, 6],
+        ] as const) {
+          g.lineBetween(back + 2.5, head.y + from, head.radius - 2.5, head.y + to);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   hips(): Graphics {
     const g = this.blank();
     const { hips } = SHAPE;
@@ -920,6 +1050,26 @@ class Painter {
     const human = this.look.human;
     this.ball(g, 0, waist.y, waist.radius, true, human?.trousers);
     this.block(g, chest.x, chest.y, chest.width, chest.height, chest.round, human?.shirt);
+    if (this.look.extra === 'bandages') {
+      // A mummy is wrapped in bandages: lines across the chest, one end hanging loose
+      const c = EXTRA_COLORS.bandages;
+      g.lineStyle(1.5, c.line);
+      for (const [from, to] of [
+        [5, 2],
+        [10, 13],
+        [17, 15],
+        [21, 24],
+      ] as const) {
+        g.lineBetween(chest.x + 1.5, chest.y + from, chest.x + chest.width - 1.5, chest.y + to);
+      }
+    }
+    if (this.look.extra === 'kabuto') {
+      // A samurai's armor is made of rows of plates, tied with golden cord
+      g.fillStyle(EXTRA_COLORS.kabuto.gold);
+      for (const row of [7, 13.5, 20]) {
+        g.fillRect(chest.x + 3, chest.y + row, chest.width - 6, 1.5);
+      }
+    }
     if (this.look.extra === 'patches') {
       // A zombie's chest has dark, rotten patches
       g.fillStyle(EXTRA_COLORS.patches.blotch, 0.85);
@@ -1034,6 +1184,7 @@ class Painter {
       g.fillCircle(0, top + 2, 1.8);
     }
 
+    this.headgear(g, top, back);
     if (this.look.extra === 'headband') {
       const c = EXTRA_COLORS.headband;
       g.fillStyle(c.dark);
@@ -1088,7 +1239,10 @@ class Painter {
     return g;
   }
 
-  deadEyes(color: number = PERSON.face.eye): Graphics {
+  deadEyes(
+    // An alien's eyes are black all over: its crosses are white, so that they show
+    color: number = this.look.extra === 'feelers' ? 0xffffff : PERSON.face.eye,
+  ): Graphics {
     const g = this.blank();
     const { eye } = SHAPE;
     const size = eye.radius + 1;
