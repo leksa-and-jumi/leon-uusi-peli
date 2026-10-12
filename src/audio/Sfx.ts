@@ -127,6 +127,11 @@ export class Sfx {
     this.burst(SOUND.crumble.hiss);
   }
 
+  wind(): void {
+    if (!this.ready('wind')) return;
+    this.burst(SOUND.wind.hiss);
+  }
+
   /** Can this sound be played right now? Also notes that it is being played. */
   private ready(name: string): boolean {
     const context = this.context;

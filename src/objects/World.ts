@@ -93,6 +93,11 @@ export interface World {
   splash: (x: number, y: number) => void;
   /** Fire burns this thing up completely: it turns to ash. */
   burn: (thing: Body) => void;
+  /**
+   * The wind blows flakes of ash off from these spots, to that side. `starting` when
+   * the wind has only just got up.
+   */
+  blowAsh: (spots: readonly Spot[], direction: Facing, starting: boolean) => void;
   /** A boss smashes this thing to pieces, which fly off the way it faces. */
   smash: (thing: Body, direction: Facing) => void;
   /** The ground shakes under a stomp. */

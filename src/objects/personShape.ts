@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import {
+  ASHEN,
   BLOOD,
   CHARRED,
   DOLL,
@@ -10,7 +11,10 @@ import {
   type PersonLook,
   type WoundKind,
 } from '../config';
+import { blowOrder, blownOff, toArea, toPicture } from '../logic/ash';
 import { shade } from '../logic/color';
+import type { Spot } from '../logic/pick';
+import type { Facing } from '../logic/walk';
 import { STAND, type Pose } from '../logic/pose';
 
 /**
@@ -37,6 +41,12 @@ const SHAPE = {
 
 type Graphics = Phaser.GameObjects.Graphics;
 type Container = Phaser.GameObjects.Container;
+
+/** A solid shape drawn on a picture: is this spot of the picture in it? */
+interface SolidShape {
+  g: Graphics;
+  inside: (x: number, y: number) => boolean;
+}
 
 /** The parts a blade can cut off a doll. `upperBody` is everything above the waist. */
 export type BodyPart = 'head' | 'frontArm' | 'backArm' | 'frontLeg' | 'backLeg' | 'upperBody';
@@ -82,6 +92,8 @@ export class PersonFigure {
   private readonly headPart: Container;
   private readonly eyes: Graphics;
   private readonly deadEyes: Graphics;
+  /** The pale crosses it has for eyes once a laser has turned it to ash. */
+  private readonly ashEyes: Graphics;
   private readonly brows: Graphics;
   /** The wound marks on its chest: one more for every time it is hurt. */
   private readonly wounds: Graphics;
@@ -101,8 +113,22 @@ export class PersonFigure {
   private wasted = false;
   private readonly toBones: readonly { part: BodyPart | 'trunk'; redraw: () => void }[];
   /** What covers each of its parts in soot, when lightning singes it. */
-  private readonly toSoot: readonly (() => void)[];
+  private readonly toSoot: readonly ((color: number, alpha: number) => void)[];
   private singed = false;
+  /** A laser has turned it to ash. */
+  private ashen = false;
+  /** The shapes it is made of, to work out which little squares of ash it is made of. */
+  private readonly solidShapes: readonly SolidShape[];
+  /**
+   * Once the wind is at a doll of ash, it is drawn as little squares of ash: where
+   * they are, in the order they go, how many have gone, and its two crosses for eyes.
+   */
+  private squares: {
+    picture: Graphics;
+    spots: readonly (Spot & { shade: number })[];
+    gone: number;
+    eyes: readonly { from: Spot; to: Spot; lastsUntil: number }[];
+  } | null = null;
 
   constructor(scene: Phaser.Scene, look: PersonLook) {
     this.scene = scene;
@@ -123,11 +149,12 @@ export class PersonFigure {
     this.wounds = scene.make.graphics({}, false).setPosition(0, -waist.y);
     this.eyes = paint.eyes().setVisible(!this.faceless);
     this.deadEyes = paint.deadEyes().setVisible(false);
+    this.ashEyes = paint.deadEyes(ASHEN.eye).setVisible(false);
     this.brows = paint.angryBrows().setVisible(false);
 
     // The parts are drawn where they are on a standing doll, so each bending part
     // is moved back by the spot it bends around
-    const face = [paint.head(), this.eyes, this.deadEyes, this.brows];
+    const face = [paint.head(), this.eyes, this.deadEyes, this.ashEyes, this.brows];
     face.forEach((part) => part.setPosition(0, -neck.y));
     this.headPart = scene.make.container({ x: 0, y: neck.y - waist.y }, false).add(face);
     this.upperBody = scene.make
@@ -148,6 +175,7 @@ export class PersonFigure {
     ]);
     this.toBones = paint.toBones;
     this.toSoot = paint.toSoot;
+    this.solidShapes = paint.solidShapes;
   }
 
   /**
@@ -156,7 +184,7 @@ export class PersonFigure {
    */
   burnToBones(thin = false): void {
     this.wasted ||= thin;
-    if (this.charred) return;
+    if (this.charred || this.ashen) return;
     this.charred = true;
     this.toBones.forEach(({ redraw }) => {
       redraw();
@@ -172,13 +200,158 @@ export class PersonFigure {
    * soot, so that it is all dark, but it is still whole.
    */
   singe(): void {
-    if (this.singed || this.charred) return;
+    if (this.singed || this.charred || this.ashen) return;
     this.singed = true;
     this.toSoot.forEach((cover) => {
-      cover();
+      cover(SOOT.color, SOOT.alpha);
     });
     this.eyes.setVisible(false);
     this.brows.setVisible(false);
+  }
+
+  /**
+   * A laser has finished the doll off: it is all ash. Every part of it is black, its
+   * wounds are gone, and it has pale crosses for eyes.
+   */
+  turnToAsh(): void {
+    if (this.ashen || this.charred) return;
+    this.ashen = true;
+    this.toSoot.forEach((cover) => {
+      cover(ASHEN.color, ASHEN.alpha);
+    });
+    this.wounds.clear();
+    this.eyes.setVisible(false);
+    this.deadEyes.setVisible(false);
+    this.brows.setVisible(false);
+    this.ashEyes.setVisible(!this.faceless);
+  }
+
+  /**
+   * The wind gets up on a doll of ash, blowing to that side. From now on the doll is
+   * drawn as the little squares of ash it is made of, so that they can go one by one.
+   */
+  crumble(direction: Facing): void {
+    if (this.squares) return;
+    const whole = this.container.getWorldTransformMatrix();
+    // Only what is still on the doll and can be seen counts: not a part that was cut off
+    const shapes = this.solidShapes
+      .filter(({ g }) => this.shows(g))
+      .map(({ g, inside }) => ({ placing: g.getWorldTransformMatrix(), inside }));
+    const { square, shades } = ASHEN;
+    const reach = PERSON.height * ASHEN.reach;
+    const found: (Spot & { shade: number; at: Spot })[] = [];
+    for (let y = -reach; y <= reach; y += square) {
+      for (let x = -reach; x <= reach; x += square) {
+        const at = toArea(whole, x, y);
+        const solid = shapes.some(({ placing, inside }) => {
+          const spot = toPicture(placing, at.x, at.y);
+          return inside(spot.x, spot.y);
+        });
+        if (!solid) continue;
+        const pick = shades[Math.floor(Math.random() * shades.length)] ?? ASHEN.color;
+        found.push({ x, y, shade: pick, at });
+      }
+    }
+    const order = blowOrder(
+      found.map(({ at }) => at),
+      direction,
+      ASHEN.order,
+    );
+    const spots = order.flatMap((index) => found[index] ?? []);
+    const picture = this.scene.make.graphics({}, false);
+    this.squares = { picture, spots, gone: 0, eyes: this.faceless ? [] : this.crossEyes(spots) };
+    this.container.each(
+      (part: Phaser.GameObjects.GameObject & { setVisible(on: boolean): unknown }) => {
+        part.setVisible(false);
+      },
+    );
+    this.container.add(picture);
+    this.drawSquares();
+  }
+
+  /**
+   * The wind has blown more of it away: only this share of it (0 to 1) is left. Gives
+   * the spots in the area where squares of ash have just come off.
+   */
+  blowOff(left: number): Spot[] {
+    const squares = this.squares;
+    if (!squares) return [];
+    const gone = Math.max(squares.gone, blownOff(squares.spots.length, left));
+    if (gone === squares.gone) return [];
+    const whole = this.container.getWorldTransformMatrix();
+    const loose = squares.spots.slice(squares.gone, gone).map(({ x, y }) => toArea(whole, x, y));
+    squares.gone = gone;
+    this.drawSquares();
+    return loose;
+  }
+
+  /** Is this part still on the doll, and not hidden? */
+  private shows(part: Graphics): boolean {
+    let at: Graphics | Container | null = part;
+    while (at && at !== this.container) {
+      if (!at.visible) return false;
+      at = at.parentContainer;
+    }
+    return at === this.container;
+  }
+
+  /**
+   * The two crosses it has for eyes, as lines between spots of the whole doll. Each
+   * one lasts until the square of ash under it goes.
+   */
+  private crossEyes(spots: readonly Spot[]): { from: Spot; to: Spot; lastsUntil: number }[] {
+    const whole = this.container.getWorldTransformMatrix();
+    const face = this.ashEyes.getWorldTransformMatrix();
+    const onDoll = (x: number, y: number): Spot => {
+      const at = toArea(face, x, y);
+      return toPicture(whole, at.x, at.y);
+    };
+    const { eye } = SHAPE;
+    const size = eye.radius + 1;
+    return [eye.back, eye.front].flatMap((x) => {
+      const middle = onDoll(x, eye.y);
+      // The square closest to the eye: the eye goes when that square does
+      let closest = 0;
+      spots.forEach((spot, index) => {
+        const best = spots[closest] ?? spot;
+        const nearer =
+          Math.hypot(spot.x - middle.x, spot.y - middle.y) <
+          Math.hypot(best.x - middle.x, best.y - middle.y);
+        if (nearer) closest = index;
+      });
+      return [
+        {
+          from: onDoll(x - size, eye.y - size),
+          to: onDoll(x + size, eye.y + size),
+          lastsUntil: closest,
+        },
+        {
+          from: onDoll(x - size, eye.y + size),
+          to: onDoll(x + size, eye.y - size),
+          lastsUntil: closest,
+        },
+      ];
+    });
+  }
+
+  /** Draw the squares of ash that haven't gone yet, and the eyes that are still there. */
+  private drawSquares(): void {
+    const squares = this.squares;
+    if (!squares) return;
+    const g = squares.picture;
+    // A little bigger than the squares are apart, so that no gaps show between them
+    const size = ASHEN.square + 0.4;
+    g.clear();
+    for (let index = squares.gone; index < squares.spots.length; index++) {
+      const spot = squares.spots[index];
+      if (!spot) continue;
+      g.fillStyle(spot.shade);
+      g.fillRect(spot.x - size / 2, spot.y - size / 2, size, size);
+    }
+    g.lineStyle(1.8, ASHEN.eye);
+    for (const { from, to, lastsUntil } of squares.eyes) {
+      if (lastsUntil >= squares.gone) g.lineBetween(from.x, from.y, to.x, to.y);
+    }
   }
 
   /**
@@ -186,7 +359,7 @@ export class PersonFigure {
    * are burnt down to the bone. `front` when it came from the way the doll faces.
    */
   burnSide(front: boolean): void {
-    if (this.charred) return;
+    if (this.charred || this.ashen) return;
     const arm: BodyPart = front ? 'frontArm' : 'backArm';
     const leg: BodyPart = front ? 'frontLeg' : 'backLeg';
     for (const { part, redraw } of this.toBones) {
@@ -311,12 +484,12 @@ export class PersonFigure {
 
   /** Angry eyebrows on or off. */
   setAngry(angry: boolean): void {
-    this.brows.setVisible(angry && !this.faceless && !this.charred);
+    this.brows.setVisible(angry && !this.faceless && !this.charred && !this.ashen);
   }
 
   /** A doll with no lives left gets crosses for eyes. */
   setDead(dead: boolean): void {
-    if (this.charred) return;
+    if (this.charred || this.ashen) return;
     this.eyes.setVisible(!dead && !this.faceless);
     this.deadEyes.setVisible(dead && !this.faceless);
     if (dead) this.brows.setVisible(false);
@@ -327,7 +500,7 @@ export class PersonFigure {
    * slash, a stab wound, a bullet hole or a burn.
    */
   addWound(kind: WoundKind, random: () => number = Math.random): void {
-    if (this.charred || this.woundCount >= BLOOD.maxWounds) return;
+    if (this.charred || this.ashen || this.woundCount >= BLOOD.maxWounds) return;
     this.woundCount += 1;
     const { chest } = SHAPE;
     const x = chest.x + 6 + random() * (chest.width - 12);
@@ -399,6 +572,7 @@ export class PersonFigure {
         trickle(x + 0.5, y + 2.5, 3 + random() * 5);
         break;
       case 'shock':
+      case 'laser':
       case 'blast':
       case 'burn':
         // A sooty scorch mark made of several patches, with a few glowing embers
@@ -454,7 +628,9 @@ class Painter {
   /** For every part it has drawn: how to draw that part again as a charred bone. */
   readonly toBones: { part: BodyPart | 'trunk'; redraw: () => void }[] = [];
   /** For every shape it has drawn: how to cover that shape in soot. */
-  readonly toSoot: (() => void)[] = [];
+  readonly toSoot: ((color: number, alpha: number) => void)[] = [];
+  /** Every solid shape it has drawn, and whether a spot of that picture is in the shape. */
+  readonly solidShapes: SolidShape[] = [];
   /** The part it is drawing right now: the figure says which, before it asks for one. */
   part: BodyPart | 'trunk' = 'trunk';
 
@@ -585,10 +761,11 @@ class Painter {
 
     const human = this.look.human;
     const skin = this.tones(human?.skin ?? this.look.body);
-    this.toSoot.push(() => {
-      g.fillStyle(SOOT.color, SOOT.alpha);
+    this.toSoot.push((soot, alpha) => {
+      g.fillStyle(soot, alpha);
       g.fillCircle(0, head.y, head.radius + 1);
     });
+    this.solidShapes.push({ g, inside: (x, y) => Math.hypot(x, y - head.y) <= head.radius + 1 });
     g.fillStyle(skin.rim);
     g.fillCircle(0, head.y, head.radius);
     g.fillStyle(skin.fill);
@@ -694,11 +871,11 @@ class Painter {
     return g;
   }
 
-  deadEyes(): Graphics {
+  deadEyes(color: number = PERSON.face.eye): Graphics {
     const g = this.blank();
     const { eye } = SHAPE;
     const size = eye.radius + 1;
-    g.lineStyle(1.8, PERSON.face.eye);
+    g.lineStyle(1.8, color);
     for (const x of [eye.back, eye.front]) {
       g.lineBetween(x - size, eye.y - size, x + size, eye.y + size);
       g.lineBetween(x - size, eye.y + size, x + size, eye.y - size);
@@ -777,9 +954,13 @@ class Painter {
   ): void {
     const rim = DOLL.rimWidth;
     const tones = this.tones(color);
-    this.toSoot.push(() => {
-      g.fillStyle(SOOT.color, SOOT.alpha);
+    this.toSoot.push((soot, alpha) => {
+      g.fillStyle(soot, alpha);
       g.fillRoundedRect(x, y, width, height, round);
+    });
+    this.solidShapes.push({
+      g,
+      inside: (px, py) => px >= x && px <= x + width && py >= y && py <= y + height,
     });
     g.fillStyle(tones.rim);
     g.fillRoundedRect(x, y, width, height, round);
@@ -815,10 +996,11 @@ class Painter {
     color?: number,
   ): void {
     const tones = this.tones(color ?? (joint ? this.look.joint : this.look.body));
-    this.toSoot.push(() => {
-      g.fillStyle(SOOT.color, SOOT.alpha);
+    this.toSoot.push((soot, alpha) => {
+      g.fillStyle(soot, alpha);
       g.fillCircle(x, y, radius);
     });
+    this.solidShapes.push({ g, inside: (px, py) => Math.hypot(px - x, py - y) <= radius });
     g.fillStyle(tones.rim);
     g.fillCircle(x, y, radius);
     g.fillStyle(tones.fill);
