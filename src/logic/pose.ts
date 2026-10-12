@@ -24,7 +24,17 @@ export interface Pose {
 }
 
 export type PoseKind =
-  'stand' | 'walk' | 'run' | 'swim' | 'dance' | 'held' | 'punch' | 'slam' | 'sit' | 'drive';
+  | 'stand'
+  | 'walk'
+  | 'run'
+  | 'swim'
+  | 'dance'
+  | 'held'
+  | 'punch'
+  | 'push'
+  | 'slam'
+  | 'sit'
+  | 'drive';
 
 export const STAND: Pose = {
   frontArm: 0,
@@ -74,6 +84,21 @@ export const MOVES = {
   },
   held: { armsUp: 2.9, swingMs: 900, leg: 0.18, elbow: -0.2, knee: 0.35 },
   punch: { arm: -Math.PI / 2, backArm: 0.5, backElbow: -1.5, lean: 0.12 },
+  /**
+   * Pushing something out with both hands: both arms stretched out in front, one a
+   * little lower than the other, the feet wide apart, leaning into it. The arms
+   * tremble a little with the effort.
+   */
+  push: {
+    arm: -Math.PI / 2,
+    lower: 0.16,
+    leg: 0.32,
+    knee: 0.3,
+    waist: 0.1,
+    lean: 0.1,
+    tremble: 0.05,
+    trembleMs: 110,
+  },
   /**
    * Swimming: lying forward in the water, the arms reaching out in front and pulling
    * back in turn, the legs kicking.
@@ -224,6 +249,24 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         head: 0,
         lift: 0,
         lean: 0,
+      };
+    }
+    case 'push': {
+      const move = MOVES.push;
+      const tremble = Math.sin((timeMs / move.trembleMs) * Math.PI * 2) * move.tremble;
+      return {
+        frontArm: move.arm + tremble,
+        backArm: move.arm + move.lower - tremble,
+        frontLeg: -move.leg,
+        backLeg: move.leg,
+        frontElbow: 0,
+        backElbow: 0,
+        frontKnee: move.knee,
+        backKnee: 0,
+        waist: move.waist,
+        head: 0,
+        lift: 0,
+        lean: move.lean,
       };
     }
     case 'punch':

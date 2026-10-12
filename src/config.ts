@@ -256,6 +256,57 @@ export interface PersonLook {
 }
 
 /**
+ * The spell of fire, of the wizard and of the fire power: a stream of fire that the
+ * doll pushes out with both hands, in bursts. Whoever stands in it loses a life every
+ * now and then, and what is made of wood burns up.
+ */
+export const FIRE_SPELL: GunDef = {
+  range: 250,
+  damage: 1,
+  everyMs: 45,
+  autoMs: 45,
+  bulletSpeed: 380,
+  muzzle: { x: 52, y: 84 },
+  barrelUp: 0,
+  pellets: 3,
+  spread: 0.34,
+  flame: {
+    reach: 290,
+    width: 20,
+    height: 20,
+    color: 0xff7a1a,
+    burnEveryMs: 450,
+    burst: { ms: 1200, restMs: 650 },
+  },
+};
+
+/**
+ * How fire looks, wherever it is thrown from: a hand, a flamethrower or a dragon. Every
+ * puff is a ball that starts small and nearly white, swells, turns yellow, orange, red
+ * and dark, rises a little and fades. The puffs don't all fly quite the same way
+ * (`scatter`, radians) or have the same size (`sizes`), and they flicker. Some of
+ * them leave a puff of smoke where they burn out.
+ */
+export const FLAME = {
+  colors: [
+    { at: 0, color: 0xfffbe0 },
+    { at: 0.14, color: 0xffe45c },
+    { at: 0.4, color: 0xff9a1f },
+    { at: 0.7, color: 0xe5391a },
+    { at: 1, color: 0x5a2416 },
+  ],
+  small: 0.55,
+  big: 2.6,
+  alpha: 0.72,
+  fadeFrom: 0.58,
+  rise: 36,
+  scatter: 0.24,
+  sizes: { min: 0.75, max: 1.25 },
+  flicker: 0.16,
+  smokeShare: 0.12,
+} as const;
+
+/**
  * The dolls you can pick from the menu. First six plain ones in different colors.
  * Then four special ones that are always angry, have more lives than the plain ones
  * and hit harder: a robot, a ninja (fast), a knight (toughest, slow) and a zombie
@@ -391,18 +442,8 @@ export const PEOPLE: readonly PersonLook[] = [
     joint: 0x311b92,
     extra: 'wizardHat',
     lives: 4,
-    // A fireball: it burns, and takes 2 lives
-    spell: {
-      range: 480,
-      damage: 2,
-      everyMs: 1500,
-      autoMs: 1500,
-      bulletSpeed: 520,
-      muzzle: { x: 44, y: 84 },
-      barrelUp: 0,
-      look: { width: 13, height: 13, color: 0xff7a1a },
-      wound: 'burn',
-    },
+    // A stream of fire, pushed out with both hands
+    spell: FIRE_SPELL,
     human: {
       skin: 0xf1c27d,
       hair: 0xeeeeee,
@@ -2213,7 +2254,7 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
           bulletSpeed: 560,
           muzzle: { x: 0, y: 0 },
           barrelUp: 0,
-          flame: { reach: 470, width: 18, height: 11, color: 0xff7a1a },
+          flame: { reach: 470, width: 20, height: 20, color: 0xff7a1a },
         },
       },
     },
@@ -2312,7 +2353,16 @@ export interface GunDef {
    * A flamethrower: its bullets are puffs of fire that only get `reach` far. They burn
    * the dolls they hit, burn up what is made of wood and set off what explodes.
    */
-  flame?: { reach: number; width: number; height: number; color: number };
+  flame?: {
+    reach: number;
+    width: number;
+    height: number;
+    color: number;
+    /** A doll standing in these flames is burnt this often at the most, and not by every puff. */
+    burnEveryMs?: number;
+    /** They come in bursts: a stream of fire for `ms`, and then a rest of `restMs`. */
+    burst?: { ms: number; restMs: number };
+  };
   /** Its bullets look different from the usual ones: an arrow, a red ray of light... */
   look?: { width: number; height: number; color: number };
   /** The mark its bullets leave, when not a bullet hole. */
@@ -2904,14 +2954,15 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     gun: {
       range: 230,
       damage: 1,
-      everyMs: 170,
-      autoMs: 90,
-      bulletSpeed: 520,
+      everyMs: 55,
+      autoMs: 50,
+      bulletSpeed: 440,
       muzzle: { x: 104, y: 86 },
       barrelUp: 14,
       pellets: 2,
-      spread: 0.22,
-      flame: { reach: 250, width: 16, height: 10, color: 0xff7a1a },
+      spread: 0.24,
+      // Thick with puffs of fire, but a doll in it is only burnt as often as before
+      flame: { reach: 250, width: 18, height: 18, color: 0xff7a1a, burnEveryMs: 170 },
     },
   },
   // Superpowers: glowing orbs. A doll that touches one has that power from then on
@@ -2938,18 +2989,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: 0, along: 0 },
     power: {
       color: 0xff7a1a,
-      // A fireball, like the wizard's: it burns, and takes 2 lives
-      spell: {
-        range: 480,
-        damage: 2,
-        everyMs: 1100,
-        autoMs: 1100,
-        bulletSpeed: 560,
-        muzzle: { x: 44, y: 84 },
-        barrelUp: 0,
-        look: { width: 14, height: 14, color: 0xff7a1a },
-        wound: 'burn',
-      },
+      // A stream of fire, like the wizard's
+      spell: FIRE_SPELL,
     },
   },
   iceOrb: {
