@@ -6,6 +6,9 @@ import {
   CLING,
   JET,
   JET_ACTIONS,
+  POWER,
+  type PowerDef,
+  type PowerKind,
   GEAR,
   ITEMS,
   type GearDef,
@@ -77,7 +80,7 @@ import {
   type Pose,
   type PoseKind,
 } from '../logic/pose';
-import { aimAt, canSee } from '../logic/shot';
+import { aimAt, canSee, segmentHit } from '../logic/shot';
 import { sameTeam } from '../logic/team';
 import { walkStep, type Facing } from '../logic/walk';
 import type { Block } from './Block';
@@ -199,6 +202,14 @@ export class Person extends Body {
   private gearHits: { x: number; y: number; colors: readonly number[]; broke: boolean }[] = [];
   /** Where hits have just bounced off gear with the power to stop them: a spark flies there. */
   private bounces: Spot[] = [];
+  /**
+   * Its superpower, if it has one. The time left until it can teleport again, the time
+   * saved up toward the next life it heals, and the sparkles it has yet to show.
+   */
+  private power: { kind: PowerKind; def: PowerDef } | null = null;
+  private castMs = 0;
+  private healMs = 0;
+  private sparkles = 0;
   /** Its jetpack is switched on, and the time left until the next puff of smoke from it. */
   private jetOn = false;
   private jetSmokeMs = 0;
@@ -359,6 +370,105 @@ export class Person extends Body {
     this.gear.delete(slot);
     this.figure.takeOff(slot);
     return piece.kind;
+  }
+
+  /** Could it take this superpower? Only a living doll that doesn't have that very power already. */
+  canLearn(kind: PowerKind): boolean {
+    return !this.dead && this.canBePicked && this.power?.kind !== kind;
+  }
+
+  /** Take a superpower, in place of the one it had: it glows in the power's color from now on. */
+  learn(kind: PowerKind): void {
+    const def = ITEMS[kind].power;
+    if (!def) return;
+    this.power = { kind, def };
+    this.figure.setAura(def.color);
+    this.sparkles += 1;
+  }
+
+  /** Give up its superpower. Says which it was, or `null`. */
+  forgetPower(): PowerKind | null {
+    const had = this.power?.kind ?? null;
+    this.power = null;
+    this.figure.setAura(null);
+    return had;
+  }
+
+  /**
+   * What a superpower does all by itself: a healing power gives back a life every now
+   * and then. A doll that is out has no power any more.
+   */
+  private usePower(deltaMs: number, world: World): void {
+    const power = this.power;
+    if (!power) return;
+    if (this.dead) {
+      this.forgetPower();
+      return;
+    }
+    const middle = this.y - PERSON.height / 2;
+    for (; this.sparkles > 0; this.sparkles--) world.sparkle(this.x, middle, power.def.color);
+    const heal = power.def.heal;
+    if (!heal || this.lives >= (this.look.lives ?? PERSON.lives)) {
+      this.healMs = 0;
+      return;
+    }
+    this.healMs += deltaMs;
+    if (this.healMs < heal.everyMs) return;
+    this.healMs = 0;
+    this.lives += 1;
+    world.sparkle(this.x, middle, power.def.color);
+  }
+
+  /**
+   * An angry doll uses its superpower on the one it is after. With the power to
+   * teleport, it is suddenly right next to it. With lightning or laser eyes, it
+   * strikes from where it stands, if it is close enough and no wall is in the way.
+   * Gives the pose for it, or `null` when it has no such power or can't use it now.
+   */
+  private cast(target: Person | Block, world: World): PoseKind | null {
+    const power = this.power?.def;
+    if (!power) return null;
+    const at = target.feet;
+    const toward: Facing = at.x < this.x ? -1 : 1;
+    const middle = PERSON.height / 2;
+    const hop = power.teleport;
+    if (hop && this.castMs <= 0 && Math.abs(at.x - this.x) > hop.from) {
+      world.sparkle(this.x, this.y - middle, power.color);
+      world.smoke(this.x, this.y - middle);
+      const gap = ANGRY.reach * 0.8 + (target instanceof Person ? 0 : target.def.halfWidth);
+      const edge = PERSON.halfWidth;
+      this.x = clamp(at.x - toward * gap, world.area.left + edge, world.area.right - edge);
+      this.y = Math.min(at.y, world.area.floorY);
+      this.facing = toward;
+      this.castMs = hop.everyMs;
+      world.sparkle(this.x, this.y - middle, power.color);
+      return 'stand';
+    }
+    const zap = power.zap;
+    if (!zap) return null;
+    const box = target.box;
+    const to = { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 };
+    const eyes = { x: this.x + toward * POWER.eyes.x, y: this.y - POWER.eyes.up };
+    const hand = { x: this.x + toward * PERSON.hand.x, y: this.y - PERSON.hand.y };
+    const from = zap.from === 'eyes' ? eyes : hand;
+    if (Math.hypot(to.x - from.x, to.y - from.y) > zap.range) return null;
+    // Not through a wall. A monster is a wall itself, so there is no telling with those
+    const walled =
+      target instanceof Person &&
+      segmentHit(from.x, from.y, to.x, to.y, world.pieces(this)) !== null;
+    if (walled) return null;
+    this.facing = toward;
+    if (this.waitMs > 0) return 'stand';
+    if (target instanceof Person) {
+      world.zap(from.x, from.y, target, zap.damage, zap.pushSpeed, zap.spark);
+    } else {
+      world.flash(from.x, from.y, to.x, to.y, zap.spark);
+      target.shot(to.x, to.y, world, Math.min(zap.damage, ANGRY.monsterHits));
+    }
+    this.waitMs = zap.everyMs;
+    this.punchMs = ANGRY.punchMs;
+    this.inReach = false;
+    return 'punch';
   }
 
   /** Does it wear gear with the power to stop hits that leave this mark? */
@@ -1243,6 +1353,7 @@ export class Person extends Body {
   private bleed(deltaMs: number, world: World): void {
     for (const { x, y, colors, broke } of this.gearHits) world.gearHit(x, y, colors, broke);
     this.gearHits = [];
+    this.usePower(deltaMs, world);
     for (const { x, y } of this.bounces) world.spark(x, y);
     this.bounces = [];
     this.fizzle(deltaMs, world);
@@ -1393,6 +1504,7 @@ export class Person extends Body {
    */
   private rage(deltaMs: number, world: World): PoseKind {
     this.waitMs = Math.max(0, this.waitMs - deltaMs);
+    this.castMs = Math.max(0, this.castMs - deltaMs);
     if (this.punchMs > 0) {
       this.punchMs -= deltaMs;
       return 'punch';
@@ -1421,6 +1533,8 @@ export class Person extends Body {
       return 'slam';
     }
 
+    const cast = this.cast(target, world);
+    if (cast) return cast;
     const solids = world.solidBoxes(this);
     const lobbed = this.lobBomb(target, deltaMs, world);
     if (lobbed) return lobbed;
@@ -1428,7 +1542,9 @@ export class Person extends Body {
     if (hurled) return hurled;
     const weapon = this.item?.def;
     // A wizard needs no gun: with an empty hand it casts its spell
-    const gun = weapon?.gun ?? (weapon ? undefined : this.look.spell);
+    // And so does a doll with a superpower that is a spell
+    const spell = this.power?.def.spell ?? this.look.spell;
+    const gun = weapon?.gun ?? (weapon ? undefined : spell);
     const canShoot = gun !== undefined && this.clearShot(target, gun, solids);
     // A monster is big: it is hit on its side, which is that much closer than its middle
     const girth = target instanceof Person ? 0 : target.def.halfWidth;
@@ -1469,15 +1585,20 @@ export class Person extends Body {
       return 'punch';
     }
 
+    // Super strength is in the bare fists: they take more lives, and send the other flying
+    const strong = weapon ? undefined : this.power?.def.punch;
     const damage =
-      (weapon?.melee?.damage ?? PUNCH_DAMAGE) + (this.look.punch ?? PUNCH_DAMAGE) - PUNCH_DAMAGE;
+      (weapon?.melee?.damage ?? PUNCH_DAMAGE) +
+      (this.look.punch ?? PUNCH_DAMAGE) -
+      PUNCH_DAMAGE +
+      (strong?.damage ?? 0);
     const sound = weapon?.melee ? (weapon.melee.sound ?? 'clang') : 'punch';
     if (target instanceof Person) {
       const deadly = target.hit(
         this.facing,
         world.solidBoxes(target),
         damage,
-        weapon?.melee?.pushSpeed,
+        weapon?.melee?.pushSpeed ?? strong?.pushSpeed,
         weapon?.melee?.wound,
       );
       world.hitEffect(target.feet.x, target.feet.y - PERSON.height * 0.75, deadly, sound);

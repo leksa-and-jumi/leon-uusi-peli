@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { ITEM_COLORS, type ItemKind } from '../config';
+import { ITEM_COLORS, ITEMS, POWER, type ItemKind, type PowerKind } from '../config';
 import { drawGear } from './gearShapes';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -89,6 +89,14 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return g;
     case 'stinkBomb':
       return drawBomb(g, ITEM_COLORS.stinkBomb);
+    case 'lightningOrb':
+    case 'fireOrb':
+    case 'iceOrb':
+    case 'laserOrb':
+    case 'strengthOrb':
+    case 'healingOrb':
+    case 'teleportOrb':
+      return drawOrb(g, kind);
     case 'pan':
       return drawPan(g);
     case 'broom':
@@ -1024,6 +1032,80 @@ function drawBat(g: Graphics): Graphics {
   g.fillStyle(wood.dark, 0.9);
   for (const x of [-8, -4, 0]) {
     g.fillRect(x, -3, 1.4, 6);
+  }
+  return g;
+}
+
+/**
+ * An orb with a superpower in it: a glowing ball in the color of the power, with the
+ * sign of the power on it in white. Its middle is at (0, 0).
+ */
+function drawOrb(g: Graphics, kind: PowerKind): Graphics {
+  const color = ITEMS[kind].power?.color ?? POWER.symbol;
+  for (const [radius, alpha] of [
+    [15, 0.16],
+    [13.5, 0.3],
+    [12, 1],
+  ] as const) {
+    g.fillStyle(color, alpha);
+    g.fillCircle(0, 0, radius);
+  }
+  g.fillStyle(0x000000, 0.16);
+  g.fillCircle(1.5, 2, 9.5);
+  g.fillStyle(color);
+  g.fillCircle(0, 0, 9.5);
+  g.fillStyle(0xffffff, 0.45);
+  g.fillEllipse(-4, -6.5, 8, 4);
+  g.fillStyle(POWER.symbol);
+  g.lineStyle(2, POWER.symbol);
+  switch (kind) {
+    case 'lightningOrb':
+      shape(g, POWER.symbol, [
+        [2.5, -9],
+        [-5, 1],
+        [-1, 1],
+        [-3, 9],
+        [5, -2],
+        [1, -2],
+      ]);
+      break;
+    case 'fireOrb':
+      g.fillCircle(0, 3, 5.2);
+      g.fillTriangle(-4.8, 1.5, 4.8, 1.5, 1, -9);
+      g.fillStyle(color);
+      g.fillCircle(0, 4, 2.4);
+      break;
+    case 'iceOrb':
+      for (const turn of [0, Math.PI / 3, (Math.PI * 2) / 3]) {
+        const x = Math.cos(turn) * 8;
+        const y = Math.sin(turn) * 8;
+        g.lineBetween(-x, -y, x, y);
+      }
+      break;
+    case 'laserOrb':
+      g.fillEllipse(0, 0, 16, 9);
+      g.fillStyle(color);
+      g.fillCircle(0, 0, 3.4);
+      g.fillStyle(0x1b1b1b);
+      g.fillCircle(0, 0, 1.5);
+      break;
+    case 'strengthOrb':
+      g.fillRect(-6, -1.6, 12, 3.2);
+      g.fillRoundedRect(-9, -5.5, 4.2, 11, 1.4);
+      g.fillRoundedRect(4.8, -5.5, 4.2, 11, 1.4);
+      break;
+    case 'healingOrb':
+      g.fillRect(-2.2, -7.5, 4.4, 15);
+      g.fillRect(-7.5, -2.2, 15, 4.4);
+      break;
+    case 'teleportOrb':
+      g.beginPath();
+      g.arc(0, 0, 6.5, 0, Math.PI * 1.5);
+      g.strokePath();
+      g.beginPath();
+      g.arc(0, 0, 3, Math.PI, Math.PI * 2.5);
+      g.strokePath();
+      break;
   }
   return g;
 }

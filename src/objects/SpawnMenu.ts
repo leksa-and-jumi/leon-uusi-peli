@@ -13,6 +13,7 @@ import {
   PERSON,
   TABS,
   GEAR_KINDS,
+  POWER_KINDS,
   TRAP_KINDS,
   VEHICLE_KINDS,
   WEAPON_KINDS,
@@ -48,6 +49,7 @@ const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
   elements: [NOTHING, ...ELEMENT_KINDS],
   castle: [NOTHING, ...CASTLE_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   gear: [NOTHING, ...GEAR_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
+  powers: [NOTHING, ...POWER_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
   monsters: [NOTHING, ...MONSTER_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
   vehicles: [NOTHING, ...VEHICLE_KINDS.map((kind): SpawnChoice => ({ type: 'block', kind }))],
 };

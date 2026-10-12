@@ -4,6 +4,7 @@ import {
   BLOOD,
   GEAR,
   JET,
+  POWER,
   type GearKind,
   type GearSlot,
   CHARRED,
@@ -116,6 +117,8 @@ export class PersonFigure {
   private readonly brows: Graphics;
   /** The wound marks on its chest: one more for every time it is hurt. */
   private readonly wounds: Graphics;
+  /** The glow around a doll with a superpower. Made the first time it is needed. */
+  private aura: Graphics | null = null;
   /** The gear it has on: the picture of each piece. */
   private readonly gear = new Map<GearSlot, Graphics[]>();
   private woundCount = 0;
@@ -387,6 +390,22 @@ export class PersonFigure {
     const leg: BodyPart = front ? 'frontLeg' : 'backLeg';
     for (const { part, redraw } of this.toBones) {
       if (part === arm || part === leg) redraw();
+    }
+  }
+
+  /** A doll with a superpower glows in the color of the power. With `null` the glow is gone. */
+  setAura(color: number | null): void {
+    if (!this.aura) {
+      this.aura = this.scene.make.graphics({}, false);
+      this.container.addAt(this.aura, 0);
+    }
+    const g = this.aura.clear();
+    if (color === null) return;
+    const { width, height, up, alpha, rings } = POWER.aura;
+    for (let ring = 0; ring < rings; ring++) {
+      const size = 1 - ring / (rings + 1);
+      g.fillStyle(color, alpha);
+      g.fillEllipse(0, -up, width * size, height * size);
     }
   }
 
