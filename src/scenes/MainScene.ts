@@ -16,6 +16,8 @@ import {
   DOUBLE_CLICK_MS,
   FIREWORK,
   FLOOR,
+  GEAR,
+  GEAR_KINDS,
   GAME_HEIGHT,
   GAME_WIDTH,
   HINT,
@@ -297,6 +299,27 @@ export class MainScene extends Phaser.Scene {
       },
       bleed: (x, y, drops, color, spray) => {
         this.bleed(x, y, drops, color, spray);
+      },
+      gearHit: (x, y, colors, broke) => {
+        this.sfx.clang();
+        if (!broke) return;
+        this.sfx.shatter();
+        const spot = { left: x - 10, right: x + 10, top: y - 10, bottom: y + 10 };
+        const burst = { ...DEBRIS.burst, pushX: 0, pushY: -DEBRIS.blastLift / 2 };
+        for (const crumb of scatter(spot, GEAR.crumbs, burst)) {
+          const color = colors[Math.floor(Math.random() * colors.length)] ?? 0;
+          const picture = this.add
+            .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
+            .setDepth(DEBRIS.depth);
+          this.pieces.push({
+            crumb,
+            picture,
+            blood: null,
+            lieMs: DEBRIS.lieMs,
+            fadeMs: DEBRIS.fadeMs,
+          });
+        }
+        this.trimPieces();
       },
     };
 
@@ -741,7 +764,7 @@ export class MainScene extends Phaser.Scene {
         this.bubbles.flash('turn');
         break;
       case 'drop':
-        if (body instanceof Person) body.dropItem(this.solidBoxes(body));
+        if (body instanceof Person) this.dropFrom(body);
         this.bubbles.flash('drop');
         break;
       case 'walk':
@@ -964,8 +987,21 @@ export class MainScene extends Phaser.Scene {
    * into the doll's hand.
    */
   private handOutItems(): void {
+    const putOn: Item[] = [];
     for (const item of this.items) {
       if (!item.canBeTaken) continue;
+      const gear = item.def.gear;
+      if (gear) {
+        // Gear isn't held: a living doll that touches a piece puts it on, if it has room for it
+        const wearer = this.people.find(
+          (person) => person.canWear(gear.slot) && overlaps(item.box, person.box),
+        );
+        const kind = GEAR_KINDS.find((one) => one === item.kind);
+        if (!wearer || !kind) continue;
+        wearer.wear(kind);
+        putOn.push(item);
+        continue;
+      }
       const dropper = item.droppedBy;
       if (dropper && !overlaps(item.box, dropper.box)) item.forgetDropper();
       const taker = this.people.find(
@@ -977,6 +1013,27 @@ export class MainScene extends Phaser.Scene {
       );
       taker?.hold(item, this.solidBoxes(item));
     }
+    if (putOn.length === 0) return;
+    this.forget(putOn);
+    this.items = this.items.filter((item) => !putOn.includes(item));
+  }
+
+  /**
+   * A doll lets go of what it holds. With nothing in its hand it takes off a piece of
+   * its gear, the outermost one, which lands in front of it, as good as new.
+   */
+  private dropFrom(person: Person): void {
+    if (person.holding) {
+      person.dropItem(this.solidBoxes(person));
+      return;
+    }
+    const kind = person.takeOffGear();
+    if (!kind) return;
+    const { x, y } = person.feet;
+    const away = PERSON.halfWidth + ITEMS[kind].halfWidth + GEAR.takeOffGap;
+    const up = y - PERSON.height * GEAR.takeOffUp;
+    const at = placeFeet(x + person.pointing * away, up, AREA, ITEMS[kind]);
+    this.items.push(new Item(this, kind, at.x, at.y));
   }
 
   private clearBullets(): void {

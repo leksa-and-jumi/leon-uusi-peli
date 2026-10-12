@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { ITEM_COLORS, type ItemKind } from '../config';
+import { drawGear } from './gearShapes';
 
 type Graphics = Phaser.GameObjects.Graphics;
 type Point = readonly [number, number];
@@ -68,6 +69,11 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawBalloon(g);
     case 'bottle':
       return drawBottle(g);
+    case 'gasMask':
+    case 'armyHelmet':
+    case 'vest':
+    case 'shield':
+      return drawGear(g, kind);
     case 'pan':
       return drawPan(g);
     case 'broom':
