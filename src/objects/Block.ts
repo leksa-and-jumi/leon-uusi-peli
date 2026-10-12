@@ -171,7 +171,7 @@ export class Block extends Body {
     const ghost = this.def.monster?.ghost;
     const { liquid, hole, cloud } = this.def;
     // A ghost, a pool, a black hole and a cloud aren't solid: things go right into them
-    this.solid = !ghost && !liquid && !hole && !cloud;
+    this.solid = !ghost && !liquid && !hole && !cloud && !this.def.monster?.shark;
     // A ghost, a flying saucer and a black hole hold themselves up in the air. A pool
     // doesn't fall either: it lies on the floor, under everything.
     const flier = this.def.monster?.saucer ?? this.def.monster?.dragon;
@@ -710,6 +710,7 @@ export class Block extends Body {
     this.prowl(deltaMs, world, state);
     this.drift(deltaMs, world, state);
     this.play(world, state);
+    this.swim(deltaMs, world, state);
     this.sling(deltaMs, world, state);
     this.flow(deltaMs, world, state);
     this.trap(deltaMs, world, state);
@@ -856,6 +857,61 @@ export class Block extends Body {
     const mouthX = this.x + this.facing * dragon.mouth.x;
     const aim = aimAt(mouthX, mouthY, atX, atY, this.facing);
     world.shoot(null, mouthX, mouthY, this.facing, dragon.gun, aim, this);
+  }
+
+  /**
+   * A shark is only at home in water. There it cruises back and forth under the
+   * surface, and when a doll is in the water too it goes for the doll and bites it.
+   * Out of the water it just lies where it fell.
+   */
+  private swim(deltaMs: number, world: World, state: BodyState): void {
+    const monster = this.def.monster;
+    const shark = monster?.shark;
+    if (!monster || !shark) return;
+    this.zapWaitMs = Math.max(0, this.zapWaitMs - deltaMs);
+    const surface = world.floatLine(this.x, 0);
+    const loose = state !== 'held' && state !== 'flying';
+    this.hovering = loose && surface !== null && this.y > surface;
+    if (!this.hovering || surface === null) return;
+
+    const { halfWidth, height } = this.shape;
+    const { left, right, floorY } = world.area;
+    // The closest living doll that is in the water
+    let victim: Person | null = null;
+    let closest = monster.range;
+    for (const person of world.people) {
+      if (person.dead || person.seated || !person.canBePicked) continue;
+      const body = person.hitBox;
+      const far = Math.abs((body.left + body.right) / 2 - this.x);
+      if (body.bottom <= surface || far >= closest) continue;
+      victim = person;
+      closest = far;
+    }
+    let toX = this.x + this.facing * halfWidth;
+    let toY = Math.min(floorY, surface + shark.depth + height);
+    if (victim) {
+      const body = victim.hitBox;
+      toX = (body.left + body.right) / 2;
+      toY = clamp((body.top + body.bottom) / 2 + height / 2, surface + height * 0.6, floorY);
+      if (Math.abs(toX - this.x) > 2) this.facing = toX < this.x ? -1 : 1;
+    }
+    const speed = monster.speed * (victim ? 1 : 0.4);
+    const next = floatStep(this.x, this.y, toX, toY, speed, deltaMs);
+    const from = this.x;
+    const inside = clamp(next.x, left + halfWidth, right - halfWidth);
+    // It can't swim through an island or anything else solid
+    this.x = blockedX(from, inside, halfWidth, this.y, height, world.pieces(this), 0);
+    this.y = next.y;
+    if (!victim) {
+      // Nobody to bite: it turns around where it can't get any further
+      if (this.x === from) this.facing = this.facing === 1 ? -1 : 1;
+      return;
+    }
+    if (this.zapWaitMs > 0 || !overlaps(this.box, victim.hitBox)) return;
+    this.zapWaitMs = monster.everyMs;
+    const solids = world.solidBoxes(victim);
+    const deadly = victim.hit(this.facing, solids, monster.damage, monster.pushSpeed, 'slash');
+    world.hitEffect(toX, toY - height / 2, deadly, 'punch');
   }
 
   /**
@@ -1471,6 +1527,8 @@ export function drawBlock(g: Graphics, kind: BlockKind): Graphics {
       return drawFence(g, BLOCKS.fence);
     case 'hay':
       return drawHay(g, BLOCKS.hay);
+    case 'island':
+      return drawIsland(g, BLOCKS.island);
     default:
       return drawJunk(g, kind);
   }
@@ -1920,6 +1978,70 @@ function drawHay(g: Graphics, def: BlockDef): Graphics {
   g.fillStyle(colors.detail);
   for (const x of [left + width * 0.3, left + width * 0.7]) {
     g.fillRect(x - 1.2, top + 1, 2.4, height - 2);
+  }
+  return g;
+}
+
+/**
+ * An island: a mound of sand on rock, with a palm tree and a treasure chest on top.
+ * The tree stands above the island itself, so things pass behind its leaves.
+ */
+function drawIsland(g: Graphics, def: BlockDef): Graphics {
+  const { halfWidth, height, colors } = def;
+  const top = -height;
+  // The palm: a bent trunk and long green leaves
+  g.lineStyle(9, colors.detail);
+  g.beginPath();
+  g.moveTo(-34, top + 4);
+  g.lineTo(-40, top - 30);
+  g.lineTo(-34, top - 62);
+  g.strokePath();
+  g.lineStyle(1.5, shade(colors.detail, -0.35));
+  for (let y = top - 4; y > top - 58; y -= 9) {
+    g.lineBetween(-43, y, -32, y - 2);
+  }
+  for (const [dx, dy] of [
+    [-34, -4],
+    [-24, -18],
+    [22, -20],
+    [34, -4],
+    [28, 12],
+    [-28, 12],
+  ] as const) {
+    g.fillStyle(0x2e7d32);
+    g.fillTriangle(-34, top - 66, -34, top - 58, -34 + dx, top - 62 + dy);
+    g.fillStyle(0x66bb6a);
+    g.fillTriangle(-34, top - 64, -34, top - 60, -34 + dx * 0.9, top - 62 + dy * 0.9);
+  }
+  g.fillStyle(0x5d4037);
+  g.fillCircle(-36, top - 58, 4);
+  g.fillCircle(-30, top - 57, 4);
+  // The treasure chest
+  g.fillStyle(0x4e342e);
+  g.fillRoundedRect(28, top - 20, 30, 22, 4);
+  g.fillStyle(0x8d6e63);
+  g.fillRoundedRect(30, top - 18, 26, 18, 3);
+  g.fillStyle(0xffd54f);
+  g.fillRect(28, top - 11, 30, 3);
+  g.fillRect(41, top - 20, 4, 22);
+  g.fillCircle(43, top - 9.5, 3);
+  // The island: rock below, sand on top
+  g.fillStyle(colors.dark);
+  g.fillRoundedRect(-halfWidth, top, halfWidth * 2, height, 18);
+  g.fillStyle(shade(colors.dark, 0.2));
+  g.fillRoundedRect(-halfWidth + 3, top + 3, halfWidth * 2 - 6, height - 3, 16);
+  g.fillStyle(colors.fill);
+  g.fillRoundedRect(-halfWidth + 3, top + 3, halfWidth * 2 - 6, 34, 16);
+  g.fillStyle(colors.light, 0.8);
+  g.fillRoundedRect(-halfWidth + 14, top + 6, halfWidth * 2 - 28, 5, 2.5);
+  g.fillStyle(colors.dark, 0.5);
+  for (const [x, y] of [
+    [-50, 60],
+    [20, 80],
+    [-10, 110],
+    [52, 118],
+  ] as const) {
+    g.fillEllipse(x, top + y, 22, 9);
   }
   return g;
 }

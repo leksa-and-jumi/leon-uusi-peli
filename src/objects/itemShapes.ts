@@ -56,6 +56,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawBow(g);
     case 'boulder':
       return drawBoulder(g);
+    case 'firework':
+      return drawFirework(g);
     case 'rocketLauncher':
       return drawRocketLauncher(g);
     case 'magnet':
@@ -354,6 +356,24 @@ function drawTrident(g: Graphics): Graphics {
     g.fillRect(46, y - 0.9, long - 53, 1.8);
     g.fillTriangle(long - 6, y - 2.6, long - 6, y + 2.6, long - 1.5, y);
   }
+  return g;
+}
+
+/** A firework rocket: a wooden stick, a red tube with white stripes, and a yellow pointed top. */
+function drawFirework(g: Graphics): Graphics {
+  const c = ITEM_COLORS.firework;
+  g.fillStyle(c.stick);
+  g.fillRect(-16, -1, 30, 2.2);
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(6, -6, 22, 12, 2);
+  g.fillStyle(c.tube);
+  g.fillRoundedRect(7, -5, 20, 10, 1.5);
+  g.fillStyle(c.stripe);
+  for (const x of [11, 17, 23]) {
+    g.fillRect(x, -5, 2.4, 10);
+  }
+  g.fillStyle(c.cone);
+  g.fillTriangle(27, -7, 27, 7, 37, 0);
   return g;
 }
 
