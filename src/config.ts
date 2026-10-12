@@ -1212,6 +1212,35 @@ export const SHORT_CIRCUIT = {
 /** A doll that lightning has finished off is singed: every part of it is covered in soot. */
 export const SOOT = { color: 0x0a0a0a, alpha: 0.55 } as const;
 
+/**
+ * A doll that a monster's laser has finished off is all ash: black from head to toe,
+ * with pale crosses for eyes. It doesn't fall: it stays just as it stood, for a moment.
+ * Then the wind takes it apart, one little square of ash after another, from the side
+ * the wind blows to and from the top, until nothing is left of it.
+ */
+export const ASHEN = {
+  color: 0x121212,
+  alpha: 0.93,
+  eye: 0xe0e0e0,
+  standMs: 1400,
+  blowMs: 1500,
+  /** The skull that pops up when it dies is this far above its head, so that the doll can be seen. */
+  skullUp: 26,
+  /** The size of one little square of ash, and the grays the squares are. */
+  square: 3,
+  shades: [0x121212, 0x0a0a0a, 0x1d1d1d, 0x262626],
+  /** How far from the doll's feet there can be any of it: this many times its height. */
+  reach: 1.2,
+  order: { topFirst: 0.4, ragged: 16 },
+  /** This share of the squares is seen flying off; the rest are just gone. */
+  flying: 0.55,
+  /** How fast the flakes fly off to the side and up, and how slowly they sink. */
+  wind: { push: 170, lift: -40, spread: 60, gravity: 90 },
+  flake: { size: { min: 2, max: 4 }, spin: 6 },
+  lieMs: 300,
+  fadeMs: 600,
+} as const;
+
 /** A doll that fire has finished off is a black skeleton: charred bones, with embers in its eyes. */
 export const CHARRED = {
   bone: 0x1c1a19,
@@ -2192,9 +2221,20 @@ export interface GunDef {
  * from a blade, a stab from a point, a hole from a bullet, a burn from a blast. A `cut`
  * goes right through: a part of the doll comes off. Lightning is a `shock`, and a bomb
  * a `blast`: they leave a burn mark too, but they finish a doll off differently. A `saw` cuts it in two at the waist.
+ * A monster's `laser` burns too, and what it finishes off turns to ash.
  */
 export type WoundKind =
-  'bruise' | 'slash' | 'stab' | 'hole' | 'burn' | 'shock' | 'blast' | 'cut' | 'saw' | 'prongs';
+  | 'bruise'
+  | 'slash'
+  | 'stab'
+  | 'hole'
+  | 'burn'
+  | 'shock'
+  | 'laser'
+  | 'blast'
+  | 'cut'
+  | 'saw'
+  | 'prongs';
 
 /** Something to hit with: reaches further and hurts more than a fist. */
 export interface MeleeDef {
@@ -2912,6 +2952,7 @@ export const BLOOD = {
     hole: { burst: 18, bleedMs: 6000 },
     burn: { burst: 9, bleedMs: 2200 },
     shock: { burst: 0, bleedMs: 0 },
+    laser: { burst: 9, bleedMs: 2200 },
     blast: { burst: 12, bleedMs: 3000 },
     cut: { burst: 70, bleedMs: 14000 },
     saw: { burst: 70, bleedMs: 14000 },
@@ -3101,5 +3142,9 @@ export const SOUND = {
   /** Something crumbling to pieces: a dull crunch. */
   crumble: {
     hiss: { from: 1400, to: 180, seconds: 0.28, volume: 0.6 },
+  },
+  /** The wind blowing ash away: a long, soft whoosh. */
+  wind: {
+    hiss: { from: 500, to: 1600, seconds: 1.5, volume: 0.35 },
   },
 } as const satisfies Record<string, unknown>;

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   ASH,
+  ASHEN,
   BLAST,
   BLOCKS,
   BLOOD,
@@ -101,6 +102,8 @@ interface Piece {
   /** How long it lies there before it starts to fade, and how long fading takes. */
   lieMs: number;
   fadeMs: number;
+  /** A flake of ash in the wind hardly falls: it has a gravity of its own. */
+  gravity?: number;
 }
 
 /**
@@ -219,6 +222,10 @@ export class MainScene extends Phaser.Scene {
         this.burnToAsh(thing);
         this.sfx.crumble();
         this.doomed.push(thing);
+      },
+      blowAsh: (spots, direction, starting) => {
+        if (starting) this.sfx.wind();
+        this.blowAsh(spots, direction);
       },
       smash: (thing, direction) => {
         this.crumble(thing, direction * DEBRIS.blastPush, -DEBRIS.blastLift);
@@ -1125,10 +1132,12 @@ export class MainScene extends Phaser.Scene {
       this.beam(fromX, fromY, atX, atY);
     }
     const direction: Facing = atX < fromX ? -1 : 1;
-    // Lightning singes; a laser burns
-    const wound = spark ? 'shock' : 'burn';
+    // Lightning singes; a laser turns what it finishes off to ash
+    const wound = spark ? 'shock' : 'laser';
     const deadly = victim.hit(direction, this.solidBoxes(victim), damage, pushSpeed, wound);
-    this.showHit(atX, atY, deadly, 'none');
+    // Over a doll that has just turned to ash the skull pops up above its head, not in front of it
+    const ash = deadly && !spark;
+    this.showHit(atX, ash ? body.top - ASHEN.skullUp : atY, deadly, 'none');
   }
 
   /**
@@ -1197,6 +1206,29 @@ export class MainScene extends Phaser.Scene {
     this.trimPieces();
   }
 
+  /** The wind takes ash off something: a flake from every spot, which flies off to one side and hardly sinks. */
+  private blowAsh(spots: readonly Spot[], direction: Facing): void {
+    const { wind, flake } = ASHEN;
+    const burst = { ...flake, pushX: direction * wind.push, pushY: wind.lift, spread: wind.spread };
+    for (const { x, y } of spots) {
+      const [crumb] = scatter({ left: x, right: x, top: y, bottom: y }, 1, burst);
+      if (!crumb) continue;
+      const color = ASH.colors[Math.floor(Math.random() * ASH.colors.length)] ?? 0;
+      const picture = this.add
+        .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
+        .setDepth(DEBRIS.depth);
+      this.pieces.push({
+        crumb,
+        picture,
+        blood: null,
+        lieMs: ASHEN.lieMs,
+        fadeMs: ASHEN.fadeMs,
+        gravity: wind.gravity,
+      });
+    }
+    this.trimPieces();
+  }
+
   /** Blood from a wound: a spray of many drops, or a single drip. */
   private bleed(x: number, y: number, drops: number, color: number, spray: boolean): void {
     const burst = spray
@@ -1233,7 +1265,9 @@ export class MainScene extends Phaser.Scene {
     let stained = false;
     const pools = this.pools();
     this.pieces = this.pieces.filter((piece) => {
-      piece.crumb = crumbStep(piece.crumb, physics, delta);
+      const falling =
+        piece.gravity === undefined ? physics : { ...physics, gravity: piece.gravity };
+      piece.crumb = crumbStep(piece.crumb, falling, delta);
       const { x, y, turn, ageMs } = piece.crumb;
       const inWater = (pool: Box): boolean =>
         x >= pool.left && x <= pool.right && y >= pool.top && y <= pool.bottom;

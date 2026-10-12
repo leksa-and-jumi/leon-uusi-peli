@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import {
+  ASHEN,
   ANGRY,
   BLOOD,
   CRUSH,
@@ -175,11 +176,17 @@ export class Person extends Body {
   private blown = false;
   private ashPending = false;
   /**
+   * A laser has turned it to ash: time left until the wind has blown it all away, and
+   * the time saved up toward its next flake. `blownAway` once nothing is left.
+   */
+  private ashMs = 0;
+  private blownAway = false;
+  /**
    * Frozen solid by a freeze ray: time left until it thaws, and how it stood when the
    * frost got it (where its picture was from its feet, and how far it was turned).
    */
   private frozenMs = 0;
-  private iceAt = { dx: 0, dy: 0, rotation: 0 };
+  private stiffAt = { dx: 0, dy: 0, rotation: 0 };
   /** Melting away in lava: time left until nothing of it is left, or `null`. */
   private meltMs: number | null = null;
   /** How far it has to sink to be under altogether. */
@@ -256,7 +263,7 @@ export class Person extends Body {
   /** A robot that has blown up is gone. */
   override get gone(): boolean {
     // A robot leaves nothing in lava; of anything else, a skeleton stays on the bottom
-    return super.gone || this.blown || (this.meltMs === 0 && this.machine);
+    return super.gone || this.blown || this.blownAway || (this.meltMs === 0 && this.machine);
   }
 
   /**
@@ -290,7 +297,7 @@ export class Person extends Body {
     if (this.dead || this.seat) return;
     if (this.frozenMs <= 0) {
       const { x, y, rotation } = this.drawn;
-      this.iceAt = { dx: x - this.x, dy: y - this.y, rotation };
+      this.stiffAt = { dx: x - this.x, dy: y - this.y, rotation };
       this.figure.setIce(true);
     }
     this.frozenMs = ms;
@@ -410,7 +417,8 @@ export class Person extends Body {
 
   /** Fire gets at a doll with no lives left: it burns down to a black skeleton, and bleeds no more. */
   scorch(): void {
-    if (!this.dead) return;
+    // Ash has nothing left in it to burn
+    if (!this.dead || this.ashMs > 0) return;
     if (this.machine) {
       // A robot has no bones to leave: it burns up completely
       this.ashPending = true;
@@ -547,7 +555,10 @@ export class Person extends Body {
     wound: WoundKind = 'bruise',
   ): boolean {
     this.thaw();
-    this.knockOver(direction, pushSpeed);
+    // The laser that finishes a doll off doesn't knock it over: it turns to ash as it stands
+    const toAsh = wound === 'laser' && !this.dead && isDead(takeHit(this.lives, damage));
+    if (toAsh) this.knockDir = direction;
+    else this.knockOver(direction, pushSpeed);
     return this.lose(damage, solids, wound);
   }
 
@@ -609,6 +620,8 @@ export class Person extends Body {
     this.figure.setDead(true);
     // Fire, a blast, a laser or lightning finished it off: only charred bones are left
     if (wound === 'burn') this.scorch();
+    // A monster's laser turns it to ash, which the wind soon blows away
+    if (wound === 'laser') this.turnToAsh();
     // Lightning leaves it whole but singed black. A robot has no bones for a blast to bare.
     if (wound === 'shock' || (wound === 'blast' && this.machine)) this.figure.singe();
     // A blast bares the bones on the side it came from: it pushed the doll the other way
@@ -629,12 +642,19 @@ export class Person extends Body {
       this.meltMs = Math.max(0, this.meltMs - deltaMs);
       if (this.meltMs === 0) this.leaveBones(world);
     }
+    if (this.ashMs > 0) {
+      // All ash: it stays just as it was, falls if nothing holds it up, and can be carried
+      this.physics(deltaMs, world);
+      this.place(this.x + this.stiffAt.dx, this.y + this.stiffAt.dy, this.stiffAt.rotation);
+      this.blowAway(deltaMs, world);
+      return;
+    }
     if (this.frozenMs > 0) {
       // Frozen solid: it only falls and can be carried, stiff as it is
       this.frozenMs -= deltaMs;
       if (this.frozenMs > 0 && this.meltMs === null) {
         this.physics(deltaMs, world);
-        this.place(this.x + this.iceAt.dx, this.y + this.iceAt.dy, this.iceAt.rotation);
+        this.place(this.x + this.stiffAt.dx, this.y + this.stiffAt.dy, this.stiffAt.rotation);
         return;
       }
       this.figure.setIce(false);
@@ -979,9 +999,43 @@ export class Person extends Body {
     world.sever(picture, lift, reach, this.knockDir, wanted !== 'any');
   }
 
+  /**
+   * All ash now: black, with crosses for eyes, and no blood left in it. It doesn't
+   * fall over: it stays stiff, just as it was when the laser got it.
+   */
+  private turnToAsh(): void {
+    this.figure.turnToAsh();
+    this.spray = 0;
+    this.bleedMs = 0;
+    this.ashMs = ASHEN.standMs + ASHEN.blowMs;
+    const { x, y, rotation } = this.drawn;
+    this.stiffAt = { dx: x - this.x, dy: y - this.y, rotation };
+  }
+
+  /**
+   * A doll of ash stays as it is for a moment. Then the wind gets up, blowing the way
+   * the laser went: it takes the doll apart, one little square of ash after another,
+   * and the flakes fly off, until nothing is left.
+   */
+  private blowAway(deltaMs: number, world: World): void {
+    if (this.ashMs <= 0) return;
+    const starting = this.ashMs > ASHEN.blowMs;
+    this.ashMs = Math.max(0, this.ashMs - deltaMs);
+    if (this.ashMs > ASHEN.blowMs) return;
+    if (starting) this.figure.crumble(this.knockDir);
+    const loose = this.figure.blowOff(this.ashMs / ASHEN.blowMs);
+    world.blowAsh(
+      loose.filter(() => Math.random() < ASHEN.flying),
+      this.knockDir,
+      starting,
+    );
+    if (this.ashMs === 0) this.blownAway = true;
+  }
+
   /** Spray and drip blood from where the wounds are. */
   private bleed(deltaMs: number, world: World): void {
     this.fizzle(deltaMs, world);
+    this.blowAway(deltaMs, world);
     if (this.ashPending) {
       this.ashPending = false;
       world.burn(this);
