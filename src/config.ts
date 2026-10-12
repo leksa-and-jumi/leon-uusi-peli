@@ -212,7 +212,19 @@ export interface PersonLook {
   /** Eye color, when it isn't the usual dark. */
   eye?: number;
   /** Something extra that shows what kind of doll it is. */
-  extra?: 'antenna' | 'headband' | 'helmet' | 'patches' | 'crown' | 'wizardHat';
+  extra?:
+    | 'antenna'
+    | 'headband'
+    | 'helmet'
+    | 'patches'
+    | 'crown'
+    | 'wizardHat'
+    | 'vikingHelmet'
+    | 'pirateHat'
+    | 'kabuto'
+    | 'feelers'
+    | 'horns'
+    | 'bandages';
   /** How many hits it takes, when not the usual `PERSON.lives`. */
   lives?: number;
   /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
@@ -307,10 +319,8 @@ export const FLAME = {
 } as const;
 
 /**
- * The dolls you can pick from the menu. First six plain ones in different colors.
- * Then four special ones that are always angry, have more lives than the plain ones
- * and hit harder: a robot, a ninja (fast), a knight (toughest, slow) and a zombie
- * (slow, arms out).
+ * The dolls on the first page of the menu: six plain ones in different colors, three
+ * normal people, a king and a queen, and a wizard.
  */
 export const PEOPLE: readonly PersonLook[] = [
   { body: 0xd9b382, joint: 0x8a6a45 },
@@ -319,50 +329,6 @@ export const PEOPLE: readonly PersonLook[] = [
   { body: 0xd9534f, joint: 0x7f1d1d },
   { body: 0xe8c84a, joint: 0x9a7b12 },
   { body: 0xa9b1ba, joint: 0x4a5560 },
-  {
-    body: 0x607d8b,
-    joint: 0x263238,
-    eye: 0xff1744,
-    extra: 'antenna',
-    machine: true,
-    lives: 5,
-    punch: 2,
-    speed: 0.9,
-    angry: true,
-    blood: 0x1a1a1f,
-  },
-  {
-    body: 0x30303a,
-    joint: 0x101014,
-    eye: 0xffffff,
-    extra: 'headband',
-    lives: 4,
-    punch: 2,
-    speed: 1.7,
-    angry: true,
-  },
-  {
-    body: 0xdfe6ea,
-    joint: 0x78909c,
-    extra: 'helmet',
-    heavy: true,
-    lives: 6,
-    punch: 2,
-    speed: 0.8,
-    angry: true,
-  },
-  {
-    body: 0x8aa35c,
-    joint: 0x4d5e2a,
-    eye: 0xfff176,
-    extra: 'patches',
-    lives: 5,
-    punch: 2,
-    speed: 0.55,
-    armsForward: true,
-    angry: true,
-    blood: 0x5f8f1f,
-  },
   // Normal people: a man in a blue shirt, a woman in a yellow one, and a grandpa
   {
     body: 0x1e88e5,
@@ -457,6 +423,146 @@ export const PEOPLE: readonly PersonLook[] = [
   },
 ];
 
+/**
+ * The fighters: always angry, tougher than a plain doll, and each with a look of its
+ * own. A robot, a ninja (fast), a knight (heavy) and a zombie (slow, arms out); a
+ * viking, a pirate, a samurai, an alien, a demon that throws fire, and a mummy.
+ */
+export const FIGHTERS: readonly PersonLook[] = [
+  {
+    body: 0x607d8b,
+    joint: 0x263238,
+    eye: 0xff1744,
+    extra: 'antenna',
+    machine: true,
+    lives: 5,
+    punch: 2,
+    speed: 0.9,
+    angry: true,
+    blood: 0x1a1a1f,
+  },
+  {
+    body: 0x30303a,
+    joint: 0x101014,
+    eye: 0xffffff,
+    extra: 'headband',
+    lives: 4,
+    punch: 2,
+    speed: 1.7,
+    angry: true,
+  },
+  {
+    body: 0xdfe6ea,
+    joint: 0x78909c,
+    extra: 'helmet',
+    heavy: true,
+    lives: 6,
+    punch: 2,
+    speed: 0.8,
+    angry: true,
+  },
+  {
+    body: 0x8aa35c,
+    joint: 0x4d5e2a,
+    eye: 0xfff176,
+    extra: 'patches',
+    lives: 5,
+    punch: 2,
+    speed: 0.55,
+    armsForward: true,
+    angry: true,
+    blood: 0x5f8f1f,
+  },
+  // A viking: a steel helmet with two horns, long fair hair and a beard
+  {
+    body: 0x8d6e63,
+    joint: 0x5d4037,
+    extra: 'vikingHelmet',
+    lives: 6,
+    punch: 3,
+    speed: 0.95,
+    angry: true,
+    human: {
+      skin: 0xf1c27d,
+      hair: 0xf2c14e,
+      style: 'long',
+      beard: true,
+      shirt: 0x8d6e63,
+      sleeves: 'short',
+      trousers: 0x5d4037,
+      shoes: 0x3e2723,
+    },
+  },
+  // A pirate: a black hat with a skull on it, a patch over one eye and a black beard
+  {
+    body: 0xc62828,
+    joint: 0x7f1d1d,
+    extra: 'pirateHat',
+    lives: 4,
+    punch: 2,
+    speed: 1.15,
+    angry: true,
+    human: {
+      skin: 0xe0ac69,
+      hair: 0x1b1b1b,
+      style: 'short',
+      beard: true,
+      shirt: 0xc62828,
+      sleeves: 'long',
+      trousers: 0x263238,
+      shoes: 0x1b1b1b,
+    },
+  },
+  // A samurai: dark red armor, a helmet with a golden crescent and a mask. Quick, and it hits hard
+  {
+    body: 0x8e1c1c,
+    joint: 0x1b1b1b,
+    eye: 0xffffff,
+    extra: 'kabuto',
+    lives: 5,
+    punch: 3,
+    speed: 1.25,
+    angry: true,
+  },
+  // An alien: bright green, with big black eyes and two feelers. The fastest of them
+  {
+    body: 0x7ed957,
+    joint: 0x2e7d32,
+    eye: 0xffffff,
+    extra: 'feelers',
+    lives: 4,
+    punch: 2,
+    speed: 1.4,
+    angry: true,
+    blood: 0x76ff03,
+  },
+  // A demon: red, with horns, yellow eyes and a pointed beard. It throws fire, like the wizard
+  {
+    body: 0xa31515,
+    joint: 0x4a0d0d,
+    eye: 0xffeb3b,
+    extra: 'horns',
+    lives: 7,
+    punch: 3,
+    angry: true,
+    blood: 0x4a0d0d,
+    spell: FIRE_SPELL,
+  },
+  // A mummy: wrapped in bandages, with glowing eyes. Slow, arms out, and very hard to stop
+  {
+    body: 0xe8dcc0,
+    joint: 0xa1937a,
+    eye: 0x4dd0e1,
+    extra: 'bandages',
+    lives: 8,
+    punch: 2,
+    speed: 0.6,
+    armsForward: true,
+    angry: true,
+    blood: 0xc2b280,
+  },
+];
+
 /** The colors of the extras that the special dolls wear. */
 export const EXTRA_COLORS = {
   antenna: { rod: 0x263238, ball: 0xff1744 },
@@ -465,6 +571,18 @@ export const EXTRA_COLORS = {
   patches: { blotch: 0x5a6e38 },
   crown: { gold: 0xffd54f, dark: 0xb8860b, jewel: 0xe53935 },
   wizardHat: { hat: 0x311b92, light: 0x5e35b1, star: 0xffd54f },
+  vikingHelmet: {
+    steel: 0x90a4ae,
+    dark: 0x455a64,
+    shine: 0xeceff1,
+    horn: 0xf5efe0,
+    hornDark: 0xb8a98a,
+  },
+  pirateHat: { hat: 0x1b1b1b, light: 0x3a3a3a, skull: 0xf5f5f5, trim: 0xffc107 },
+  kabuto: { helmet: 0x1b1b1b, light: 0x3a3a3a, gold: 0xffc107, mask: 0x5d1010 },
+  feelers: { stalk: 0x2e7d32, tip: 0x18ffff, eye: 0x0b0f14 },
+  horns: { horn: 0x2b1b17, tip: 0x8d6e63, beard: 0x1b1b1b },
+  bandages: { line: 0xa1937a, dark: 0x3e2f1c },
 } as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */
@@ -777,6 +895,7 @@ export const TABS = [
   { id: 'castle', emoji: '🏰' },
   { id: 'gear', emoji: '🛡️' },
   { id: 'powers', emoji: '🔮' },
+  { id: 'fighters', emoji: '🥷' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
