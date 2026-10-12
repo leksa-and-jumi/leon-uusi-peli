@@ -96,6 +96,7 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
     case 'strengthOrb':
     case 'healingOrb':
     case 'teleportOrb':
+    case 'megaOrb':
       return drawOrb(g, kind);
     case 'pan':
       return drawPan(g);
@@ -1097,6 +1098,18 @@ function drawOrb(g: Graphics, kind: PowerKind): Graphics {
     case 'healingOrb':
       g.fillRect(-2.2, -7.5, 4.4, 15);
       g.fillRect(-7.5, -2.2, 15, 4.4);
+      break;
+    case 'megaOrb':
+      // A star with five points
+      shape(
+        g,
+        POWER.symbol,
+        Array.from({ length: 10 }, (_, corner): [number, number] => {
+          const far = corner % 2 === 0 ? 9.5 : 4.2;
+          const angle = -Math.PI / 2 + (corner * Math.PI) / 5;
+          return [Math.cos(angle) * far, Math.sin(angle) * far];
+        }),
+      );
       break;
     case 'teleportOrb':
       g.beginPath();

@@ -2516,7 +2516,14 @@ export type GearKind =
 export type GearSlot = 'face' | 'head' | 'chest' | 'arm' | 'feet' | 'back';
 /** Superpowers: a doll that touches one of these orbs takes the power into itself. */
 export type PowerKind =
-  'lightningOrb' | 'fireOrb' | 'iceOrb' | 'laserOrb' | 'strengthOrb' | 'healingOrb' | 'teleportOrb';
+  | 'lightningOrb'
+  | 'fireOrb'
+  | 'iceOrb'
+  | 'laserOrb'
+  | 'strengthOrb'
+  | 'healingOrb'
+  | 'teleportOrb'
+  | 'megaOrb';
 export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind | PowerKind;
 
 /**
@@ -2543,7 +2550,16 @@ export interface PowerDef {
   punch?: { damage: number; pushSpeed: number };
   heal?: { everyMs: number };
   teleport?: { from: number; everyMs: number };
+  /**
+   * The mega power: the doll is this many times its size and bulging with muscles, and
+   * it has all of these powers, one after the other, each for `turnMs`. What the power
+   * itself says (strong fists, healing) it has all the time.
+   */
+  all?: { size: number; turnMs: number; powers: readonly PowerKind[] };
 }
+
+/** The muscles of a doll with the mega power: how much darker their edge and lighter their shine are than the doll. */
+export const MUSCLE = { edge: -0.38, shine: 0.32, shineAlpha: 0.55, line: -0.5 } as const;
 
 /**
  * How a doll with a superpower looks: a glow around it, made of a few ovals inside one
@@ -3085,6 +3101,26 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: 0, along: 0 },
     power: { color: 0x7986cb, teleport: { from: 200, everyMs: 2200 } },
   },
+  // All of them at once: the doll grows big and muscular, and uses every power in turn
+  megaOrb: {
+    floats: true,
+    crumbs: [0xffd54f, 0xfff8e1, 0xff6f00],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: {
+      color: 0xffc107,
+      punch: { damage: 2, pushSpeed: 900 },
+      heal: { everyMs: 2500 },
+      all: {
+        size: 1.35,
+        turnMs: 2400,
+        powers: ['lightningOrb', 'fireOrb', 'iceOrb', 'laserOrb', 'teleportOrb'],
+      },
+    },
+  },
   // Gear: a doll that touches a piece puts it on. The middle of each picture is its own middle
   gasMask: {
     melts: true,
@@ -3409,6 +3445,7 @@ export const POWER_KINDS: readonly PowerKind[] = [
   'strengthOrb',
   'healingOrb',
   'teleportOrb',
+  'megaOrb',
 ];
 export const GEAR_KINDS: readonly GearKind[] = [
   'gasMask',

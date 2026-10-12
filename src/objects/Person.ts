@@ -43,6 +43,7 @@ import {
 } from '../config';
 import { clamp } from '../logic/bounds';
 import { gearHit } from '../logic/gear';
+import { turnStep } from '../logic/power';
 import { lobSpeed } from '../logic/toss';
 import { shade } from '../logic/color';
 import { chaseStep, nearestIndex } from '../logic/chase';
@@ -214,6 +215,8 @@ export class Person extends Body {
   private power: { kind: PowerKind; def: PowerDef } | null = null;
   private castMs = 0;
   private healMs = 0;
+  /** With the mega power: which of its powers it has right now, and for how long already. */
+  private powerTurn = { turn: 0, ms: 0 };
   /**
    * On its way through a portal: where it set out from and where it comes out, how
    * long it has been on its way, and whether it has got to the other side yet.
@@ -393,14 +396,31 @@ export class Person extends Body {
     const def = ITEMS[kind].power;
     if (!def) return;
     this.power = { kind, def };
-    this.figure.setAura(def.color);
+    this.powerTurn = { turn: 0, ms: 0 };
+    // The mega power makes it big and muscular
+    this.figure.setBulk(def.all?.size ?? 1);
+    this.figure.setAura(this.might?.color ?? def.color);
     this.sparkles += 1;
+  }
+
+  /**
+   * What its superpower lets it do right now. With the mega power that is the one of
+   * all the powers whose turn it is, and the mega power's own strong fists and healing
+   * on top of that.
+   */
+  private get might(): PowerDef | null {
+    const own = this.power?.def;
+    if (!own) return null;
+    const kind = own.all?.powers[this.powerTurn.turn];
+    const now = kind ? ITEMS[kind].power : undefined;
+    return now ? { ...now, punch: own.punch, heal: own.heal } : own;
   }
 
   /** Give up its superpower. Says which it was, or `null`. */
   forgetPower(): PowerKind | null {
     const had = this.power?.kind ?? null;
     this.power = null;
+    this.figure.setBulk(1);
     this.figure.setAura(null);
     return had;
   }
@@ -416,8 +436,16 @@ export class Person extends Body {
       this.forgetPower();
       return;
     }
+    const all = power.def.all;
+    if (all) {
+      // The mega power: on to the next of its powers when the time of this one is up
+      const before = this.powerTurn.turn;
+      this.powerTurn = turnStep(this.powerTurn, deltaMs, all.turnMs, all.powers.length);
+      if (this.powerTurn.turn !== before) this.figure.setAura(this.might?.color ?? power.def.color);
+    }
+    const color = this.might?.color ?? power.def.color;
     const middle = this.y - PERSON.height / 2;
-    for (; this.sparkles > 0; this.sparkles--) world.sparkle(this.x, middle, power.def.color);
+    for (; this.sparkles > 0; this.sparkles--) world.sparkle(this.x, middle, color);
     const heal = power.def.heal;
     if (!heal || this.lives >= (this.look.lives ?? PERSON.lives)) {
       this.healMs = 0;
@@ -427,7 +455,7 @@ export class Person extends Body {
     if (this.healMs < heal.everyMs) return;
     this.healMs = 0;
     this.lives += 1;
-    world.sparkle(this.x, middle, power.def.color);
+    world.sparkle(this.x, middle, color);
   }
 
   /**
@@ -437,7 +465,7 @@ export class Person extends Body {
    * Gives the pose for it, or `null` when it has no such power or can't use it now.
    */
   private cast(target: Person | Block, world: World): PoseKind | null {
-    const power = this.power?.def;
+    const power = this.might;
     if (!power) return null;
     const at = target.feet;
     const toward: Facing = at.x < this.x ? -1 : 1;
@@ -1198,7 +1226,9 @@ export class Person extends Body {
    * ceiling is upside down, so there its feet are at the top and the spot is below them.
    */
   private heightAt(height: number): number {
-    return this.onCeiling ? this.y - PERSON.height + height : this.y - height;
+    // A doll that is bigger than usual is that much taller
+    const up = height * this.figure.bulk;
+    return this.onCeiling ? this.y - PERSON.height + up : this.y - up;
   }
 
   /**
@@ -1232,7 +1262,10 @@ export class Person extends Body {
     this.figure.setPose(this.standingPose('walk'));
     this.place(this.x, this.y, 0);
     const { wide, tall } = PORTAL.squeeze;
-    container.setScale(container.scaleX * (1 - wide * inside), 1 - tall * inside);
+    container.setScale(
+      container.scaleX * (1 - wide * inside),
+      container.scaleY * (1 - tall * inside),
+    );
     container.setAlpha(1 - inside);
     if (warp.ms >= PORTAL.ms) {
       this.warp = null;
@@ -1288,7 +1321,8 @@ export class Person extends Body {
     // Head down: turned right around its feet, which are on the ceiling
     this.place(this.x, top, Math.PI);
     // Turned around like that it would look the other way: flip it back
-    this.figure.container.setScale(-this.facing * this.figure.thinness, 1);
+    const big = this.figure.bulk;
+    this.figure.container.setScale(-this.facing * this.figure.thinness * big, big);
     this.measureSpeed(deltaMs);
     this.bleed(deltaMs, world);
     return true;
@@ -1633,7 +1667,7 @@ export class Person extends Body {
     const weapon = this.item?.def;
     // A wizard needs no gun: with an empty hand it casts its spell
     // And so does a doll with a superpower that is a spell
-    const spell = this.power?.def.spell ?? this.look.spell;
+    const spell = this.might?.spell ?? this.look.spell;
     const gun = weapon?.gun ?? (weapon ? undefined : spell);
     const canShoot = gun !== undefined && this.clearShot(target, gun, solids);
     // A monster is big: it is hit on its side, which is that much closer than its middle
@@ -1693,7 +1727,7 @@ export class Person extends Body {
     }
 
     // Super strength is in the bare fists: they take more lives, and send the other flying
-    const strong = weapon ? undefined : this.power?.def.punch;
+    const strong = weapon ? undefined : this.might?.punch;
     const damage =
       (weapon?.melee?.damage ?? PUNCH_DAMAGE) +
       (this.look.punch ?? PUNCH_DAMAGE) -
@@ -1896,7 +1930,9 @@ export class Person extends Body {
   private place(x: number, y: number, rotation: number): void {
     const { container } = this.figure;
     container.setPosition(x, y);
-    container.setScale(this.facing * this.figure.thinness, 1);
+    // The mega power makes it bigger all over
+    const big = this.figure.bulk;
+    container.setScale(this.facing * this.figure.thinness * big, big);
     container.rotation = rotation;
     // Lying flat on the ground, it is drawn behind the building pieces: it lies under them
     const flat = this.isDown && Math.abs(Math.sin(rotation)) > 0.7;
