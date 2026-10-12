@@ -157,6 +157,8 @@ export class Person extends Body {
   private punchMs = 0;
   /** Time left crouching after slamming the thunder hammer into the floor. */
   private slamMs = 0;
+  /** How long it has been pushing out a stream of fire without a rest. */
+  private streamMs = 0;
   /** Time left before the next punch or shot. */
   private waitMs = 0;
   private inReach = false;
@@ -1575,14 +1577,31 @@ export class Person extends Body {
       this.inReach = true;
       this.waitMs = Math.max(this.waitMs, randomBetween(ANGRY.windupMs.min, ANGRY.windupMs.max));
     }
-    if (this.waitMs > 0) return canShoot ? 'punch' : 'stand';
+    // Fire comes in a stream, one puff right after the other. A spell of fire is pushed
+    // out with both hands
+    const streams = canShoot && gun.flame !== undefined;
+    const pushes = streams && !weapon;
+    const aiming: PoseKind = pushes ? 'push' : 'punch';
+    if (this.waitMs > 0) {
+      // Between two bursts of fire it lets its arms down
+      const resting = pushes && this.waitMs > gun.everyMs * 2;
+      return canShoot && !resting ? aiming : 'stand';
+    }
 
-    this.punchMs = ANGRY.punchMs;
+    this.punchMs = streams ? 0 : ANGRY.punchMs;
     if (canShoot) {
       const { muzzle } = gun;
       world.shoot(this, this.x + this.facing * muzzle.x, this.y - muzzle.y, this.facing, gun);
       this.waitMs = gun.everyMs;
-      return 'punch';
+      const burst = gun.flame?.burst;
+      if (burst) {
+        this.streamMs += gun.everyMs;
+        if (this.streamMs >= burst.ms) {
+          this.streamMs = 0;
+          this.waitMs = burst.restMs;
+        }
+      }
+      return aiming;
     }
 
     // Super strength is in the bare fists: they take more lives, and send the other flying

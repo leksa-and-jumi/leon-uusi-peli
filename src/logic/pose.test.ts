@@ -66,6 +66,16 @@ describe('poseFor', () => {
   it('punches with the front arm straight forward', () => {
     expect(poseFor('punch', 0).frontArm).toBeCloseTo(-Math.PI / 2);
   });
+
+  it('pushes with both arms stretched out in front, feet apart', () => {
+    const pose = poseFor('push', 0);
+    expect(pose.frontArm).toBeCloseTo(-Math.PI / 2);
+    expect(pose.backArm).toBeLessThan(-1.2);
+    expect(pose.frontElbow).toBe(0);
+    expect(pose.backElbow).toBe(0);
+    expect(pose.frontLeg).toBeLessThan(0);
+    expect(pose.backLeg).toBeGreaterThan(0);
+  });
 });
 
 describe('limpPose', () => {

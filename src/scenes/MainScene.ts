@@ -15,6 +15,7 @@ import {
   DISSOLVE,
   DOUBLE_CLICK_MS,
   FIREWORK,
+  FLAME,
   FLOOR,
   GEAR,
   GEAR_KINDS,
@@ -65,6 +66,7 @@ import { onFloor, overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
 import { fan, segmentHit } from '../logic/shot';
+import { flameAt } from '../logic/fire';
 import { sameTeam } from '../logic/team';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
 import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
@@ -98,7 +100,7 @@ interface Bullet {
   gun: GunDef;
   /** The doll that fired it, or `null` for a gun firing on its own. */
   shooter: Person | null;
-  picture: Phaser.GameObjects.Rectangle;
+  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc;
   /** How far it has flown. A flame only gets so far. */
   flown: number;
 }
@@ -134,6 +136,8 @@ export class MainScene extends Phaser.Scene {
   private stains: Stain[] = [];
   private stainLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
+  /** When each doll was last burnt by a stream of fire. */
+  private readonly lastBurnt = new WeakMap<Person, number>();
   /**
    * The clouds stink bombs have left: where, how big, how long each still hangs there
    * (`ms`), how often it hurts, and the time saved up toward its next hurt and its next puff.
@@ -948,6 +952,28 @@ export class MainScene extends Phaser.Scene {
     // A cannon's shell is bigger and darker than a bullet; a flame or frost is a puff
     const look = gun.shell ?? gun.flame ?? gun.frost ?? gun.look ?? BULLET;
     for (const way of fan(aim, gun.pellets ?? 1, gun.spread ?? 0)) {
+      if (gun.flame) {
+        // A puff of fire is a ball of its own size, and no two fly quite the same way
+        const turn = (Math.random() - 0.5) * FLAME.scatter;
+        const cos = Math.cos(turn);
+        const sin = Math.sin(turn);
+        const wild = { x: way.x * cos - way.y * sin, y: way.x * sin + way.y * cos };
+        const size = FLAME.sizes.min + Math.random() * (FLAME.sizes.max - FLAME.sizes.min);
+        const ball = this.add.circle(x, y, (gun.flame.height / 2) * size, look.color);
+        ball.setDepth(DEPTH.bullet);
+        this.bullets.push({
+          x,
+          y,
+          aim: wild,
+          from,
+          direction,
+          gun,
+          shooter,
+          picture: ball,
+          flown: 0,
+        });
+        continue;
+      }
       const picture = this.add
         .rectangle(x, y, look.width, look.height, look.color)
         .setDepth(DEPTH.bullet);
@@ -967,7 +993,18 @@ export class MainScene extends Phaser.Scene {
       bullet.flown += step;
       bullet.picture.setPosition(bullet.x, bullet.y);
       const { flame } = bullet.gun;
-      if (flame) bullet.picture.setAlpha(Math.max(0.2, 1 - bullet.flown / flame.reach));
+      if (flame) {
+        // Fire: the puff swells, goes from nearly white to yellow, orange, red and dark,
+        // rises and fades. The young, bright puffs are in front of the old ones
+        const age = bullet.flown / flame.reach;
+        const now = flameAt(age, FLAME);
+        const flicker = 1 + (Math.random() - 0.5) * FLAME.flicker;
+        bullet.picture
+          .setFillStyle(now.color, now.alpha)
+          .setPosition(bullet.x, bullet.y - now.rise)
+          .setScale(now.scale * flicker)
+          .setDepth(DEPTH.bullet + 1 - Math.min(1, age));
+      }
 
       // Bullets hit every living doll in their way: standing, lying, falling or held in
       // the hand. A doll's own bullets fly past dolls of its color, and out of its vehicle.
@@ -988,7 +1025,8 @@ export class MainScene extends Phaser.Scene {
         bullet.y < AREA.top ||
         bullet.y > AREA.floorY;
       if (hit === null && flame && bullet.flown >= flame.reach) {
-        // The flame has burnt out
+        // The flame has burnt out, and now and then a little smoke is left of it
+        if (Math.random() < FLAME.smokeShare) this.puff(bullet.x, bullet.y - FLAME.rise);
         bullet.picture.destroy();
         return false;
       }
@@ -1019,10 +1057,16 @@ export class MainScene extends Phaser.Scene {
         // Frost doesn't hurt: it freezes the doll solid
         victim.freeze(frost.ms);
       } else if (victim) {
-        const solids = this.solidBoxes(victim);
-        const wound = flame ? 'burn' : (bullet.gun.wound ?? 'hole');
-        const deadly = victim.shot(bullet.direction, solids, bullet.gun.damage, wound);
-        this.showHit(bullet.x, bullet.y, deadly, 'none');
+        // In a stream of fire a doll isn't burnt by every single puff, only every now and then
+        const every = flame?.burnEveryMs;
+        const since = this.time.now - (this.lastBurnt.get(victim) ?? -Infinity);
+        if (every === undefined || since >= every) {
+          if (every !== undefined) this.lastBurnt.set(victim, this.time.now);
+          const solids = this.solidBoxes(victim);
+          const wound = flame ? 'burn' : (bullet.gun.wound ?? 'hole');
+          const deadly = victim.shot(bullet.direction, solids, bullet.gun.damage, wound);
+          this.showHit(bullet.x, bullet.y, deadly, 'none');
+        }
       }
       bullet.picture.destroy();
       return false;
