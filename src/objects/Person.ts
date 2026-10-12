@@ -3,6 +3,9 @@ import {
   ASHEN,
   ANGRY,
   BLOOD,
+  CLING,
+  JET,
+  JET_ACTIONS,
   GEAR,
   ITEMS,
   type GearDef,
@@ -123,7 +126,8 @@ export class Person extends Body {
   readonly size = PERSON;
   /** A doll with no lives left can't do anything any more: it can only be thrown away. */
   get actions(): readonly ActionId[] {
-    return this.dead ? WRECK_ACTIONS : PERSON_ACTIONS;
+    if (this.dead) return WRECK_ACTIONS;
+    return this.powerSlot((gear) => gear.jet === true) ? JET_ACTIONS : PERSON_ACTIONS;
   }
 
   /** Dolls don't break into pieces. */
@@ -195,6 +199,11 @@ export class Person extends Body {
   private gearHits: { x: number; y: number; colors: readonly number[]; broke: boolean }[] = [];
   /** Where hits have just bounced off gear with the power to stop them: a spark flies there. */
   private bounces: Spot[] = [];
+  /** Its jetpack is switched on, and the time left until the next puff of smoke from it. */
+  private jetOn = false;
+  private jetSmokeMs = 0;
+  /** Stuck to the ceiling by its magnet boots, head down. */
+  private onCeiling = false;
   /**
    * Frozen solid by a freeze ray: time left until it thaws, and how it stood when the
    * frost got it (where its picture was from its feet, and how far it was turned).
@@ -505,7 +514,12 @@ export class Person extends Body {
   }
 
   isOn(action: ActionId): boolean {
-    return this.activity === action;
+    return action === 'jet' ? this.jetOn : this.activity === action;
+  }
+
+  /** Switch its jetpack on, or off again. */
+  toggleJet(): void {
+    this.jetOn = !this.jetOn && !this.dead && this.powerSlot((gear) => gear.jet === true) !== null;
   }
 
   /** Fire gets at a doll with no lives left: it burns down to a black skeleton, and bleeds no more. */
@@ -769,7 +783,9 @@ export class Person extends Body {
       this.figure.setIce(false);
       this.frozenMs = 0;
     }
+    if (this.hang(deltaMs, world)) return;
     this.carryUp(deltaMs, world);
+    this.fly(deltaMs, world);
     const wasFalling = this.state === 'falling';
     const fallSpeed = this.speed.y;
     this.wade(deltaMs, world);
@@ -796,6 +812,11 @@ export class Person extends Body {
       // Under water everything is slow: a doll tips over and settles in slow motion
       this.flopAbout(deltaMs * (this.submerged ? WATER.drag : 1), state, world);
       this.maybeGetUp(deltaMs, state, world);
+    } else if (this.jetOn && this.hovering) {
+      // Flying with a jetpack: it does what it is doing in the air, leaning forward when it flies along
+      const pose = this.act(deltaMs, world);
+      const along = pose === 'walk' || pose === 'run';
+      this.draw(along ? 'stand' : pose, along ? this.facing * JET.lean : 0);
     } else if (this.hovering) {
       // Hanging from a balloon, swaying a little
       const lifts = this.item?.def.lifts;
@@ -1000,6 +1021,77 @@ export class Person extends Body {
       hitSomeone = true;
     }
     return hitSomeone;
+  }
+
+  /**
+   * With its jetpack switched on, a doll flies: up to its flying height, or to the
+   * height of the one it is after when it is angry. A doll that is limp, or held, or
+   * has lost its jetpack doesn't fly.
+   */
+  private fly(deltaMs: number, world: World): void {
+    const has = !this.dead && this.powerSlot((gear) => gear.jet === true) !== null;
+    if (!has) this.jetOn = false;
+    const flying = this.jetOn && !this.ragdoll && !this.held;
+    this.figure.jetFlame(this.jetOn && !this.ragdoll);
+    if (!flying) return;
+    this.hovering = true;
+    const prey = this.activity === 'angry' ? this.pickTarget(world) : undefined;
+    const wanted = prey ? prey.feet.y : world.area.floorY - JET.height;
+    const step = JET.climb * (deltaMs / 1000);
+    const next = this.y + clamp(wanted - this.y, -step, step);
+    this.y = clamp(next, world.area.top + PERSON.height, world.area.floorY);
+    this.jetSmokeMs -= deltaMs;
+    if (this.jetSmokeMs > 0) return;
+    this.jetSmokeMs = JET.smokeEveryMs;
+    world.smoke(this.x - this.facing * JET.smoke.back, this.y - JET.smoke.up);
+  }
+
+  /**
+   * With magnet boots on, a doll whose head gets to the ceiling sticks to it, feet
+   * first: it stands there head down, and walks and dances there. It comes off when
+   * it is grabbed, or dies, or loses its boots. Says whether it is on the ceiling.
+   */
+  private hang(deltaMs: number, world: World): boolean {
+    const clings =
+      !this.dead && !this.held && this.powerSlot((gear) => gear.clings === true) !== null;
+    const top = world.area.top;
+    const reached = this.y - PERSON.height <= top + CLING.snap && this.state !== 'flying';
+    if (!clings || !(this.onCeiling || reached)) {
+      this.onCeiling = false;
+      return false;
+    }
+    if (!this.onCeiling) {
+      this.onCeiling = true;
+      this.rise = null;
+      this.ragdoll = false;
+      this.floored = false;
+      this.downMs = 0;
+    }
+    this.hovering = true;
+    this.y = top + PERSON.height;
+    this.physics(deltaMs, world);
+    let pose: PoseKind = this.activity === 'dance' ? 'dance' : 'stand';
+    if (this.activity === 'walk') {
+      const edge = PERSON.halfWidth;
+      const walker = walkStep(
+        { x: this.x, facing: this.facing },
+        WALK.speed * this.pace,
+        deltaMs,
+        world.area.left + edge,
+        world.area.right - edge,
+      );
+      this.x = walker.x;
+      this.facing = walker.facing;
+      pose = 'walk';
+    }
+    this.figure.setPose(this.standingPose(pose));
+    // Head down: turned right around its feet, which are on the ceiling
+    this.place(this.x, top, Math.PI);
+    // Turned around like that it would look the other way: flip it back
+    this.figure.container.setScale(-this.facing * this.figure.thinness, 1);
+    this.measureSpeed(deltaMs);
+    this.bleed(deltaMs, world);
+    return true;
   }
 
   /** A doll with a balloon in its hand is carried up, until it hangs just under the ceiling. */
@@ -1501,7 +1593,8 @@ export class Person extends Body {
    * Something solid is in the way: hop onto it, if it is low enough. Says whether it jumped.
    */
   private jumpOnto(direction: Facing, world: World): boolean {
-    if (this.noJumpMs > 0) return false;
+    // In the air there is nothing to hop from
+    if (this.noJumpMs > 0 || this.hovering) return false;
     const { halfWidth, height } = PERSON;
     const solids = world.solidBoxes(this);
     const rise = hurdle(

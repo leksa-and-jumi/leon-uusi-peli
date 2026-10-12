@@ -788,6 +788,9 @@ export class MainScene extends Phaser.Scene {
       case 'angry':
         if (body instanceof Person) body.toggle(action);
         break;
+      case 'jet':
+        if (body instanceof Person) body.toggleJet();
+        break;
       case 'fuse':
         if (body instanceof Item || body instanceof Block) body.toggleFuse();
         break;
