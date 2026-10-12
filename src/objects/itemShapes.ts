@@ -20,6 +20,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawSword(g);
     case 'katana':
       return drawKatana(g);
+    case 'laserSword':
+      return drawLaserSword(g);
     case 'thunderHammer':
       return drawThunderHammer(g);
     case 'axe':
@@ -226,6 +228,32 @@ function drawShotgun(g: Graphics): Graphics {
   g.fillRect(-5, -7.5, 18, 1.4);
   g.lineStyle(1.5, c.dark);
   g.strokeRoundedRect(0, 2, 6, 5, 2);
+  return g;
+}
+
+/** A laser sword: a metal grip with a red button, and a blade of green light with a white core. */
+function drawLaserSword(g: Graphics): Graphics {
+  const c = ITEM_COLORS.laserSword;
+  // The glow around the blade, the blade, and its bright core
+  g.fillStyle(c.glow, 0.28);
+  g.fillRoundedRect(5, -6, 61, 12, 6);
+  g.fillStyle(c.glow);
+  g.fillRoundedRect(6, -3.5, 58, 7, 3.5);
+  g.fillStyle(c.core);
+  g.fillRoundedRect(7.5, -1.5, 54, 3, 1.5);
+  // The grip, with dark ribs, a collar where the blade comes out, and the button
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-13, -4, 20, 8, 2);
+  g.fillStyle(c.grip);
+  g.fillRoundedRect(-12, -3, 18, 4, 1.5);
+  g.fillStyle(c.dark);
+  for (const x of [-10, -6.5, -3]) {
+    g.fillRect(x, -3, 1.5, 6);
+  }
+  g.fillStyle(c.grip);
+  g.fillRect(5, -5, 2.5, 10);
+  g.fillStyle(c.button);
+  g.fillCircle(2, -1, 1.5);
   return g;
 }
 

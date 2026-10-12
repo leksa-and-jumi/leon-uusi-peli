@@ -576,8 +576,11 @@ export class Person extends Body {
     this.thaw();
     this.flinchMs = PERSON.flinch.ms;
     this.flinchDir = direction;
+    // A laser's wind blows the way the ray went
+    if (wound === 'laser') this.knockDir = direction;
     const deadly = this.lose(damage, solids, wound);
-    if (deadly) this.knockOver(direction, KNOCK.pushSpeed);
+    // What a laser finishes off doesn't fall: it turns to ash as it stands
+    if (deadly && wound !== 'laser') this.knockOver(direction, KNOCK.pushSpeed);
     return deadly;
   }
 
@@ -1024,11 +1027,15 @@ export class Person extends Body {
     if (this.ashMs > ASHEN.blowMs) return;
     if (starting) this.figure.crumble(this.knockDir);
     const loose = this.figure.blowOff(this.ashMs / ASHEN.blowMs);
-    world.blowAsh(
-      loose.filter(() => Math.random() < ASHEN.flying),
-      this.knockDir,
-      starting,
-    );
+    // Some of the squares fly off in the wind, and a few fall down into a pile on the floor
+    const flying: Spot[] = [];
+    for (const spot of loose) {
+      const chance = Math.random();
+      if (chance < ASHEN.flying) flying.push(spot);
+      else if (chance < ASHEN.flying + ASHEN.falling)
+        world.bleed(spot.x, spot.y, 1, ASHEN.pile, false);
+    }
+    world.blowAsh(flying, this.knockDir, starting);
     if (this.ashMs === 0) this.blownAway = true;
   }
 
@@ -1176,8 +1183,9 @@ export class Person extends Body {
   }
 
   /**
-   * Angry mode: go for the closest standing doll of another color. Punch it, hit it with the
-   * sword or bat in the hand, or shoot it with the pistol from far away.
+   * Angry mode: go for the closest standing doll of another color, or the closest monster.
+   * Punch it, hit it with the sword or bat in the hand, or shoot it with the pistol from
+   * far away.
    */
   private rage(deltaMs: number, world: World): PoseKind {
     this.waitMs = Math.max(0, this.waitMs - deltaMs);
@@ -1201,7 +1209,7 @@ export class Person extends Body {
     // the hammer into the floor, and the lightning gets everybody but itself
     const hammer = this.item;
     if (hammer?.def.thunder) {
-      this.facing = target.x < this.x ? -1 : 1;
+      this.facing = target.feet.x < this.x ? -1 : 1;
       if (this.waitMs > 0) return 'stand';
       this.slamMs = THUNDER.slamMs;
       this.waitMs = THUNDER.restMs;
@@ -1212,20 +1220,31 @@ export class Person extends Body {
     const solids = world.solidBoxes(this);
     const lobbed = this.lobBomb(target, deltaMs, world);
     if (lobbed) return lobbed;
-    const hurled = this.hurlWeapon(target, world);
+    const hurled = target instanceof Person ? this.hurlWeapon(target, world) : null;
     if (hurled) return hurled;
     const weapon = this.item?.def;
     // A wizard needs no gun: with an empty hand it casts its spell
     const gun = weapon?.gun ?? (weapon ? undefined : this.look.spell);
     const canShoot = gun !== undefined && this.clearShot(target, gun, solids);
-    const reach = canShoot ? gun.range : (weapon?.melee?.reach ?? ANGRY.reach);
-    const chase = chaseStep(this.x, this.facing, target.x, reach, ANGRY.speed * this.pace, deltaMs);
+    // A monster is big: it is hit on its side, which is that much closer than its middle
+    const girth = target instanceof Person ? 0 : target.def.halfWidth;
+    const reach = canShoot ? gun.range : (weapon?.melee?.reach ?? ANGRY.reach) + girth;
+    const chase = chaseStep(
+      this.x,
+      this.facing,
+      target.feet.x,
+      reach,
+      ANGRY.speed * this.pace,
+      deltaMs,
+    );
     const blocked = this.walkTo(chase.x, world);
     this.facing = chase.facing;
-    if (blocked && this.jumpOnto(this.facing, world)) return 'run';
+    const close = Math.abs(target.feet.x - this.x) <= reach + 1;
+    // Right up against the monster it is after, there is nothing to hop onto
+    const atMonster = close && !(target instanceof Person);
+    if (blocked && !atMonster && this.jumpOnto(this.facing, world)) return 'run';
 
-    const close = Math.abs(target.x - this.x) <= reach + 1;
-    const sameLevel = Math.abs(target.y - this.y) <= ANGRY.levelSlack;
+    const sameLevel = Math.abs(target.feet.y - this.y) <= ANGRY.levelSlack;
     if (!close || !(canShoot || sameLevel)) {
       this.inReach = false;
       return close || blocked ? 'stand' : 'run';
@@ -1246,15 +1265,26 @@ export class Person extends Body {
       return 'punch';
     }
 
-    const deadly = target.hit(
-      this.facing,
-      world.solidBoxes(target),
-      (weapon?.melee?.damage ?? PUNCH_DAMAGE) + (this.look.punch ?? PUNCH_DAMAGE) - PUNCH_DAMAGE,
-      weapon?.melee?.pushSpeed,
-      weapon?.melee?.wound,
-    );
+    const damage =
+      (weapon?.melee?.damage ?? PUNCH_DAMAGE) + (this.look.punch ?? PUNCH_DAMAGE) - PUNCH_DAMAGE;
     const sound = weapon?.melee ? (weapon.melee.sound ?? 'clang') : 'punch';
-    world.hitEffect(target.x, target.y - PERSON.height * 0.75, deadly, sound);
+    if (target instanceof Person) {
+      const deadly = target.hit(
+        this.facing,
+        world.solidBoxes(target),
+        damage,
+        weapon?.melee?.pushSpeed,
+        weapon?.melee?.wound,
+      );
+      world.hitEffect(target.feet.x, target.feet.y - PERSON.height * 0.75, deadly, sound);
+    } else {
+      // A hit on a monster counts like bullets: one for every life it would have taken
+      const box = target.box;
+      const side = this.facing === 1 ? box.left : box.right;
+      const high = clamp(this.y - PERSON.height * 0.6, box.top, box.bottom);
+      target.shot(side, high, world, Math.min(damage, ANGRY.monsterHits));
+      world.hitEffect(side, high, false, sound);
+    }
     this.waitMs = ANGRY.restMs;
     this.inReach = false;
     return 'punch';
@@ -1269,15 +1299,22 @@ export class Person extends Body {
     const weapon = this.item;
     const hurl = weapon?.def.hurl;
     if (!weapon || !hurl) return null;
-    const gap = Math.abs(target.x - this.x);
+    const gap = Math.abs(target.feet.x - this.x);
     if (gap < hurl.tooClose || gap > hurl.range) return null;
-    this.facing = target.x < this.x ? -1 : 1;
+    this.facing = target.feet.x < this.x ? -1 : 1;
     if (this.waitMs > 0) return 'stand';
     const solids = world.solidBoxes(this);
     this.dropItem(solids);
     const from = weapon.feet;
-    const chest = target.y - PERSON.height * 0.6;
-    const speed = lobSpeed(from.x, from.y, target.x, chest, PHYSICS.gravity, hurl.flightMs / 1000);
+    const chest = target.feet.y - PERSON.height * 0.6;
+    const speed = lobSpeed(
+      from.x,
+      from.y,
+      target.feet.x,
+      chest,
+      PHYSICS.gravity,
+      hurl.flightMs / 1000,
+    );
     weapon.fling(speed.x, speed.y, solids);
     this.punchMs = ANGRY.punchMs;
     this.waitMs = ANGRY.restMs;
@@ -1290,13 +1327,13 @@ export class Person extends Body {
    * first. Gives the pose for it, or `null` when there is nothing to throw or the
    * other doll is too far away.
    */
-  private lobBomb(target: Person, deltaMs: number, world: World): PoseKind | null {
+  private lobBomb(target: Person | Block, deltaMs: number, world: World): PoseKind | null {
     const bomb = this.item;
     const blast = bomb?.def.bomb;
     if (!bomb || !blast) return null;
-    const gap = Math.abs(target.x - this.x);
+    const gap = Math.abs(target.feet.x - this.x);
     if (gap > LOB.range) return null;
-    const toward: Facing = target.x < this.x ? -1 : 1;
+    const toward: Facing = target.feet.x < this.x ? -1 : 1;
     if (gap < blast.radius + LOB.margin) {
       // Too close: the blast would get it too. It backs off, if it can.
       const step = ANGRY.speed * this.pace * (deltaMs / 1000);
@@ -1310,36 +1347,42 @@ export class Person extends Body {
     this.dropItem(solids);
     const from = bomb.feet;
     const seconds = LOB.flightMs / 1000;
-    const speedX = (target.x - from.x) / seconds;
+    const speedX = (target.feet.x - from.x) / seconds;
     const speedY =
-      (target.y - PERSON.height / 2 - from.y) / seconds - (PHYSICS.gravity * seconds) / 2;
+      (target.feet.y - PERSON.height / 2 - from.y) / seconds - (PHYSICS.gravity * seconds) / 2;
     bomb.lob(speedX, speedY, solids, LOB.fuseMs);
     this.punchMs = ANGRY.punchMs;
     this.waitMs = ANGRY.restMs;
     return 'punch';
   }
 
-  /** The closest standing doll of another color, first of all one on the same level. */
-  private pickTarget(world: World): Person | undefined {
-    const standing = world.people.filter(
+  /**
+   * The closest standing doll of another color, or the closest monster: first of all
+   * one on the same level.
+   */
+  private pickTarget(world: World): Person | Block | undefined {
+    const dolls = world.people.filter(
       (other) => other !== this && other.canBeHit && !sameTeam(other.look, this.look),
     );
-    const level = standing.filter((other) => Math.abs(other.y - this.y) <= ANGRY.levelSlack);
+    const standing = [...dolls, ...world.monsters()];
+    const level = standing.filter((other) => Math.abs(other.feet.y - this.y) <= ANGRY.levelSlack);
     const targets = level.length > 0 ? level : standing;
     const nearest = nearestIndex(
       this.x,
-      targets.map((other) => other.x),
+      targets.map((other) => other.feet.x),
     );
     return nearest === null ? undefined : targets[nearest];
   }
 
   /** Would a bullet from the gun fly straight into the target, with nothing in the way? */
-  private clearShot(target: Person, gun: GunDef, solids: readonly Box[]): boolean {
+  private clearShot(target: Person | Block, gun: GunDef, solids: readonly Box[]): boolean {
     const bulletY = this.y - gun.muzzle.y;
     const box = target.box;
     if (bulletY < box.top || bulletY > box.bottom) return false;
-    if (Math.abs(target.x - this.x) > gun.range) return false;
-    return canSee(this.x, target.x, bulletY, solids);
+    if (Math.abs(target.feet.x - this.x) > gun.range) return false;
+    if (target instanceof Person) return canSee(this.x, target.feet.x, bulletY, solids);
+    // Up to the near side of a monster: a monster isn't in its own way
+    return canSee(this.x, this.x < target.feet.x ? box.left - 1 : box.right + 1, bulletY, solids);
   }
 
   /**

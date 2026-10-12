@@ -422,6 +422,8 @@ export const ANGRY = {
   restMs: 500,
   /** Feet at most this much higher or lower still count as standing on the same level. */
   levelSlack: 30,
+  /** A hit on a monster counts as this many bullets at the most, however hard the weapon hits. */
+  monsterHits: 5,
 } as const;
 
 /** Getting knocked over: the doll goes limp, lies on the ground, and gets back up. */
@@ -797,7 +799,7 @@ export type MonsterKind =
   | 'wisp'
   | 'shark';
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
-export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine' | 'cactus';
+export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'laserTower' | 'mine' | 'cactus';
 /** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
 export type ElementKind = 'lava' | 'water' | 'blackHole' | 'cloud';
 /** The pieces of a castle. */
@@ -808,8 +810,8 @@ export type BlockKind =
 
 /**
  * A trap. One that hurts by `touch` gets every doll that touches it, a `zap` trap
- * shoots lightning at the closest doll in `range`, and a `mine` blows up when a doll
- * touches it.
+ * shoots lightning (or a `laser`) at the closest doll in `range`, and a `mine` blows
+ * up when a doll touches it.
  */
 export interface HazardDef {
   kind: 'touch' | 'zap' | 'mine';
@@ -824,6 +826,8 @@ export interface HazardDef {
   side: number;
   up: number;
   range?: number;
+  /** A `zap` trap that shoots a laser from its eye, and not lightning. */
+  laser?: true;
   /** A saw blade that turns: how big, how high its middle is, how fast (radians per second). */
   blade?: { radius: number; up: number; speed: number };
   /** Flames that flicker above it, this high. */
@@ -1013,6 +1017,9 @@ export const SAW = {
 
 /** A lightning coil shoots from the ball at its top, this far under its tip. */
 export const TESLA = { ballDown: 9, ballRadius: 9 } as const;
+
+/** The eye of a laser tower: how far below its top it is, and how big. */
+export const LASER_TOWER = { eyeDown: 13, eyeRadius: 6, headHeight: 26 } as const;
 
 /** How a flash of lightning looks: a jagged line that fades fast. */
 export interface BoltLook {
@@ -1234,6 +1241,12 @@ export const ASHEN = {
   order: { topFirst: 0.4, ragged: 16 },
   /** This share of the squares is seen flying off; the rest are just gone. */
   flying: 0.55,
+  /**
+   * And this share falls straight down: a little pile of ash, of this gray, stays on
+   * the floor under the doll until a broom sweeps it up.
+   */
+  falling: 0.1,
+  pile: 0x757575,
   /** How fast the flakes fly off to the side and up, and how slowly they sink. */
   wind: { push: 170, lift: -40, spread: 60, gravity: 90 },
   flake: { size: { min: 2, max: 4 }, spin: 6 },
@@ -1453,6 +1466,27 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       side: 0,
       up: 0,
       range: 210,
+    },
+  },
+  // A tower with one red eye: it shoots its laser at the closest doll around it
+  laserTower: {
+    melts: true,
+    metal: true,
+    halfWidth: 15,
+    height: 72,
+    menuScale: 0.88,
+    colors: { fill: 0x607d8b, dark: 0x263238, light: 0xb0bec5, detail: 0xff1744 },
+    hazard: {
+      kind: 'zap',
+      laser: true,
+      damage: 2,
+      pushSpeed: 200,
+      wound: 'laser',
+      sound: 'none',
+      everyMs: 1500,
+      side: 0,
+      up: 0,
+      range: 300,
     },
   },
   mine: {
@@ -2245,7 +2279,7 @@ export interface MeleeDef {
   /** How fast the one who is hit slides away. */
   pushSpeed: number;
   /** What a hit with it sounds like, when not the usual clang. */
-  sound?: 'punch' | 'squeak';
+  sound?: 'punch' | 'squeak' | 'zap';
 }
 
 export interface BombDef extends BlastDef {
@@ -2323,7 +2357,8 @@ export type WeaponKind =
   | 'trident'
   | 'bow'
   | 'rocketLauncher'
-  | 'laserGun';
+  | 'laserGun'
+  | 'laserSword';
 /** Junk a doll can hold, and hit others with. */
 export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 /** Odd weapons, on the traps page. */
@@ -2435,7 +2470,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       },
     },
   },
-  // A red ray, very fast: it burns, and takes 2 lives
+  // A red ray, very fast: it takes 2 lives, and what it finishes off turns to ash
   laserGun: {
     melts: true,
     crumbs: [0xeceff1, 0x78909c, 0xff1744],
@@ -2453,8 +2488,19 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       muzzle: { x: 92, y: 86 },
       barrelUp: 15,
       look: { width: 30, height: 3, color: 0xff1744 },
-      wound: 'burn',
+      wound: 'laser',
     },
+  },
+  // A blade of light, with no steel in it: what it finishes off turns to ash
+  laserSword: {
+    melts: true,
+    crumbs: [0x90a4ae, 0x37474f, 0x00e676],
+    halfWidth: 39,
+    height: 13,
+    menuScale: 0.88,
+    lie: { x: -26, y: -6.5 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 94, damage: 2, wound: 'laser', pushSpeed: 220, sound: 'zap' },
   },
   // Slow, and it doesn't reach far, but five bullets fly out at once
   shotgun: {
@@ -2771,6 +2817,7 @@ export const WEAPON_KINDS: readonly WeaponKind[] = [
   'trident',
   'bow',
   'laserGun',
+  'laserSword',
   'rocketLauncher',
 ];
 /** The traps page: the traps, the things with a fuse, and the odd weapons. */
@@ -2782,6 +2829,7 @@ export const TRAP_KINDS: readonly (
   { type: 'block', kind: 'saw' },
   { type: 'block', kind: 'burner' },
   { type: 'block', kind: 'tesla' },
+  { type: 'block', kind: 'laserTower' },
   { type: 'block', kind: 'mine' },
   { type: 'item', kind: 'bomb' },
   { type: 'item', kind: 'dynamite' },
@@ -2891,6 +2939,7 @@ export const ITEM_COLORS = {
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },
   rocket: { tube: 0x5b6628, dark: 0x23280f, shine: 0x9aab55, nose: 0xc62828, grip: 0x3e2723 },
   laser: { body: 0xeceff1, dark: 0x78909c, glow: 0xff1744, grip: 0x37474f },
+  laserSword: { grip: 0x90a4ae, dark: 0x37474f, glow: 0x00e676, core: 0xffffff, button: 0xff1744 },
   freezeRay: { body: 0x4fc3f7, dark: 0x0277bd, shine: 0xe1f5fe, crystal: 0xffffff, grip: 0x37474f },
   magnet: { red: 0xd32f2f, dark: 0x7f1d1d, shine: 0xff8a80, tip: 0xcfd8dc, tipDark: 0x78909c },
   balloon: { red: 0xe53935, dark: 0x9a1b1b, shine: 0xffcdd2, string: 0xfafafa },
