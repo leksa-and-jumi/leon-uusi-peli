@@ -31,6 +31,7 @@ import {
   QUAKE,
   RIDE_GAP,
   SEVER,
+  SHADOW,
   SMOKE,
   SOUND,
   SPARK,
@@ -46,6 +47,9 @@ import {
   type GunDef,
 } from '../config';
 import { Sfx } from '../audio/Sfx';
+import { SHARP } from '../screen';
+import { shadowOf } from '../logic/shadow';
+import { drawFloor, drawWall } from '../objects/backdrop';
 import { blastDirection, inBlast } from '../logic/blast';
 import { addDrop, wipe, type Stain } from '../logic/blood';
 import { jagged } from '../logic/bolt';
@@ -124,6 +128,8 @@ export class MainScene extends Phaser.Scene {
   /** Blood on the floor. It stays until it is wiped away with the broom. */
   private stains: Stain[] = [];
   private stainLayer!: Phaser.GameObjects.Graphics;
+  private shadowLayer!: Phaser.GameObjects.Graphics;
+  private floorShadowLayer!: Phaser.GameObjects.Graphics;
   private dragged: Body | null = null;
   private lastClick: Click | null = null;
   /** Where the dragged thing was a frame ago, to see how fast it is swung. */
@@ -294,8 +300,12 @@ export class MainScene extends Phaser.Scene {
       },
     };
 
+    // The game is drawn with more pixels than its own size: zoomed in to fill them all
+    this.cameras.main.setZoom(SHARP).centerOn(GAME_WIDTH / 2, GAME_HEIGHT / 2);
     const { touch } = this.sys.game.device.input;
-    this.add.rectangle(0, AREA.floorY, GAME_WIDTH, FLOOR.height, FLOOR.color).setOrigin(0);
+    drawWall(this.add.graphics(), { ...AREA, bottom: AREA.floorY });
+    this.shadowLayer = this.add.graphics().setDepth(DEPTH.shadow);
+    drawFloor(this.add.graphics(), 0, AREA.floorY, GAME_WIDTH);
     this.add.rectangle(0, MENU.height, GAME_WIDTH, CEILING.height, CEILING.color).setOrigin(0);
     this.add.rectangle(0, AREA.top - 2, GAME_WIDTH, 2, CEILING.edge).setOrigin(0);
     this.add
@@ -305,14 +315,13 @@ export class MainScene extends Phaser.Scene {
         align: 'center',
       })
       .setOrigin(0.5)
+      .setResolution(SHARP)
       .setDepth(DEPTH.floorCover + 2);
 
     // The floor once more, in front of everything in the area: what sinks into it is
     // hidden. The stains on it are drawn on top of that.
-    this.add
-      .rectangle(0, AREA.floorY, GAME_WIDTH, FLOOR.height, FLOOR.color)
-      .setOrigin(0)
-      .setDepth(DEPTH.floorCover);
+    drawFloor(this.add.graphics(), 0, AREA.floorY, GAME_WIDTH).setDepth(DEPTH.floorCover);
+    this.floorShadowLayer = this.add.graphics().setDepth(DEPTH.floorCover + 0.5);
     this.stainLayer = this.add.graphics().setDepth(DEPTH.floorCover + 1);
     this.menu = new SpawnMenu(this);
     this.bubbles = new ActionBubbles(this);
@@ -321,10 +330,10 @@ export class MainScene extends Phaser.Scene {
       this.sfx.unlock();
       // A finger is thicker than a mouse pointer: things are easier to grab with it
       Body.pickPadding = pointer.wasTouch ? PICK_PADDING_TOUCH : PICK_PADDING;
-      this.press(pointer.x, pointer.y);
+      this.press(pointer.x / SHARP, pointer.y / SHARP);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      this.dragged?.dragTo(pointer.x, pointer.y, AREA);
+      this.dragged?.dragTo(pointer.x / SHARP, pointer.y / SHARP, AREA);
     });
     this.input.on('pointerup', () => {
       if (this.fullScreenAsked) {
@@ -368,7 +377,59 @@ export class MainScene extends Phaser.Scene {
     this.pound(delta);
     this.trackDrag();
     this.forget(this.everything().filter((body) => body.gone));
+    this.drawShadows();
     this.bubbles.update(delta, AREA);
+  }
+
+  /**
+   * A soft shadow under everything, where the wall meets the floor: fainter and wider
+   * the higher up the thing is. Not under what is only light, mist or liquid. The half
+   * on the wall is behind everything; the half on the floor is on top of the floor.
+   */
+  private drawShadows(): void {
+    const onWall = this.shadowLayer.clear();
+    const onFloor = this.floorShadowLayer.clear();
+    const halfOval = (
+      g: Phaser.GameObjects.Graphics,
+      x: number,
+      halfWidth: number,
+      height: number,
+    ): void => {
+      g.beginPath();
+      for (let corner = 0; corner <= SHADOW.corners; corner++) {
+        const angle = (corner / SHADOW.corners) * Math.PI;
+        const px = x + Math.cos(angle) * halfWidth;
+        const py = AREA.floorY + Math.sin(angle) * height;
+        if (corner === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath();
+      g.fillPath();
+    };
+    for (const body of this.everything()) {
+      if (body instanceof Item && body.isHeld) continue;
+      if (body instanceof Block) {
+        const { liquid, hole, cloud, monster } = body.def;
+        if (liquid || hole || cloud || monster?.ghost) continue;
+      }
+      const shadow = shadowOf(body.box, AREA.floorY, SHADOW);
+      if (!shadow) continue;
+      for (const ring of SHADOW.rings) {
+        const alpha = shadow.alpha / SHADOW.rings.length;
+        halfOval(
+          onWall.fillStyle(0x000000, alpha),
+          shadow.x,
+          shadow.halfWidth * ring,
+          -SHADOW.up * ring,
+        );
+        halfOval(
+          onFloor.fillStyle(0x000000, alpha),
+          shadow.x,
+          shadow.halfWidth * ring,
+          SHADOW.down * ring,
+        );
+      }
+    }
   }
 
   /** Everything in the area, from the back to the front. */
@@ -997,6 +1058,8 @@ export class MainScene extends Phaser.Scene {
   /** A laser beam flashes from one spot to another and fades, with its sound. */
   private beam(fromX: number, fromY: number, toX: number, toY: number): void {
     const beam = this.add.graphics().setDepth(LASER.depth);
+    beam.lineStyle(LASER.width * LASER.glow, LASER.color, LASER.glowAlpha);
+    beam.lineBetween(fromX, fromY, toX, toY);
     beam.lineStyle(LASER.width, LASER.color, 0.9);
     beam.lineBetween(fromX, fromY, toX, toY);
     beam.lineStyle(LASER.coreWidth, LASER.core);
@@ -1365,7 +1428,11 @@ export class MainScene extends Phaser.Scene {
     ms: number,
     grow: number,
   ): void {
-    const picture = this.add.text(x, y, emoji, { fontSize }).setOrigin(0.5).setDepth(HIT_FX.depth);
+    const picture = this.add
+      .text(x, y, emoji, { fontSize })
+      .setOrigin(0.5)
+      .setResolution(SHARP)
+      .setDepth(HIT_FX.depth);
     this.tweens.add({
       targets: picture,
       alpha: 0,

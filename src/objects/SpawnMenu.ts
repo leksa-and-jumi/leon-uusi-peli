@@ -21,6 +21,7 @@ import {
   type TabId,
 } from '../config';
 import { fitRow, slotAt, slotRect, type SlotRow } from '../logic/menu';
+import { SHARP } from '../screen';
 import { drawBlock } from './Block';
 import { drawItem } from './itemShapes';
 import { PersonFigure } from './personShape';
@@ -80,6 +81,7 @@ export class SpawnMenu {
           fontSize: MENU.tabFontSize,
         })
         .setOrigin(0.5)
+        .setResolution(SHARP)
         .setDepth(MENU.depth + 1);
     });
     const clear = slotRect(MENU.clear, 0);
@@ -88,6 +90,7 @@ export class SpawnMenu {
         fontSize: MENU.clearFontSize,
       })
       .setOrigin(0.5)
+      .setResolution(SHARP)
       .setDepth(MENU.depth + 1);
 
     const sound = slotRect(MENU.sound, 0);
@@ -96,6 +99,7 @@ export class SpawnMenu {
         fontSize: MENU.soundFontSize,
       })
       .setOrigin(0.5)
+      .setResolution(SHARP)
       .setDepth(MENU.depth + 1);
 
     const full = slotRect(MENU.full, 0);
@@ -105,6 +109,7 @@ export class SpawnMenu {
         color: '#ffffff',
       })
       .setOrigin(0.5)
+      .setResolution(SHARP)
       .setDepth(MENU.depth + 1)
       .setVisible(this.canGoFull);
 

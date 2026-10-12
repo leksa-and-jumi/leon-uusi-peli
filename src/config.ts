@@ -9,10 +9,68 @@ export const COLORS = {
   text: '#ffffff',
 } as const;
 
-/** The black floor along the bottom of the screen. */
+/**
+ * How sharp the game is drawn: at most this many pixels for every pixel of its own
+ * size, and fewer on a phone.
+ */
+export const SHARPNESS = { most: 3, mostOnTouch: 2 } as const;
+
+/** The dark floor along the bottom of the screen: darker further down, with a bright edge on top. */
 export const FLOOR = {
   height: 110,
-  color: 0x000000,
+  top: 0x2b2d34,
+  bottom: 0x050506,
+  edge: 0x6b7079,
+  edgeHeight: 2,
+  shine: 0xffffff,
+  shineAlpha: 0.06,
+  shineHeight: 5,
+} as const;
+
+/**
+ * The wall behind everything: lighter at the top, made of big panels, with a soft
+ * light in the middle (its `x`, `y` are shares of the wall's width and height), dark
+ * corners, and a skirting board along the floor.
+ */
+export const WALL = {
+  top: 0x9ba2ab,
+  bottom: 0x6d737b,
+  panel: {
+    width: 140,
+    height: 118,
+    line: 0x000000,
+    lineAlpha: 0.09,
+    shine: 0xffffff,
+    shineAlpha: 0.07,
+  },
+  light: { x: 0.5, y: 0.34, width: 940, height: 540, color: 0xffffff, alpha: 0.011, rings: 26 },
+  shade: {
+    color: 0x000000,
+    sides: 0.3,
+    sideWidth: 280,
+    top: 0.28,
+    topHeight: 70,
+    bottom: 0.22,
+    bottomHeight: 60,
+  },
+  skirting: { height: 7, color: 0x3a3d43, shine: 0x858a93 },
+} as const;
+
+/**
+ * Everything casts a soft shadow where the wall meets the floor under it: half an oval
+ * this far `up` the wall, behind the thing, and half an oval this far `down` on the
+ * floor. Each is drawn as a few ovals inside one another (their sizes as shares of the
+ * whole), so that its edge is soft.
+ */
+export const SHADOW = {
+  alpha: 0.5,
+  fadeHeight: 330,
+  grow: 0.6,
+  up: 9,
+  down: 11,
+  rings: [1, 0.76, 0.52],
+  /** An oval is drawn with this many corners to each half. */
+  corners: 14,
 } as const;
 
 /** The ceiling along the top of the area: nothing gets past it. */
@@ -50,6 +108,8 @@ export const PHYSICS = {
 
 /** What is drawn in front of what: bigger numbers are in front. */
 export const DEPTH = {
+  /** The shadows are on the wall and the floor, behind everything else. */
+  shadow: 1,
   /** A doll lying on the ground is behind the building pieces: it lies under them. */
   downDoll: 8,
   /** A doll sitting inside a vehicle is behind it, and shows through its windows. */
@@ -1305,6 +1365,9 @@ export const LASER = {
   core: 0xffffff,
   width: 7,
   coreWidth: 2.5,
+  /** The glow around the ray: this many times as wide, and this faint. */
+  glow: 2.6,
+  glowAlpha: 0.22,
   ms: 170,
   depth: 60,
 } as const;
