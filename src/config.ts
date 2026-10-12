@@ -761,6 +761,7 @@ export interface BlockDef {
 
 /** The pieces on the building page. */
 export type BuildKind =
+  | 'island'
   | 'hay'
   | 'stairs'
   | 'steelCrate'
@@ -793,7 +794,8 @@ export type MonsterKind =
   | 'ufo'
   | 'boss'
   | 'dragon'
-  | 'wisp';
+  | 'wisp'
+  | 'shark';
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
 export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'mine' | 'cactus';
 /** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
@@ -888,6 +890,11 @@ export interface MonsterDef {
     flapMs: number;
     gun: GunDef;
   };
+  /**
+   * A shark: it only lives in water. There it swims `depth` under the surface, goes
+   * for the closest doll that is in the water too, and bites it. On dry land it just lies there.
+   */
+  shark?: { depth: number };
   /**
    * A boss: huge and tough. It takes `hull` bullets (a blast counts as `blastHits`),
    * and a bar above its head shows how many are left. It shoots its laser from its
@@ -1123,6 +1130,18 @@ export const POOL = {
   gone: 1.5,
   /** A light thing floats with this much of its height under the surface. */
   floatShare: 0.6,
+} as const;
+
+/** A firework bursts into this many sparks of these colors: they fly out, fall and fade. */
+export const FIREWORK = {
+  sparks: 46,
+  colors: [0xff1744, 0xffea00, 0x00e5ff, 0x76ff03, 0xd500f9, 0xffffff, 0xff9100],
+  burst: { spread: 430, size: { min: 3, max: 6 }, spin: 0 },
+  lift: -120,
+  lieMs: 500,
+  fadeMs: 900,
+  /** On its way up it leaves a puff of smoke this often. */
+  smokeEveryMs: 70,
 } as const;
 
 /** Blood that falls into water spreads out into a faint cloud and is gone. */
@@ -1456,6 +1475,29 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 1,
     colors: { fill: 0x050208, dark: 0x4a148c, light: 0xff9800, detail: 0xffe082 },
     hole: { radius: 260, speed: 560, least: 28, eat: 30, spin: 3.2 },
+  },
+  // A sandy island with a palm tree and a treasure chest: tall enough to stand out of the water
+  island: {
+    halfWidth: 92,
+    height: 150,
+    menuScale: 0.4,
+    colors: { fill: 0xe6c98a, dark: 0x9a7a45, light: 0xf7e6b8, detail: 0x8d6e63 },
+  },
+  // It swims in water and bites the dolls that are in it. Out of the water it is helpless.
+  shark: {
+    halfWidth: 46,
+    height: 34,
+    menuScale: 0.7,
+    colors: { fill: 0x78909c, dark: 0x37474f, light: 0xeceff1, detail: 0x1b1b1b },
+    monster: {
+      attack: 'bite',
+      range: 2000,
+      everyMs: 900,
+      damage: 2,
+      pushSpeed: 240,
+      speed: 190,
+      shark: { depth: 34 },
+    },
   },
   // Soft and light: it floats, and it burns
   hay: {
@@ -2204,6 +2246,11 @@ export interface ItemDef {
    * most `range` away, so that it gets there in `flightMs`.
    */
   hurl?: { range: number; tooClose: number; flightMs: number };
+  /**
+   * It is a firework: lit, it waits `fuseMs`, shoots up at `speed` for `flightMs` at
+   * most, and bursts into colored sparks.
+   */
+  rocket?: { fuseMs: number; speed: number; flightMs: number };
   /** It is a magnet: it pulls everything made of metal toward itself, and holds it. */
   magnet?: Pull;
   /**
@@ -2241,7 +2288,7 @@ export type WeaponKind =
 export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 /** Odd weapons, on the traps page. */
 export type OddItemKind =
-  'glove' | 'chicken' | 'fish' | 'flamethrower' | 'freezeRay' | 'magnet' | 'balloon';
+  'glove' | 'chicken' | 'fish' | 'flamethrower' | 'freezeRay' | 'magnet' | 'balloon' | 'firework';
 /** What a catapult hurls. It isn't in the menu. */
 export type AmmoKind = 'boulder';
 export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind;
@@ -2575,6 +2622,18 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     melee: { reach: 60, damage: 2, wound: 'bruise', pushSpeed: 700, sound: 'punch' },
     breaksAt: 260,
   },
+  // Light its fuse and stand back: it shoots up and bursts into colors
+  firework: {
+    burns: true,
+    floats: true,
+    crumbs: [0xe53935, 0xffd54f, 0x8d6e63],
+    halfWidth: 26,
+    height: 14,
+    menuScale: 1.3,
+    lie: { x: -10, y: -7 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    rocket: { fuseMs: 700, speed: 620, flightMs: 520 },
+  },
   // A puff of frost from it freezes a doll solid for a while
   freezeRay: {
     melts: true,
@@ -2703,12 +2762,14 @@ export const CASTLE_KINDS: readonly CastleKind[] = [
 ];
 /** The page of forces of nature, and of things with strange powers. */
 export const ELEMENT_KINDS: readonly (
-  { type: 'block'; kind: ElementKind } | { type: 'item'; kind: OddItemKind }
+  { type: 'block'; kind: ElementKind | BuildKind } | { type: 'item'; kind: OddItemKind }
 )[] = [
   { type: 'block', kind: 'lava' },
   { type: 'block', kind: 'water' },
   { type: 'block', kind: 'blackHole' },
   { type: 'block', kind: 'cloud' },
+  { type: 'block', kind: 'island' },
+  { type: 'item', kind: 'firework' },
   { type: 'item', kind: 'freezeRay' },
   { type: 'item', kind: 'magnet' },
   { type: 'item', kind: 'balloon' },
@@ -2740,6 +2801,7 @@ export const MONSTER_KINDS: readonly MonsterKind[] = [
   'ufo',
   'dragon',
   'wisp',
+  'shark',
   'boss',
 ];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
@@ -2783,6 +2845,7 @@ export const ITEM_COLORS = {
   chicken: { body: 0xffd54f, dark: 0xc79a1a, comb: 0xe53935, beak: 0xff9800, eye: 0x1b1b1b },
   fish: { body: 0x78909c, dark: 0x37474f, belly: 0xcfd8dc, eye: 0x1b1b1b, fin: 0x546e7a },
   flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
+  firework: { tube: 0xe53935, dark: 0x8a1c1c, stripe: 0xffffff, cone: 0xffd54f, stick: 0x8d6e63 },
   boulder: { fill: 0x9e9e9e, dark: 0x616161, light: 0xd0d0d0 },
   trident: { gold: 0xffd54f, dark: 0xb8860b, shaft: 0x4e342e, shaftLight: 0x8d6e63 },
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },

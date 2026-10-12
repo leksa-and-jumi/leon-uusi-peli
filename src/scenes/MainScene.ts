@@ -13,6 +13,7 @@ import {
   DEPTH,
   DISSOLVE,
   DOUBLE_CLICK_MS,
+  FIREWORK,
   FLOOR,
   GAME_HEIGHT,
   GAME_WIDTH,
@@ -235,6 +236,19 @@ export class MainScene extends Phaser.Scene {
         if (item.def.bomb) item.lob(speedX, speedY, this.solidBoxes(item), LOB.fuseMs);
         else item.fling(speedX, speedY, this.solidBoxes(item));
         if (this.blocks.length + this.items.length > THINGS_MAX) this.forgetOldest(this.items);
+      },
+      fireworks: (x, y) => {
+        const spot = { left: x - 6, right: x + 6, top: y - 6, bottom: y + 6 };
+        const burst = { ...FIREWORK.burst, pushX: 0, pushY: FIREWORK.lift };
+        for (const crumb of scatter(spot, FIREWORK.sparks, burst)) {
+          const color = FIREWORK.colors[Math.floor(Math.random() * FIREWORK.colors.length)] ?? 0;
+          const picture = this.add.circle(crumb.x, crumb.y, crumb.size / 2, color);
+          picture.setDepth(HIT_FX.depth);
+          const { lieMs, fadeMs } = FIREWORK;
+          this.pieces.push({ crumb, picture, blood: null, lieMs, fadeMs });
+        }
+        this.trimPieces();
+        this.sfx.blast();
       },
       note: (pitch) => {
         this.sfx.note(pitch);

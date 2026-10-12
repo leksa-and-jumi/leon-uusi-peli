@@ -3,6 +3,7 @@ import {
   BLAST,
   BOMB_ACTIONS,
   DEPTH,
+  FIREWORK,
   GUN_ACTIONS,
   ITEM_COLORS,
   ITEM_TOSS,
@@ -54,6 +55,9 @@ export class Item extends Body {
   private tossed = false;
   /** Thrown, and not come to rest yet: only then can it break on what it hits. */
   private thrown = false;
+  /** A firework: time left of its flight up, and until its next puff of smoke. */
+  private launchMs = 0;
+  private smokeMs = 0;
   /** A bomb thrown by a doll: it goes off the moment it hits the ground or anybody. */
   private armed = false;
   /** Smashed to pieces. */
@@ -66,7 +70,8 @@ export class Item extends Body {
     super(x, y);
     this.size = ITEMS[kind];
     this.crumbs = this.size.crumbs;
-    this.actions = this.size.bomb ? BOMB_ACTIONS : this.size.gun ? GUN_ACTIONS : THING_ACTIONS;
+    const lit = this.size.bomb !== undefined || this.size.rocket !== undefined;
+    this.actions = lit ? BOMB_ACTIONS : this.size.gun ? GUN_ACTIONS : THING_ACTIONS;
     const parts: Phaser.GameObjects.Graphics[] = [drawItem(scene.make.graphics({}, false), kind)];
     if (this.size.bomb) {
       this.spark = scene.make.graphics({}, false);
@@ -206,8 +211,9 @@ export class Item extends Body {
 
   /** Light the fuse of a bomb, or put it out again. */
   toggleFuse(): void {
-    if (!this.size.bomb) return;
-    this.fuseMs = this.fuseMs === null ? this.size.bomb.fuseMs : null;
+    const fuse = this.size.bomb?.fuseMs ?? this.size.rocket?.fuseMs;
+    if (fuse === undefined || this.launchMs > 0) return;
+    this.fuseMs = this.fuseMs === null ? fuse : null;
     this.spark?.setVisible(this.fuseMs !== null);
   }
 
@@ -307,6 +313,10 @@ export class Item extends Body {
     if (this.fuseMs <= 0 && this.size.bomb) {
       this.exploded = true;
       world.explode(this, this.size.bomb);
+    } else if (this.fuseMs <= 0 && this.size.rocket) {
+      // A firework takes off
+      this.fuseMs = null;
+      this.launchMs = this.size.rocket.flightMs;
     }
   }
 
@@ -386,6 +396,23 @@ export class Item extends Body {
   /** A balloon that nobody holds floats up, until it is just under the ceiling. */
   private floatUp(deltaMs: number, world: World): void {
     const lifts = this.size.lifts;
+    const rocket = this.size.rocket;
+    if (rocket && this.launchMs > 0) {
+      // A firework on its way up: at the end of its flight, or at the ceiling, it bursts
+      this.hovering = true;
+      this.launchMs -= deltaMs;
+      this.y -= rocket.speed * (deltaMs / 1000);
+      this.smokeMs -= deltaMs;
+      if (this.smokeMs <= 0) {
+        this.smokeMs = FIREWORK.smokeEveryMs;
+        world.smoke(this.x, this.y);
+      }
+      const top = world.area.top + this.size.halfWidth * 2;
+      if (this.launchMs > 0 && this.y > top) return;
+      this.exploded = true;
+      world.fireworks(this.x, this.y - this.size.halfWidth);
+      return;
+    }
     this.hovering = lifts !== undefined && !this.held;
     if (!lifts || !this.hovering) return;
     const top = world.area.top + lifts.below + this.size.halfWidth * 2;

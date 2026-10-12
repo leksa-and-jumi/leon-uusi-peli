@@ -74,6 +74,8 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
       return drawPiano(g, def);
     case 'wisp':
       return drawWisp(g, def);
+    case 'shark':
+      return drawShark(g, def);
     case 'cone':
       return drawCone(g, def);
     case 'tire':
@@ -421,6 +423,58 @@ function drawPiano(g: Graphics, def: BlockDef): Graphics {
   g.fillStyle(0xffd54f);
   g.fillRect(-6, -3, 4, 2);
   g.fillRect(2, -3, 4, 2);
+  return g;
+}
+
+/**
+ * A shark swimming to the right: a gray back and a white belly, a tall fin, a forked
+ * tail, a small dark eye and a mouth full of teeth. Its bottom middle is at (0, 0).
+ */
+function drawShark(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  // Tail and fins, behind the body
+  shape(g, fill, dark, [
+    [-30, -17],
+    [-48, -32],
+    [-42, -17],
+    [-48, -3],
+  ]);
+  shape(g, fill, dark, [
+    [-8, -27],
+    [2, -42],
+    [10, -27],
+  ]);
+  shape(g, shade(fill, -0.15), dark, [
+    [2, -10],
+    [-6, 0],
+    [12, -9],
+  ]);
+  // Body: pointed at the nose
+  shape(g, fill, dark, [
+    [-34, -17],
+    [-14, -28],
+    [18, -28],
+    [46, -18],
+    [22, -6],
+    [-14, -7],
+  ]);
+  shape(g, light, light, [
+    [-28, -14],
+    [38, -15],
+    [21, -8],
+    [-13, -9],
+  ]);
+  // Gills, eye and teeth
+  g.lineStyle(1.2, dark, 0.8);
+  for (const x of [10, 14, 18]) {
+    g.lineBetween(x, -24, x - 1, -17);
+  }
+  g.fillStyle(detail);
+  g.fillCircle(30, -21, 2);
+  g.fillStyle(0xffffff);
+  for (const x of [28, 32, 36]) {
+    g.fillTriangle(x, -14.5, x + 3.4, -14.5, x + 1.7, -11);
+  }
   return g;
 }
 
