@@ -22,7 +22,11 @@ export function drawGear(g: Graphics, kind: GearKind): Graphics {
     case 'spaceHelmet':
       return drawSpaceHelmet(g);
     case 'rubberBoots':
-      return drawRubberBoot(g);
+      return drawBoot(g, ITEM_COLORS.rubberBoots);
+    case 'magnetBoots':
+      return drawBoot(g, ITEM_COLORS.magnetBoots);
+    case 'jetpack':
+      return drawJetpack(g);
   }
 }
 
@@ -135,9 +139,35 @@ function drawSpaceHelmet(g: Graphics): Graphics {
   return g;
 }
 
-/** One rubber boot: yellow, with a tall leg, a round toe and a dark sole. A doll wears one on each foot. */
-function drawRubberBoot(g: Graphics): Graphics {
-  const c = ITEM_COLORS.rubberBoots;
+/** A jetpack: a steel tank with a red stripe around it, and a nozzle at the bottom where the flame comes out. */
+function drawJetpack(g: Graphics): Graphics {
+  const c = ITEM_COLORS.jetpack;
+  g.fillStyle(c.dark);
+  g.beginPath();
+  g.moveTo(-4, 10);
+  g.lineTo(4, 10);
+  g.lineTo(6.5, 16);
+  g.lineTo(-6.5, 16);
+  g.closePath();
+  g.fillPath();
+  g.fillRoundedRect(-8.5, -16, 17, 28, 6);
+  g.fillStyle(c.fill);
+  g.fillRoundedRect(-7, -14.5, 14, 25, 5);
+  g.fillStyle(c.shine, 0.7);
+  g.fillRoundedRect(-5.2, -12.5, 3, 20, 1.5);
+  g.fillStyle(c.stripe);
+  g.fillRect(-7, -4, 14, 4);
+  return g;
+}
+
+/**
+ * One boot, in these colors: a tall leg, a round toe and a sole. Yellow rubber with a
+ * dark sole, or steel with a red magnet for a sole. A doll wears one on each foot.
+ */
+function drawBoot(
+  g: Graphics,
+  c: { fill: number; dark: number; sole: number; shine: number },
+): Graphics {
   g.fillStyle(c.dark);
   g.fillRoundedRect(-9, -11, 14, 16, 3);
   g.fillRoundedRect(-9.5, 0, 21, 10.5, 4);

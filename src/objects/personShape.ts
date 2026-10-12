@@ -3,6 +3,7 @@ import {
   ASHEN,
   BLOOD,
   GEAR,
+  JET,
   type GearKind,
   type GearSlot,
   CHARRED,
@@ -54,6 +55,7 @@ const GEAR_AT: Record<GearSlot, { x: number; y: number }> = {
   chest: { x: 0, y: -77 },
   arm: { x: 4, y: 17 },
   feet: { x: 2, y: 19 },
+  back: { x: -24, y: -77 },
 };
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -401,6 +403,18 @@ export class PersonFigure {
       this.gear.set(slot, [picture, other]);
       return;
     }
+    if (slot === 'back') {
+      // Behind the chest, but in front of the back arm, so that it shows. Its flame is
+      // a picture of its own, drawn when it burns
+      const flame = this.scene.make.graphics({}, false);
+      picture.setPosition(at.x, at.y - SHAPE.waist.y);
+      flame.setPosition(at.x, at.y - SHAPE.waist.y);
+      const behind = this.upperBody.getIndex(this.backArm.upper) + 1;
+      this.upperBody.addAt(flame, behind);
+      this.upperBody.addAt(picture, behind + 1);
+      this.gear.set(slot, [picture, flame]);
+      return;
+    }
     if (slot === 'arm') {
       this.frontArm.upper.add(picture.setPosition(at.x, at.y));
     } else if (slot === 'chest') {
@@ -417,6 +431,21 @@ export class PersonFigure {
   takeOff(slot: GearSlot): void {
     this.gear.get(slot)?.forEach((picture) => picture.destroy());
     this.gear.delete(slot);
+  }
+
+  /** The flame of the jetpack on its back: flickering while it burns, and gone when it is off. */
+  jetFlame(burning: boolean, random: () => number = Math.random): void {
+    const flame = this.gear.get('back')?.[1];
+    if (!flame) return;
+    flame.clear();
+    if (!burning) return;
+    const { min, max, width, outer, core } = JET.flame;
+    const long = min + random() * (max - min);
+    const top = 15;
+    flame.fillStyle(outer);
+    flame.fillTriangle(-width, top, width, top, (random() - 0.5) * 4, top + long);
+    flame.fillStyle(core);
+    flame.fillTriangle(-width / 2, top, width / 2, top, 0, top + long * 0.55);
   }
 
   /** A hit has left a crack in a piece of gear: a short jagged line somewhere on it. */

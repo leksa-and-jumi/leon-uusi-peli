@@ -631,6 +631,7 @@ export const ACTION_EMOJI = {
   drive: '🏁',
   gate: '🚪',
   bridge: '🌉',
+  jet: '🛫',
 } as const;
 
 export type ActionId = keyof typeof ACTION_EMOJI;
@@ -644,6 +645,8 @@ export const PERSON_ACTIONS: readonly ActionId[] = [
   'angry',
   'drop',
 ];
+/** A doll with a jetpack on has one more: it switches the jetpack on and off. */
+export const JET_ACTIONS: readonly ActionId[] = [...PERSON_ACTIONS, 'jet'];
 /** The bubbles of a building piece or an item, and of a bomb. */
 export const THING_ACTIONS: readonly ActionId[] = ['throw'];
 /** Stairs can be turned around. */
@@ -661,7 +664,7 @@ export const VEHICLE_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'drive'];
 /** The bubbles of a gun: turn it around, and make it fire nonstop. */
 export const GUN_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'fire'];
 /** The most bubbles anything has. */
-export const MAX_BUBBLES = 6;
+export const MAX_BUBBLES = 7;
 
 /** The round action bubbles that come up above a double-clicked person. */
 export const BUBBLES = {
@@ -2447,9 +2450,17 @@ export type OddItemKind =
 export type AmmoKind = 'boulder';
 /** Gear a doll wears: it takes the hits for the doll, until it breaks. */
 export type GearKind =
-  'gasMask' | 'armyHelmet' | 'spaceHelmet' | 'vest' | 'knightArmor' | 'shield' | 'rubberBoots';
+  | 'gasMask'
+  | 'armyHelmet'
+  | 'spaceHelmet'
+  | 'vest'
+  | 'knightArmor'
+  | 'shield'
+  | 'rubberBoots'
+  | 'magnetBoots'
+  | 'jetpack';
 /** Where on a doll a piece of gear goes. A doll wears one piece in each place at the most. */
-export type GearSlot = 'face' | 'head' | 'chest' | 'arm' | 'feet';
+export type GearSlot = 'face' | 'head' | 'chest' | 'arm' | 'feet' | 'back';
 export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind;
 
 /** A piece of gear: where it is worn, and how many hits it takes before it breaks. */
@@ -2463,7 +2474,29 @@ export interface GearDef {
   stops?: readonly WoundKind[];
   /** Its special power: the doll that wears it can breathe anywhere, under water and in a stink cloud. */
   air?: true;
+  /** Its special power: switched on, it carries the doll that wears it through the air. */
+  jet?: true;
+  /** Its special power: the doll that wears it sticks to the ceiling, feet first, and walks there. */
+  clings?: true;
 }
+
+/**
+ * A jetpack that is switched on. The doll flies this high above the floor, or down
+ * or up to the one it is after when it is angry. It climbs and sinks this fast, leans
+ * forward this much (radians) when it flies along, and leaves a puff of smoke every
+ * `smokeEveryMs`. Its flame flickers between these lengths.
+ */
+export const JET = {
+  height: 200,
+  climb: 300,
+  lean: 0.24,
+  smokeEveryMs: 120,
+  smoke: { back: 24, up: 54 },
+  flame: { min: 12, max: 22, width: 5, outer: 0xff7a1a, core: 0xffee58 },
+} as const;
+
+/** Magnet boots: a doll whose head gets this close to the ceiling sticks to it, feet first. */
+export const CLING = { snap: 16 } as const;
 
 /**
  * Gear on a doll. A hit lands on the outermost piece: the first of these it has on.
@@ -2471,7 +2504,7 @@ export interface GearDef {
  * that is taken off lands this far in front of the doll.
  */
 export const GEAR = {
-  order: ['arm', 'chest', 'head', 'face', 'feet'],
+  order: ['arm', 'chest', 'back', 'head', 'face', 'feet'],
   crack: 0x101010,
   crackWidth: 1.3,
   /** A crack is a jagged line of this many bits, across about this much of the piece. */
@@ -2900,6 +2933,30 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: 0, along: 0 },
     gear: { slot: 'feet', hits: 2, stops: ['shock'] },
   },
+  // Steel boots with a magnet in each sole, instead of the rubber boots. Their power: walking on the ceiling
+  magnetBoots: {
+    melts: true,
+    metal: true,
+    crumbs: [0x78909c, 0x37474f, 0xe53935],
+    halfWidth: 16,
+    height: 21,
+    menuScale: 1.7,
+    lie: { x: 0, y: -10 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'feet', hits: 3, clings: true },
+  },
+  // Worn on the back. Its power: flying, when it is switched on
+  jetpack: {
+    melts: true,
+    metal: true,
+    crumbs: [0xcfd8dc, 0x455a64, 0xe53935],
+    halfWidth: 9,
+    height: 32,
+    menuScale: 1.5,
+    lie: { x: 0, y: -16 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'back', hits: 3, jet: true },
+  },
   shield: {
     melts: true,
     metal: true,
@@ -3128,6 +3185,8 @@ export const GEAR_KINDS: readonly GearKind[] = [
   'knightArmor',
   'shield',
   'rubberBoots',
+  'magnetBoots',
+  'jetpack',
 ];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
@@ -3168,6 +3227,8 @@ export const ITEM_COLORS = {
   knightArmor: { fill: 0xb0bec5, dark: 0x546e7a, shine: 0xffffff, trim: 0xffc107 },
   spaceHelmet: { white: 0xeceff1, dark: 0x90a4ae, glass: 0x81d4fa },
   rubberBoots: { fill: 0xfdd835, dark: 0xb8960c, sole: 0x37474f, shine: 0xfff59d },
+  magnetBoots: { fill: 0x90a4ae, dark: 0x455a64, sole: 0xe53935, shine: 0xeceff1 },
+  jetpack: { fill: 0xcfd8dc, dark: 0x455a64, shine: 0xffffff, stripe: 0xe53935 },
   stinkBomb: { body: 0x558b2f, shine: 0xc5e1a5, cap: 0x8d6e63, fuse: 0xbcaaa4 },
   trident: { gold: 0xffd54f, dark: 0xb8860b, shaft: 0x4e342e, shaftLight: 0x8d6e63 },
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },

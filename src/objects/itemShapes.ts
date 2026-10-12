@@ -75,8 +75,10 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
     case 'vest':
     case 'knightArmor':
     case 'shield':
+    case 'jetpack':
       return drawGear(g, kind);
     case 'rubberBoots':
+    case 'magnetBoots':
       // A pair of them, one a little behind the other
       for (const x of [-5, 5]) {
         g.save();
