@@ -689,11 +689,11 @@ export const MENU = {
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
   // Buttons, two under each other in five columns
-  tabs: { x: 6, y: 7, width: 36, height: 41, gap: 4, vertical: true, wrap: 2 },
+  tabs: { x: 6, y: 7, width: 30, height: 41, gap: 3, vertical: true, wrap: 2 },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
-  tabFontSize: '22px',
+  tabFontSize: '19px',
   slots: { x: 210, y: 10, width: 58, height: 80, gap: 6 },
   /** The slots of a page end before this. A page with many things gets narrower slots. */
   slotsEnd: GAME_WIDTH - 146,
@@ -735,6 +735,7 @@ export const TABS = [
   { id: 'elements', emoji: '🌊' },
   { id: 'castle', emoji: '🏰' },
   { id: 'gear', emoji: '🛡️' },
+  { id: 'powers', emoji: '🔮' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -2372,6 +2373,8 @@ export interface ItemDef {
   bomb?: BombDef;
   /** It isn't held: a doll puts it on, and it takes the hits for the doll. */
   gear?: GearDef;
+  /** It is an orb with a superpower in it: a doll that touches it takes the power. */
+  power?: PowerDef;
   /** It smashes to pieces when it hits something at least this fast (pixels per second). */
   breaksAt?: number;
   /**
@@ -2461,7 +2464,56 @@ export type GearKind =
   | 'jetpack';
 /** Where on a doll a piece of gear goes. A doll wears one piece in each place at the most. */
 export type GearSlot = 'face' | 'head' | 'chest' | 'arm' | 'feet' | 'back';
-export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind;
+/** Superpowers: a doll that touches one of these orbs takes the power into itself. */
+export type PowerKind =
+  'lightningOrb' | 'fireOrb' | 'iceOrb' | 'laserOrb' | 'strengthOrb' | 'healingOrb' | 'teleportOrb';
+export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind | PowerKind;
+
+/**
+ * A superpower. A doll has one at a time, and glows in its `color`. What it does:
+ * - `spell`: angry and empty-handed, the doll shoots this from its hand, like a wizard.
+ * - `zap`: angry, it strikes the one it is after from up to `range` away, with lightning
+ *   (`spark`) or a laser, from its hand or from its eyes, whatever it holds.
+ * - `punch`: its bare fists take this many more lives, and fling the other this fast.
+ * - `heal`: it gets a life back every `everyMs`, until it has all of them again.
+ * - `teleport`: angry, and further than `from` away from the one it is after, it is
+ *   suddenly right next to it. Not more often than every `everyMs`.
+ */
+export interface PowerDef {
+  color: number;
+  spell?: GunDef;
+  zap?: {
+    range: number;
+    damage: number;
+    pushSpeed: number;
+    everyMs: number;
+    spark: boolean;
+    from: 'hand' | 'eyes';
+  };
+  punch?: { damage: number; pushSpeed: number };
+  heal?: { everyMs: number };
+  teleport?: { from: number; everyMs: number };
+}
+
+/**
+ * How a doll with a superpower looks: a glow around it, made of a few ovals inside one
+ * another. Where its eyes are, for a power that comes out of them. And the sparkles
+ * that fly up when a power does something that has no other picture.
+ */
+export const POWER = {
+  aura: { width: 78, height: 156, up: 62, alpha: 0.075, rings: 4 },
+  eyes: { x: 9, up: 103 },
+  sparkle: {
+    count: 8,
+    spread: 24,
+    rise: 50,
+    radius: { min: 1.6, max: 3.6 },
+    ms: 750,
+    depth: 46,
+  },
+  /** The sign of the power on an orb is drawn in this color. */
+  symbol: 0xffffff,
+} as const;
 
 /** A piece of gear: where it is worn, and how many hits it takes before it breaks. */
 export interface GearDef {
@@ -2862,6 +2914,110 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       flame: { reach: 250, width: 16, height: 10, color: 0xff7a1a },
     },
   },
+  // Superpowers: glowing orbs. A doll that touches one has that power from then on
+  lightningOrb: {
+    floats: true,
+    crumbs: [0xffeb3b, 0xfff9c4, 0xfbc02d],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: {
+      color: 0xffeb3b,
+      zap: { range: 380, damage: 2, pushSpeed: 320, everyMs: 1400, spark: true, from: 'hand' },
+    },
+  },
+  fireOrb: {
+    floats: true,
+    crumbs: [0xff7a1a, 0xffcc80, 0xd84315],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: {
+      color: 0xff7a1a,
+      // A fireball, like the wizard's: it burns, and takes 2 lives
+      spell: {
+        range: 480,
+        damage: 2,
+        everyMs: 1100,
+        autoMs: 1100,
+        bulletSpeed: 560,
+        muzzle: { x: 44, y: 84 },
+        barrelUp: 0,
+        look: { width: 14, height: 14, color: 0xff7a1a },
+        wound: 'burn',
+      },
+    },
+  },
+  iceOrb: {
+    floats: true,
+    crumbs: [0x81d4fa, 0xe1f5fe, 0x0288d1],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: {
+      color: 0x81d4fa,
+      // A puff of frost: it doesn't hurt, but it freezes the one it hits solid
+      spell: {
+        range: 420,
+        damage: 0,
+        everyMs: 1600,
+        autoMs: 1600,
+        bulletSpeed: 600,
+        muzzle: { x: 44, y: 84 },
+        barrelUp: 0,
+        frost: { ms: 5000, width: 15, height: 11, color: 0xb3e5fc },
+      },
+    },
+  },
+  laserOrb: {
+    floats: true,
+    crumbs: [0xff1744, 0xff8a80, 0xb71c1c],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: {
+      color: 0xff1744,
+      zap: { range: 440, damage: 2, pushSpeed: 150, everyMs: 1700, spark: false, from: 'eyes' },
+    },
+  },
+  strengthOrb: {
+    floats: true,
+    crumbs: [0xab47bc, 0xe1bee7, 0x6a1b9a],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: { color: 0xab47bc, punch: { damage: 2, pushSpeed: 900 } },
+  },
+  healingOrb: {
+    floats: true,
+    crumbs: [0x69f0ae, 0xb9f6ca, 0x00c853],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: { color: 0x69f0ae, heal: { everyMs: 2500 } },
+  },
+  teleportOrb: {
+    floats: true,
+    crumbs: [0x5c6bc0, 0xc5cae9, 0x283593],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.7,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 0 },
+    power: { color: 0x7986cb, teleport: { from: 200, everyMs: 2200 } },
+  },
   // Gear: a doll that touches a piece puts it on. The middle of each picture is its own middle
   gasMask: {
     melts: true,
@@ -3177,6 +3333,16 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'ship',
 ];
 /** The gear page. */
+/** The superpowers page. */
+export const POWER_KINDS: readonly PowerKind[] = [
+  'lightningOrb',
+  'fireOrb',
+  'iceOrb',
+  'laserOrb',
+  'strengthOrb',
+  'healingOrb',
+  'teleportOrb',
+];
 export const GEAR_KINDS: readonly GearKind[] = [
   'gasMask',
   'armyHelmet',

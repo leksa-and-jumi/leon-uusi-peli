@@ -29,6 +29,8 @@ import {
   PERSON,
   PHYSICS,
   PICK_PADDING,
+  POWER,
+  POWER_KINDS,
   PICK_PADDING_TOUCH,
   QUAKE,
   RIDE_GAP,
@@ -289,6 +291,32 @@ export class MainScene extends Phaser.Scene {
       spark: (x, y) => {
         const reach = (): number => (Math.random() * 2 - 1) * THUNDER.sparkReach;
         this.bolt(x, y, x + reach(), y + reach(), SPARK);
+      },
+      flash: (fromX, fromY, toX, toY, spark) => {
+        if (!spark) {
+          this.beam(fromX, fromY, toX, toY);
+          return;
+        }
+        this.bolt(fromX, fromY, toX, toY, SPARK);
+        this.sfx.zap();
+      },
+      sparkle: (x, y, color) => {
+        const { count, spread, rise, radius, ms, depth } = POWER.sparkle;
+        for (let i = 0; i < count; i++) {
+          const startX = x + (Math.random() * 2 - 1) * spread;
+          const startY = y + (Math.random() * 2 - 1) * spread;
+          const size = radius.min + Math.random() * (radius.max - radius.min);
+          const dot = this.add.circle(startX, startY, size, color).setDepth(depth);
+          this.tweens.add({
+            targets: dot,
+            y: startY - rise * (0.5 + Math.random() * 0.5),
+            alpha: 0,
+            duration: ms * (0.6 + Math.random() * 0.4),
+            onComplete: () => {
+              dot.destroy();
+            },
+          });
+        }
       },
       monsters: () =>
         this.blocks.filter(
@@ -1009,6 +1037,17 @@ export class MainScene extends Phaser.Scene {
     const putOn: Item[] = [];
     for (const item of this.items) {
       if (!item.canBeTaken) continue;
+      const power = POWER_KINDS.find((one) => one === item.kind);
+      if (power) {
+        // A living doll that touches an orb takes its power, in place of the one it had
+        const pupil = this.people.find(
+          (person) => person.canLearn(power) && overlaps(item.box, person.box),
+        );
+        if (!pupil) continue;
+        pupil.learn(power);
+        putOn.push(item);
+        continue;
+      }
       const gear = item.def.gear;
       if (gear) {
         // Gear isn't held: a living doll that touches a piece puts it on, if it has room for it
@@ -1039,14 +1078,16 @@ export class MainScene extends Phaser.Scene {
 
   /**
    * A doll lets go of what it holds. With nothing in its hand it takes off a piece of
-   * its gear, the outermost one, which lands in front of it, as good as new.
+   * its gear, the outermost one, which lands in front of it, as good as new. With no
+   * gear on either, it lets go of its superpower.
    */
   private dropFrom(person: Person): void {
     if (person.holding) {
       person.dropItem(this.solidBoxes(person));
       return;
     }
-    const kind = person.takeOffGear();
+    // With no gear on either, it gives up its superpower: the orb comes out of it
+    const kind = person.takeOffGear() ?? person.forgetPower();
     if (!kind) return;
     const { x, y } = person.feet;
     const away = PERSON.halfWidth + ITEMS[kind].halfWidth + GEAR.takeOffGap;
