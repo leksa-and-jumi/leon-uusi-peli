@@ -2,6 +2,9 @@ import type Phaser from 'phaser';
 import {
   ASHEN,
   BLOOD,
+  GEAR,
+  type GearKind,
+  type GearSlot,
   CHARRED,
   DOLL,
   EXTRA_COLORS,
@@ -12,6 +15,7 @@ import {
   type WoundKind,
 } from '../config';
 import { blowOrder, blownOff, toArea, toPicture } from '../logic/ash';
+import { drawGear } from './gearShapes';
 import { shade } from '../logic/color';
 import type { Spot } from '../logic/pick';
 import type { Facing } from '../logic/walk';
@@ -38,6 +42,17 @@ const SHAPE = {
   jointRadius: 5.5,
   eye: { y: -103, back: 1, front: 9, radius: 2 },
 } as const;
+
+/**
+ * Where the middle of a piece of gear is on a doll. The one on the arm is measured
+ * from the shoulder of the front arm, down the arm; the others from between the feet.
+ */
+const GEAR_AT: Record<GearSlot, { x: number; y: number }> = {
+  face: { x: 5, y: -100 },
+  head: { x: 0, y: -114 },
+  chest: { x: 0, y: -77 },
+  arm: { x: 4, y: 17 },
+};
 
 type Graphics = Phaser.GameObjects.Graphics;
 type Container = Phaser.GameObjects.Container;
@@ -97,6 +112,8 @@ export class PersonFigure {
   private readonly brows: Graphics;
   /** The wound marks on its chest: one more for every time it is hurt. */
   private readonly wounds: Graphics;
+  /** The gear it has on: the picture of each piece. */
+  private readonly gear = new Map<GearSlot, Graphics>();
   private woundCount = 0;
   /** A knight's face is hidden behind its helmet: no eyes, no eyebrows. */
   private readonly faceless: boolean;
@@ -186,6 +203,7 @@ export class PersonFigure {
     this.wasted ||= thin;
     if (this.charred || this.ashen) return;
     this.charred = true;
+    this.loseGear();
     this.toBones.forEach(({ redraw }) => {
       redraw();
     });
@@ -216,6 +234,7 @@ export class PersonFigure {
   turnToAsh(): void {
     if (this.ashen || this.charred) return;
     this.ashen = true;
+    this.loseGear();
     this.toSoot.forEach((cover) => {
       cover(ASHEN.color, ASHEN.alpha);
     });
@@ -365,6 +384,62 @@ export class PersonFigure {
     for (const { part, redraw } of this.toBones) {
       if (part === arm || part === leg) redraw();
     }
+  }
+
+  /** Put a piece of gear on: its picture goes onto the part of the doll that wears it. */
+  wear(kind: GearKind, slot: GearSlot): void {
+    this.takeOff(slot);
+    const at = GEAR_AT[slot];
+    const picture = drawGear(this.scene.make.graphics({}, false), kind);
+    if (slot === 'arm') {
+      this.frontArm.upper.add(picture.setPosition(at.x, at.y));
+    } else if (slot === 'chest') {
+      // Over the chest and its wounds, under the head and the front arm
+      picture.setPosition(at.x, at.y - SHAPE.waist.y);
+      this.upperBody.addAt(picture, this.upperBody.getIndex(this.headPart));
+    } else {
+      this.headPart.add(picture.setPosition(at.x, at.y - SHAPE.neck.y));
+    }
+    this.gear.set(slot, picture);
+  }
+
+  /** The piece of gear in this place is gone: taken off, or broken. */
+  takeOff(slot: GearSlot): void {
+    this.gear.get(slot)?.destroy();
+    this.gear.delete(slot);
+  }
+
+  /** A hit has left a crack in a piece of gear: a short jagged line somewhere on it. */
+  crackGear(slot: GearSlot, random: () => number = Math.random): void {
+    const g = this.gear.get(slot);
+    if (!g) return;
+    const { crackSpan, crackBits } = GEAR;
+    let x = (random() - 0.5) * crackSpan;
+    let y = -crackSpan / 2 + (random() - 0.5) * 4;
+    g.lineStyle(GEAR.crackWidth, GEAR.crack, 0.9);
+    g.beginPath();
+    g.moveTo(x, y);
+    for (let bit = 0; bit < crackBits; bit++) {
+      x += (random() - 0.5) * 7;
+      y += crackSpan / crackBits;
+      g.lineTo(x, y);
+    }
+    g.strokePath();
+  }
+
+  /** Where in the area the middle of a piece of gear is right now. */
+  gearSpot(slot: GearSlot): Spot | null {
+    const g = this.gear.get(slot);
+    if (!g) return null;
+    const placing = g.getWorldTransformMatrix();
+    return { x: placing.tx, y: placing.ty };
+  }
+
+  /** Fire or ash leaves nothing of what it had on. */
+  private loseGear(): void {
+    [...this.gear.keys()].forEach((slot) => {
+      this.takeOff(slot);
+    });
   }
 
   /** Frozen solid: a block of ice around the whole doll, or no ice any more. */

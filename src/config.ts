@@ -731,6 +731,7 @@ export const TABS = [
   { id: 'traps', emoji: '⚠️' },
   { id: 'elements', emoji: '🌊' },
   { id: 'castle', emoji: '🏰' },
+  { id: 'gear', emoji: '🛡️' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -2361,6 +2362,8 @@ export interface ItemDef {
   gun?: GunDef;
   melee?: MeleeDef;
   bomb?: BombDef;
+  /** It isn't held: a doll puts it on, and it takes the hits for the doll. */
+  gear?: GearDef;
   /** It smashes to pieces when it hits something at least this fast (pixels per second). */
   breaksAt?: number;
   /**
@@ -2429,7 +2432,35 @@ export type OddItemKind =
   'glove' | 'chicken' | 'fish' | 'flamethrower' | 'freezeRay' | 'magnet' | 'balloon' | 'firework';
 /** What a catapult hurls. It isn't in the menu. */
 export type AmmoKind = 'boulder';
-export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind;
+/** Gear a doll wears: it takes the hits for the doll, until it breaks. */
+export type GearKind = 'gasMask' | 'armyHelmet' | 'vest' | 'shield';
+/** Where on a doll a piece of gear goes. A doll wears one piece in each place at the most. */
+export type GearSlot = 'face' | 'head' | 'chest' | 'arm';
+export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind;
+
+/** A piece of gear: where it is worn, and how many hits it takes before it breaks. */
+export interface GearDef {
+  slot: GearSlot;
+  hits: number;
+}
+
+/**
+ * Gear on a doll. A hit lands on the outermost piece: the first of these it has on.
+ * Every hit leaves a crack of this color, and the last one breaks the piece. A piece
+ * that is taken off lands this far in front of the doll.
+ */
+export const GEAR = {
+  order: ['arm', 'chest', 'head', 'face'],
+  crack: 0x101010,
+  crackWidth: 1.3,
+  /** A crack is a jagged line of this many bits, across about this much of the piece. */
+  crackBits: 4,
+  crackSpan: 11,
+  /** A piece that breaks bursts into this many little pieces. */
+  crumbs: 12,
+  takeOffGap: 8,
+  takeOffUp: 0.55,
+} as const satisfies { order: readonly GearSlot[] } & Record<string, unknown>;
 
 export const ITEMS: Record<ItemKind, ItemDef> = {
   pistol: {
@@ -2760,6 +2791,50 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       flame: { reach: 250, width: 16, height: 10, color: 0xff7a1a },
     },
   },
+  // Gear: a doll that touches a piece puts it on. The middle of each picture is its own middle
+  gasMask: {
+    melts: true,
+    crumbs: [0x2e3338, 0x4a5157, 0x80deea],
+    halfWidth: 14,
+    height: 22,
+    menuScale: 2,
+    lie: { x: 0, y: -11 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'face', hits: 2 },
+  },
+  armyHelmet: {
+    melts: true,
+    metal: true,
+    crumbs: [0x556b2f, 0x33401c, 0x8a9a5b],
+    halfWidth: 20,
+    height: 22,
+    menuScale: 1.6,
+    lie: { x: 0, y: -9 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'head', hits: 3 },
+  },
+  vest: {
+    melts: true,
+    metal: true,
+    crumbs: [0x37474f, 0x1c262b, 0x90a4ae],
+    halfWidth: 17,
+    height: 32,
+    menuScale: 1.5,
+    lie: { x: 0, y: -15 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'chest', hits: 5 },
+  },
+  shield: {
+    melts: true,
+    metal: true,
+    crumbs: [0x1e88e5, 0xb0bec5, 0xffc107],
+    halfWidth: 14,
+    height: 40,
+    menuScale: 1.3,
+    lie: { x: 0, y: -19 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'arm', hits: 4 },
+  },
   // A catapult's boulder: it knocks down the doll it hits, and smashes when it lands
   boulder: {
     crumbs: [0x9e9e9e, 0x616161, 0xd0d0d0],
@@ -2966,6 +3041,8 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'saucer',
   'ship',
 ];
+/** The gear page. */
+export const GEAR_KINDS: readonly GearKind[] = ['gasMask', 'armyHelmet', 'vest', 'shield'];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
 )[] = [
@@ -2998,6 +3075,10 @@ export const ITEM_COLORS = {
   flamethrower: { tank: 0xc62828, tankDark: 0x7f1d1d, flame: 0xff7a1a, flameCore: 0xffee58 },
   firework: { tube: 0xe53935, dark: 0x8a1c1c, stripe: 0xffffff, cone: 0xffd54f, stick: 0x8d6e63 },
   boulder: { fill: 0x9e9e9e, dark: 0x616161, light: 0xd0d0d0 },
+  gasMask: { rubber: 0x4a5157, dark: 0x23272b, glass: 0x80deea, filter: 0x90a4ae },
+  armyHelmet: { fill: 0x556b2f, dark: 0x33401c, shine: 0xc5d39a },
+  vest: { fill: 0x37474f, dark: 0x1c262b, plate: 0x78909c, shine: 0xffffff },
+  shield: { fill: 0x1e88e5, dark: 0x263238, rim: 0xb0bec5, cross: 0xffc107 },
   trident: { gold: 0xffd54f, dark: 0xb8860b, shaft: 0x4e342e, shaftLight: 0x8d6e63 },
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },
   rocket: { tube: 0x5b6628, dark: 0x23280f, shine: 0x9aab55, nose: 0xc62828, grip: 0x3e2723 },

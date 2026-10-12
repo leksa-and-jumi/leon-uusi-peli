@@ -119,6 +119,11 @@ export interface World {
   spook: () => void;
   /** Something smashes to pieces, which fly off with this push (pixels per second). */
   breakApart: (body: Body, pushX: number, pushY: number) => void;
+  /**
+   * A piece of gear at this spot has taken a hit for its doll: it clangs. If the hit
+   * `broke` it, it bursts into little pieces of these colors.
+   */
+  gearHit: (x: number, y: number, colors: readonly number[], broke: boolean) => void;
   /** Blood sprays or drips from this spot: this many drops of this color. */
   bleed: (x: number, y: number, drops: number, color: number, spray: boolean) => void;
   /** Something goes off with a blast: a bomb or a barrel. */

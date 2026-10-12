@@ -3,6 +3,10 @@ import {
   ASHEN,
   ANGRY,
   BLOOD,
+  GEAR,
+  ITEMS,
+  type GearKind,
+  type GearSlot,
   CRUSH,
   DEPTH,
   JUMP,
@@ -30,6 +34,7 @@ import {
   type WoundKind,
 } from '../config';
 import { clamp } from '../logic/bounds';
+import { gearHit } from '../logic/gear';
 import { lobSpeed } from '../logic/toss';
 import { shade } from '../logic/color';
 import { chaseStep, nearestIndex } from '../logic/chase';
@@ -182,6 +187,12 @@ export class Person extends Body {
   private ashMs = 0;
   private blownAway = false;
   /**
+   * The gear it has on, and how many more hits each piece takes. And the hits its
+   * gear has just taken for it, which clang (or burst to pieces) on its next turn.
+   */
+  private readonly gear = new Map<GearSlot, { kind: GearKind; left: number }>();
+  private gearHits: { x: number; y: number; colors: readonly number[]; broke: boolean }[] = [];
+  /**
    * Frozen solid by a freeze ray: time left until it thaws, and how it stood when the
    * frost got it (where its picture was from its feet, and how far it was turned).
    */
@@ -308,6 +319,56 @@ export class Person extends Body {
     if (this.frozenMs <= 0) return;
     this.frozenMs = 0;
     this.figure.setIce(false);
+  }
+
+  /** The way it faces. */
+  get pointing(): Facing {
+    return this.facing;
+  }
+
+  /** Could it put on a piece of gear that goes in this place? Only a living doll, with that place free. */
+  canWear(slot: GearSlot): boolean {
+    return !this.dead && !this.gear.has(slot);
+  }
+
+  /** Put a piece of gear on. From now on it takes the hits, until it breaks. */
+  wear(kind: GearKind): void {
+    const gear = ITEMS[kind].gear;
+    if (!gear) return;
+    this.gear.set(gear.slot, { kind, left: gear.hits });
+    this.figure.wear(kind, gear.slot);
+  }
+
+  /** Take off the outermost piece of gear it has on. Says which it was, or `null`. */
+  takeOffGear(): GearKind | null {
+    const slot = GEAR.order.find((one) => this.gear.has(one));
+    const piece = slot && this.gear.get(slot);
+    if (!slot || !piece) return null;
+    this.gear.delete(slot);
+    this.figure.takeOff(slot);
+    return piece.kind;
+  }
+
+  /**
+   * A hit lands on its gear, if it has any on: the outermost piece takes the whole hit
+   * and gets a crack, or breaks when it can take no more. Says whether gear took the hit.
+   */
+  private blockWithGear(damage: number): boolean {
+    const worn = [...this.gear].map(([slot, { left }]) => ({ slot, left }));
+    const hit = gearHit(worn, GEAR.order, damage);
+    const piece = hit && this.gear.get(hit.slot);
+    if (!hit || !piece) return false;
+    const spot = this.figure.gearSpot(hit.slot) ?? { x: this.x, y: this.y - PERSON.height / 2 };
+    const broke = hit.left === 0;
+    this.gearHits.push({ ...spot, colors: ITEMS[piece.kind].crumbs, broke });
+    if (broke) {
+      this.gear.delete(hit.slot);
+      this.figure.takeOff(hit.slot);
+    } else {
+      piece.left = hit.left;
+      this.figure.crackGear(hit.slot);
+    }
+    return true;
   }
 
   /** Is it a machine (a robot)? Lightning doesn't just knock those out. */
@@ -557,8 +618,10 @@ export class Person extends Body {
     this.thaw();
     // The laser that finishes a doll off doesn't knock it over: it turns to ash as it stands
     const toAsh = wound === 'laser' && !this.dead && isDead(takeHit(this.lives, damage));
+    // With gear on to take the hit, the doll stays on its feet
+    const guarded = !this.dead && damage > 0 && this.gear.size > 0;
     if (toAsh) this.knockDir = direction;
-    else this.knockOver(direction, pushSpeed);
+    else if (!guarded) this.knockOver(direction, pushSpeed);
     return this.lose(damage, solids, wound);
   }
 
@@ -606,6 +669,8 @@ export class Person extends Body {
   /** Lose lives, and get the mark of what did it. Says whether that was the last life. */
   private lose(damage: number, solids: readonly Box[], wound: WoundKind | null): boolean {
     if (this.dead) return false;
+    // Gear takes the hit for the doll. Not what gets at all of it at once: lava, or water
+    if (damage > 0 && wound && this.blockWithGear(damage)) return false;
     if (damage > 0 && wound === 'cut') this.cutPending = 'any';
     if (damage > 0 && wound === 'saw') this.cutPending = 'upperBody';
     if (damage > 0 && wound) {
@@ -1041,6 +1106,8 @@ export class Person extends Body {
 
   /** Spray and drip blood from where the wounds are. */
   private bleed(deltaMs: number, world: World): void {
+    for (const { x, y, colors, broke } of this.gearHits) world.gearHit(x, y, colors, broke);
+    this.gearHits = [];
     this.fizzle(deltaMs, world);
     this.blowAway(deltaMs, world);
     if (this.ashPending) {

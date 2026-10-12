@@ -66,7 +66,12 @@ export class Item extends Body {
   private dropper: Person | null = null;
   private clockMs = 0;
 
-  constructor(scene: Phaser.Scene, kind: ItemKind, x: number, y: number) {
+  constructor(
+    scene: Phaser.Scene,
+    readonly kind: ItemKind,
+    x: number,
+    y: number,
+  ) {
     super(x, y);
     this.size = ITEMS[kind];
     this.crumbs = this.size.crumbs;
