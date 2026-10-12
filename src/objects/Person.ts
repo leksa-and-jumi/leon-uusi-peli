@@ -5,6 +5,7 @@ import {
   BLOOD,
   GEAR,
   ITEMS,
+  type GearDef,
   type GearKind,
   type GearSlot,
   CRUSH,
@@ -192,6 +193,8 @@ export class Person extends Body {
    */
   private readonly gear = new Map<GearSlot, { kind: GearKind; left: number }>();
   private gearHits: { x: number; y: number; colors: readonly number[]; broke: boolean }[] = [];
+  /** Where hits have just bounced off gear with the power to stop them: a spark flies there. */
+  private bounces: Spot[] = [];
   /**
    * Frozen solid by a freeze ray: time left until it thaws, and how it stood when the
    * frost got it (where its picture was from its feet, and how far it was turned).
@@ -347,6 +350,35 @@ export class Person extends Body {
     this.gear.delete(slot);
     this.figure.takeOff(slot);
     return piece.kind;
+  }
+
+  /** Does it wear gear with the power to stop hits that leave this mark? */
+  immuneTo(wound: WoundKind): boolean {
+    return this.powerSlot((gear) => gear.stops?.includes(wound) === true) !== null;
+  }
+
+  /** Does it wear gear to breathe through? A robot needs no air at all. */
+  get breathes(): boolean {
+    return this.machine || this.powerSlot((gear) => gear.air === true) !== null;
+  }
+
+  /** Where it wears a piece of gear with a certain power, or `null`. */
+  private powerSlot(has: (gear: GearDef) => boolean): GearSlot | null {
+    for (const [slot, { kind }] of this.gear) {
+      const gear = ITEMS[kind].gear;
+      if (gear && has(gear)) return slot;
+    }
+    return null;
+  }
+
+  /**
+   * Something foul to breathe: a doll with nothing to breathe through loses a life,
+   * and the last one makes it fall over. Says whether it choked.
+   */
+  choke(solids: readonly Box[]): boolean {
+    if (this.dead || this.breathes) return false;
+    if (this.lose(1, solids, null)) this.knockOver(this.facing, 0);
+    return true;
   }
 
   /**
@@ -669,8 +701,17 @@ export class Person extends Body {
   /** Lose lives, and get the mark of what did it. Says whether that was the last life. */
   private lose(damage: number, solids: readonly Box[], wound: WoundKind | null): boolean {
     if (this.dead) return false;
-    // Gear takes the hit for the doll. Not what gets at all of it at once: lava, or water
-    if (damage > 0 && wound && this.blockWithGear(damage)) return false;
+    if (damage > 0 && wound) {
+      // Gear with the power to stop this kind of hit: nothing happens at all
+      const stopper = this.powerSlot((gear) => gear.stops?.includes(wound) === true);
+      if (stopper) {
+        const spot = this.figure.gearSpot(stopper);
+        if (spot) this.bounces.push(spot);
+        return false;
+      }
+      // Gear takes the hit for the doll. Not what gets at all of it at once: lava, or water
+      if (this.blockWithGear(damage)) return false;
+    }
     if (damage > 0 && wound === 'cut') this.cutPending = 'any';
     if (damage > 0 && wound === 'saw') this.cutPending = 'upperBody';
     if (damage > 0 && wound) {
@@ -982,8 +1023,10 @@ export class Person extends Body {
     const body = this.hitBox;
     const wet = surface !== null && body.bottom > surface && this.state !== 'held';
     this.submerged = wet && body.top > surface;
-    if (wet && this.machine) this.shortCircuit(this.facing);
-    if (!this.submerged || !this.look.heavy || surface === null) {
+    // Rubber boots keep the electricity in a robot where it belongs
+    if (wet && this.machine && !this.immuneTo('shock')) this.shortCircuit(this.facing);
+    // With air to breathe, even a heavy doll is fine on the bottom
+    if (!this.submerged || !this.look.heavy || surface === null || this.breathes) {
       this.drownMs = 0;
       this.underMs = 0;
       return;
@@ -1108,6 +1151,8 @@ export class Person extends Body {
   private bleed(deltaMs: number, world: World): void {
     for (const { x, y, colors, broke } of this.gearHits) world.gearHit(x, y, colors, broke);
     this.gearHits = [];
+    for (const { x, y } of this.bounces) world.spark(x, y);
+    this.bounces = [];
     this.fizzle(deltaMs, world);
     this.blowAway(deltaMs, world);
     if (this.ashPending) {

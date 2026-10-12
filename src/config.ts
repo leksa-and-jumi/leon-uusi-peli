@@ -741,6 +741,11 @@ export interface BlastDef {
   radius: number;
   damage: number;
   pushSpeed: number;
+  /**
+   * A stink bomb: no blast at all, but a foul cloud that hangs there for `ms`. A doll
+   * in it that has nothing to breathe through loses a life every `everyMs`.
+   */
+  stink?: { ms: number; everyMs: number };
 }
 
 /** A building piece: others can stand on it and can't walk through it. */
@@ -2429,19 +2434,35 @@ export type WeaponKind =
 export type JunkItemKind = 'bottle' | 'pan' | 'broom';
 /** Odd weapons, on the traps page. */
 export type OddItemKind =
-  'glove' | 'chicken' | 'fish' | 'flamethrower' | 'freezeRay' | 'magnet' | 'balloon' | 'firework';
+  | 'glove'
+  | 'chicken'
+  | 'fish'
+  | 'flamethrower'
+  | 'freezeRay'
+  | 'magnet'
+  | 'balloon'
+  | 'firework'
+  | 'stinkBomb';
 /** What a catapult hurls. It isn't in the menu. */
 export type AmmoKind = 'boulder';
 /** Gear a doll wears: it takes the hits for the doll, until it breaks. */
-export type GearKind = 'gasMask' | 'armyHelmet' | 'vest' | 'shield';
+export type GearKind =
+  'gasMask' | 'armyHelmet' | 'spaceHelmet' | 'vest' | 'knightArmor' | 'shield' | 'rubberBoots';
 /** Where on a doll a piece of gear goes. A doll wears one piece in each place at the most. */
-export type GearSlot = 'face' | 'head' | 'chest' | 'arm';
+export type GearSlot = 'face' | 'head' | 'chest' | 'arm' | 'feet';
 export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind;
 
 /** A piece of gear: where it is worn, and how many hits it takes before it breaks. */
 export interface GearDef {
   slot: GearSlot;
   hits: number;
+  /**
+   * Its special power: hits that leave these marks do nothing at all to the doll that
+   * wears it, and don't wear the piece down either.
+   */
+  stops?: readonly WoundKind[];
+  /** Its special power: the doll that wears it can breathe anywhere, under water and in a stink cloud. */
+  air?: true;
 }
 
 /**
@@ -2450,7 +2471,7 @@ export interface GearDef {
  * that is taken off lands this far in front of the doll.
  */
 export const GEAR = {
-  order: ['arm', 'chest', 'head', 'face'],
+  order: ['arm', 'chest', 'head', 'face', 'feet'],
   crack: 0x101010,
   crackWidth: 1.3,
   /** A crack is a jagged line of this many bits, across about this much of the piece. */
@@ -2722,6 +2743,23 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: 0, along: 10 },
     bomb: { fuseMs: 4000, radius: 170, damage: 3, pushSpeed: 700 },
   },
+  // No blast: it leaves a foul green cloud, and whoever has nothing to breathe through chokes in it
+  stinkBomb: {
+    floats: true,
+    crumbs: [0x558b2f, 0xc5e1a5, 0x8d6e63],
+    halfWidth: 13,
+    height: 26,
+    menuScale: 1.6,
+    lie: { x: 0, y: -13 },
+    hand: { rotation: 0, along: 10 },
+    bomb: {
+      fuseMs: 2500,
+      radius: 150,
+      damage: 0,
+      pushSpeed: 0,
+      stink: { ms: 8000, everyMs: 1000 },
+    },
+  },
   // A shorter fuse than the bomb and a much bigger blast
   dynamite: {
     floats: true,
@@ -2800,7 +2838,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 2,
     lie: { x: 0, y: -11 },
     hand: { rotation: 0, along: 0 },
-    gear: { slot: 'face', hits: 2 },
+    // Its power: air to breathe
+    gear: { slot: 'face', hits: 2, air: true },
   },
   armyHelmet: {
     melts: true,
@@ -2822,7 +2861,44 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 1.5,
     lie: { x: 0, y: -15 },
     hand: { rotation: 0, along: 0 },
-    gear: { slot: 'chest', hits: 5 },
+    // Its power: fire does nothing
+    gear: { slot: 'chest', hits: 5, stops: ['burn'] },
+  },
+  // A steel breastplate, instead of the vest. Its power: blades don't get through
+  knightArmor: {
+    melts: true,
+    metal: true,
+    crumbs: [0xb0bec5, 0x546e7a, 0xffc107],
+    halfWidth: 22,
+    height: 34,
+    menuScale: 1.4,
+    lie: { x: 0, y: -16 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'chest', hits: 8, stops: ['slash', 'stab', 'cut'] },
+  },
+  // A glass bubble, instead of the army helmet. Its power: air to breathe
+  spaceHelmet: {
+    melts: true,
+    floats: true,
+    crumbs: [0xeceff1, 0x81d4fa, 0x90a4ae],
+    halfWidth: 20,
+    height: 40,
+    menuScale: 1.2,
+    lie: { x: 0, y: -29 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'head', hits: 4, air: true },
+  },
+  // Its power: lightning does nothing
+  rubberBoots: {
+    melts: true,
+    floats: true,
+    crumbs: [0xfdd835, 0xb8960c, 0x37474f],
+    halfWidth: 16,
+    height: 21,
+    menuScale: 1.7,
+    lie: { x: 0, y: -10 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'feet', hits: 2, stops: ['shock'] },
   },
   shield: {
     melts: true,
@@ -2833,7 +2909,8 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     menuScale: 1.3,
     lie: { x: 0, y: -19 },
     hand: { rotation: 0, along: 0 },
-    gear: { slot: 'arm', hits: 4 },
+    // Its power: bullets and arrows bounce off
+    gear: { slot: 'arm', hits: 4, stops: ['hole'] },
   },
   // A catapult's boulder: it knocks down the doll it hits, and smashes when it lands
   boulder: {
@@ -2971,6 +3048,7 @@ export const TRAP_KINDS: readonly (
   { type: 'block', kind: 'mine' },
   { type: 'item', kind: 'bomb' },
   { type: 'item', kind: 'dynamite' },
+  { type: 'item', kind: 'stinkBomb' },
   { type: 'item', kind: 'glove' },
   { type: 'item', kind: 'chicken' },
   { type: 'item', kind: 'fish' },
@@ -3042,7 +3120,15 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'ship',
 ];
 /** The gear page. */
-export const GEAR_KINDS: readonly GearKind[] = ['gasMask', 'armyHelmet', 'vest', 'shield'];
+export const GEAR_KINDS: readonly GearKind[] = [
+  'gasMask',
+  'armyHelmet',
+  'spaceHelmet',
+  'vest',
+  'knightArmor',
+  'shield',
+  'rubberBoots',
+];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
 )[] = [
@@ -3079,6 +3165,10 @@ export const ITEM_COLORS = {
   armyHelmet: { fill: 0x556b2f, dark: 0x33401c, shine: 0xc5d39a },
   vest: { fill: 0x37474f, dark: 0x1c262b, plate: 0x78909c, shine: 0xffffff },
   shield: { fill: 0x1e88e5, dark: 0x263238, rim: 0xb0bec5, cross: 0xffc107 },
+  knightArmor: { fill: 0xb0bec5, dark: 0x546e7a, shine: 0xffffff, trim: 0xffc107 },
+  spaceHelmet: { white: 0xeceff1, dark: 0x90a4ae, glass: 0x81d4fa },
+  rubberBoots: { fill: 0xfdd835, dark: 0xb8960c, sole: 0x37474f, shine: 0xfff59d },
+  stinkBomb: { body: 0x558b2f, shine: 0xc5e1a5, cap: 0x8d6e63, fuse: 0xbcaaa4 },
   trident: { gold: 0xffd54f, dark: 0xb8860b, shaft: 0x4e342e, shaftLight: 0x8d6e63 },
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },
   rocket: { tube: 0x5b6628, dark: 0x23280f, shine: 0x9aab55, nose: 0xc62828, grip: 0x3e2723 },
@@ -3237,6 +3327,25 @@ export const PICK_PADDING_TOUCH = 18;
 export const BULLET = { width: 12, height: 3, color: 0xffe082 } as const;
 
 /** The big bang of a bomb. */
+/**
+ * The cloud a stink bomb leaves: green puffs that drift and swell and fade, one about
+ * every `puffEveryMs`, in front of the dolls. A doll that chokes in it shows it.
+ */
+export const STINK = {
+  colors: [0x9ccc65, 0x7cb342, 0xc0ca33],
+  alpha: 0.42,
+  puffEveryMs: 60,
+  radius: { min: 9, max: 19 },
+  drift: 30,
+  grow: 1.9,
+  puffMs: 1400,
+  depth: 44,
+  emoji: '🤢',
+  fontSize: '28px',
+  emojiMs: 800,
+  emojiGrow: 1.3,
+} as const;
+
 export const BLAST = {
   emoji: '💥',
   fontSize: '110px',
