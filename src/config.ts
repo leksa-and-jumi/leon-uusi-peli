@@ -264,6 +264,12 @@ export interface PersonLook {
   };
   /** A wizard: in angry mode it casts this at the others, with no weapon in its hand. */
   spell?: GunDef;
+  /**
+   * An old one: steered, it walks this fast (pixels per second) and doesn't run, and with
+   * a broom in its hand it sweeps as it goes. And its back is bent this much (radians).
+   */
+  stroll?: number;
+  stoop?: number;
   /** It is heavy (a knight in armor): in water it sinks to the bottom, and under water it drowns. */
   heavy?: boolean;
 }
@@ -707,6 +713,17 @@ export const DUEL = {
 } as const;
 
 /**
+ * Little things that make the game feel alive. Dolls blink every `everyMs` or so, for
+ * `ms`. Something that lands faster than `minSpeed` kicks up dust of this color. And a
+ * gun that fires flashes at its muzzle for `ms`, a star this big.
+ */
+export const ALIVE = {
+  blink: { everyMs: 3600, ms: 130 },
+  dust: { minSpeed: 380, color: 0xcfc8bd },
+  muzzle: { ms: 70, size: 14, color: 0xfff176, core: 0xffffff, depth: 41 },
+} as const;
+
+/**
  * The cleaning lady. After every `everyRounds`th round of a battle, whoever won it (in
  * a team game a round is a wave that was beaten, or a game that was lost), an old lady with a broom walks across the area, from one end to the other. She
  * sweeps the floor clean under her (`reach` to either side), and every body and loose
@@ -716,14 +733,23 @@ export const DUEL = {
 export const CLEANER = {
   everyRounds: 5,
   reach: 48,
-  pauseMs: 300,
+  /** At a body she bends down for `bendMs` to get hold of it, and then throws it with a swing of her arm that takes `throwMs`. */
+  bendMs: 520,
+  throwMs: 420,
+  /** Where her broom sweeps, a little dust flies up this often, and now and then the clean floor gleams behind her. */
+  dustEveryMs: 260,
+  dust: 0xd7ccc8,
+  gleamEveryMs: 900,
+  gleam: 0xffffff,
+  broomAhead: 46,
   edge: 34,
-  mostMs: 14000,
+  mostMs: 45000,
   look: {
     body: 0x7e57c2,
     joint: 0x5e3f8f,
     extra: 'apron',
-    speed: 0.85,
+    stroll: 72,
+    stoop: 0.3,
     human: {
       skin: 0xf1c9a5,
       hair: 0xe0e0e0,

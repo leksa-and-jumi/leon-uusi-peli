@@ -32,7 +32,7 @@ export interface World {
   /** Is something solid lying on this doll, so that it can't get up? */
   pinned: (person: Person) => boolean;
   /** A doll hit the ground, falling this fast (pixels per second). */
-  landed: (fallSpeed: number) => void;
+  landed: (fallSpeed: number, x?: number, y?: number) => void;
   /**
    * Fire a bullet from this spot. With no shooter, it hits dolls of any color.
    * `aim` is the way it flies (an arrow of length 1; straight sideways when left

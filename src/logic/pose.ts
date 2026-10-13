@@ -32,6 +32,7 @@ export type PoseKind =
   | 'held'
   | 'punch'
   | 'push'
+  | 'sweep'
   | 'choke'
   | 'slam'
   | 'sit'
@@ -114,6 +115,23 @@ export const MOVES = {
     knee: 0.35,
     head: -0.6,
   },
+  /**
+   * Sweeping with a broom: short, slow steps, the back bent, and the arm with the broom
+   * going forward and back so that the broom brushes along the floor.
+   */
+  sweep: {
+    stepMs: 900,
+    leg: 0.24,
+    knee: 0.35,
+    arm: 0.12,
+    stroke: 0.3,
+    strokeMs: 620,
+    elbow: -0.12,
+    backArm: -0.55,
+    backElbow: -0.7,
+  },
+  /** Breathing while standing: the chest rises and falls a little, and the arms with it. */
+  breath: { ms: 3200, waist: 0.016, arms: 0.028, lift: 0.5 },
   /**
    * Choking on something foul: down on both knees, both hands at the throat, the
    * back and the head heaving forward and back with every cough.
@@ -214,6 +232,27 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         head: move.head,
         lift: 0,
         lean: move.lean,
+      };
+    }
+    case 'sweep': {
+      const move = MOVES.sweep;
+      const phase = (timeMs / move.stepMs) * Math.PI * 2;
+      const swing = Math.sin(phase);
+      const lifting = Math.cos(phase);
+      const stroke = Math.sin((timeMs / move.strokeMs) * Math.PI * 2) * move.stroke;
+      return {
+        frontArm: move.arm + stroke,
+        backArm: move.backArm + stroke * 0.6,
+        frontLeg: -move.leg * swing,
+        backLeg: move.leg * swing,
+        frontElbow: move.elbow,
+        backElbow: move.backElbow,
+        frontKnee: move.knee * Math.max(0, lifting),
+        backKnee: move.knee * Math.max(0, -lifting),
+        waist: 0,
+        head: 0,
+        lift: 0,
+        lean: 0,
       };
     }
     case 'choke': {
@@ -371,4 +410,25 @@ export function blendPose(from: Pose, to: Pose, amount: number): Pose {
     pose[key] = from[key] + (to[key] - from[key]) * t;
   }
   return pose;
+}
+
+/**
+ * A standing doll that breathes: its chest rises and falls a little, and its arms move
+ * with it. Give it the pose it stands in, and the time.
+ */
+export function breathing(pose: Pose, timeMs: number): Pose {
+  const { ms, waist, arms, lift } = MOVES.breath;
+  const breath = Math.sin((timeMs / ms) * Math.PI * 2);
+  return {
+    ...pose,
+    waist: pose.waist - waist * breath,
+    frontArm: pose.frontArm + arms * breath,
+    backArm: pose.backArm - arms * breath,
+    lift: pose.lift + lift * breath,
+  };
+}
+
+/** A bent back: the same pose, stooping this much (radians), with the head hanging a little too. */
+export function stooping(pose: Pose, stoop: number): Pose {
+  return { ...pose, waist: pose.waist + stoop, head: pose.head + stoop * 0.45 };
 }

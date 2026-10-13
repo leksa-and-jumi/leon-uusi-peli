@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blendPose, limpPose, MOVES, poseFor, STAND } from './pose';
+import { blendPose, breathing, limpPose, MOVES, poseFor, STAND, stooping } from './pose';
 
 describe('poseFor', () => {
   it('stands still with arms and legs straight down', () => {
@@ -81,6 +81,13 @@ describe('poseFor', () => {
     const other = poseFor('choke', 315);
     expect(one.waist).toBeGreaterThan(other.waist);
     expect(one.head).toBeGreaterThan(other.head);
+  });
+
+  it('sweeps with small steps, the broom arm going back and forth', () => {
+    const one = poseFor('sweep', 155);
+    const other = poseFor('sweep', 465);
+    expect(one.frontArm).toBeGreaterThan(other.frontArm);
+    expect(Math.abs(poseFor('sweep', 225).frontLeg)).toBeLessThan(0.3);
   });
 
   it('pushes with both arms stretched out in front, feet apart', () => {
@@ -181,5 +188,30 @@ describe('swim pose', () => {
   it('kicks its legs in turn', () => {
     const pose = poseFor('swim', 190);
     expect(pose.frontLeg).toBeCloseTo(-pose.backLeg);
+  });
+});
+
+describe('breathing', () => {
+  it('moves the chest and the arms a little, back and forth', () => {
+    const inBreath = breathing(STAND, 800);
+    const outBreath = breathing(STAND, 2400);
+    expect(inBreath.waist).not.toBeCloseTo(outBreath.waist, 3);
+    expect(Math.abs(inBreath.waist - STAND.waist)).toBeLessThan(0.03);
+    expect(Math.abs(inBreath.frontArm - STAND.frontArm)).toBeLessThan(0.05);
+  });
+
+  it('leaves the legs alone', () => {
+    const pose = breathing(STAND, 800);
+    expect(pose.frontLeg).toBe(STAND.frontLeg);
+    expect(pose.backKnee).toBe(STAND.backKnee);
+  });
+});
+
+describe('stooping', () => {
+  it('bends the back and lets the head hang a little', () => {
+    const pose = stooping(STAND, 0.3);
+    expect(pose.waist).toBeCloseTo(STAND.waist + 0.3);
+    expect(pose.head).toBeGreaterThan(STAND.head);
+    expect(pose.head).toBeLessThan(STAND.head + 0.3);
   });
 });

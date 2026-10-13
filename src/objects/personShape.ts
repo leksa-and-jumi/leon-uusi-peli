@@ -116,6 +116,8 @@ export class PersonFigure {
   private readonly headPart: Container;
   private readonly eyes: Graphics;
   private readonly deadEyes: Graphics;
+  /** Its eyelids: shut for a moment whenever it blinks. */
+  private readonly lids: Graphics;
   /** The pale crosses it has for eyes once a laser has turned it to ash. */
   private readonly ashEyes: Graphics;
   private readonly brows: Graphics;
@@ -186,11 +188,12 @@ export class PersonFigure {
     this.eyes = paint.eyes().setVisible(!this.faceless);
     this.deadEyes = paint.deadEyes().setVisible(false);
     this.ashEyes = paint.deadEyes(ASHEN.eye).setVisible(false);
+    this.lids = paint.lids(this.skin).setVisible(false);
     this.brows = paint.angryBrows().setVisible(false);
 
     // The parts are drawn where they are on a standing doll, so each bending part
     // is moved back by the spot it bends around
-    const face = [paint.head(), this.eyes, this.deadEyes, this.ashEyes, this.brows];
+    const face = [paint.head(), this.eyes, this.lids, this.deadEyes, this.ashEyes, this.brows];
     face.forEach((part) => part.setPosition(0, -neck.y));
     this.headPart = scene.make.container({ x: 0, y: neck.y - waist.y }, false).add(face);
     this.upperBody = scene.make
@@ -403,6 +406,11 @@ export class PersonFigure {
     for (const { part, redraw } of this.toBones) {
       if (part === arm || part === leg) redraw();
     }
+  }
+
+  /** Shut its eyes for a blink, or open them again. Only eyes that can be seen blink. */
+  blink(shut: boolean): void {
+    this.lids.setVisible(shut && this.eyes.visible);
   }
 
   /** A doll with a superpower glows in the color of the power. With `null` the glow is gone. */
@@ -1286,6 +1294,19 @@ class Painter {
       g.fillCircle(eye.back, eye.y, eye.radius);
       g.fillCircle(eye.front, eye.y, eye.radius);
     }
+    return g;
+  }
+
+  /** Eyelids of this color, shut over both eyes. */
+  lids(color: number): Graphics {
+    const g = this.blank();
+    const { eye } = SHAPE;
+    g.fillStyle(color);
+    g.fillCircle(eye.back, eye.y, eye.radius + 1);
+    g.fillCircle(eye.front, eye.y, eye.radius + 1);
+    g.lineStyle(1, shade(color, -0.5));
+    g.lineBetween(eye.back - 2.2, eye.y + 0.6, eye.back + 2.2, eye.y + 0.6);
+    g.lineBetween(eye.front - 2.2, eye.y + 0.6, eye.front + 2.2, eye.y + 0.6);
     return g;
   }
 

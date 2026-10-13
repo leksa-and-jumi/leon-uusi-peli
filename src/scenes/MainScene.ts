@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   ARENA,
+  ALIVE,
   ASH,
   ASHEN,
   BLAST,
@@ -206,7 +207,8 @@ export class MainScene extends Phaser.Scene {
   private cleaning: {
     granny: Person;
     ms: number;
-    pauseMs: number;
+    /** The body she has got to, and the time left of bending down for it and throwing it. */
+    throwing: { body: Body; ms: number; thrown: boolean } | null;
     lastX: number;
     thrown: Set<Body>;
   } | null = null;
@@ -296,9 +298,13 @@ export class MainScene extends Phaser.Scene {
       carry: (vehicle, dx) => {
         this.carry(vehicle, dx);
       },
-      landed: (fallSpeed) => {
+      landed: (fallSpeed, x, y) => {
         const { quietestFall, loudestFall } = SOUND.thud;
         this.sfx.thud((fallSpeed - quietestFall) / (loudestFall - quietestFall));
+        // A hard landing kicks up a little dust
+        if (x !== undefined && y !== undefined && fallSpeed >= ALIVE.dust.minSpeed) {
+          this.world.sparkle(x, Math.min(y, AREA.floorY) - 6, ALIVE.dust.color);
+        }
       },
       shoot: (shooter, x, y, direction, gun, aim, from) => {
         this.shoot(shooter, x, y, direction, gun, aim, from);
@@ -962,7 +968,7 @@ export class MainScene extends Phaser.Scene {
     this.items.push(broom);
     granny.hold(broom, this.solidBoxes(broom));
     granny.steer(steerFrom(false, true, false, false));
-    this.cleaning = { granny, ms: 0, pauseMs: 0, lastX: x, thrown: new Set() };
+    this.cleaning = { granny, ms: 0, throwing: null, lastX: x, thrown: new Set() };
   }
 
   /**
@@ -994,9 +1000,18 @@ export class MainScene extends Phaser.Scene {
       if (this.roundOver) this.newRound();
       return;
     }
-    if (job.pauseMs > 0) {
-      job.pauseMs -= delta;
+    const throwing = job.throwing;
+    if (throwing) {
+      // She has bent down for a body: when she has hold of it, she throws it out with a swing of her arm
+      throwing.ms -= delta;
       granny.steer(steerFrom(false, false, false, false));
+      if (!throwing.thrown && throwing.ms <= CLEANER.throwMs) {
+        throwing.thrown = true;
+        if (throwing.body.canBePicked) throwing.body.throwAway(AREA);
+        granny.perform('punch', CLEANER.throwMs);
+        this.sfx.wind();
+      }
+      if (throwing.ms <= 0) job.throwing = null;
       return;
     }
     const lying: Body[] = [...this.people.filter((person) => person.dead), ...this.parts];
@@ -1005,13 +1020,21 @@ export class MainScene extends Phaser.Scene {
     );
     if (body) {
       job.thrown.add(body);
-      body.throwAway(AREA);
-      this.sfx.boing();
-      job.pauseMs = CLEANER.pauseMs;
+      job.throwing = { body, ms: CLEANER.bendMs + CLEANER.throwMs, thrown: false };
+      granny.perform('slam', CLEANER.bendMs);
       return;
     }
+    // Where her broom goes, a little dust flies up, and now and then the clean floor gleams behind her
+    const every = (ms: number): boolean =>
+      Math.floor(job.ms / ms) !== Math.floor((job.ms - delta) / ms);
+    if (every(CLEANER.dustEveryMs)) {
+      this.world.sparkle(x + CLEANER.broomAhead, AREA.floorY - 8, CLEANER.dust);
+    }
+    if (every(CLEANER.gleamEveryMs)) {
+      this.world.sparkle(x - CLEANER.broomAhead, AREA.floorY - 10, CLEANER.gleam);
+    }
     // Whatever is in her way, she hops over
-    const stuck = Math.abs(x - job.lastX) < 0.2;
+    const stuck = Math.abs(x - job.lastX) < 0.05;
     job.lastX = x;
     granny.steer(steerFrom(false, true, stuck, false));
   }
@@ -1640,6 +1663,8 @@ export class MainScene extends Phaser.Scene {
     // A flamethrower hisses; everything else bangs
     if (gun.flame) this.sfx.crumble();
     else this.sfx.shot();
+    // A gun that fires bullets or shells flashes at its muzzle
+    if (!gun.flame && !gun.frost && !gun.look) this.muzzleFlash(x, y, Math.atan2(aim.y, aim.x));
     // A cannon's shell is bigger and darker than a bullet; a flame or frost is a puff
     const look = gun.shell ?? gun.flame ?? gun.frost ?? gun.look ?? BULLET;
     for (const way of fan(aim, gun.pellets ?? 1, gun.spread ?? 0)) {
@@ -1671,6 +1696,27 @@ export class MainScene extends Phaser.Scene {
       picture.rotation = Math.atan2(way.y, way.x);
       this.bullets.push({ x, y, aim: way, from, direction, gun, shooter, picture, flown: 0 });
     }
+  }
+
+  /** A flash at the muzzle of a gun that has just fired: a little star of light, gone at once. */
+  private muzzleFlash(x: number, y: number, angle: number): void {
+    const { ms, size, color, core, depth } = ALIVE.muzzle;
+    const flash = this.add.graphics().setPosition(x, y).setDepth(depth);
+    flash.rotation = angle;
+    flash.fillStyle(color, 0.9);
+    flash.fillTriangle(0, -size * 0.35, 0, size * 0.35, size * 1.3, 0);
+    flash.fillTriangle(0, -size * 0.2, size * 0.5, -size * 0.75, size * 0.4, 0);
+    flash.fillTriangle(0, size * 0.2, size * 0.5, size * 0.75, size * 0.4, 0);
+    flash.fillStyle(core);
+    flash.fillCircle(size * 0.15, 0, size * 0.28);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: ms,
+      onComplete: () => {
+        flash.destroy();
+      },
+    });
   }
 
   /** Bullets fly straight until they hit a doll, hit something solid, or leave the area. */
