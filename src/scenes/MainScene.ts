@@ -58,6 +58,8 @@ import {
   THINGS_MAX,
   THUNDER,
   WATER,
+  WRECK,
+  WRECKS,
   TOPPLE,
   TOSS,
   type ActionId,
@@ -84,6 +86,7 @@ import { steerFrom, takeSeat } from '../logic/duel';
 import { pickDrop } from '../logic/drops';
 import { waveKinds, waveSize } from '../logic/waves';
 import { layOutArena } from '../logic/arena';
+import { wreckParts } from '../logic/wreck';
 import {
   cleanerDue,
   heartsFor,
@@ -143,8 +146,16 @@ interface Bullet {
 /** A flying piece of something that broke, or a drop of blood (then `blood` is its color). */
 interface Piece {
   crumb: Crumb;
-  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc | Phaser.GameObjects.Triangle;
+  picture:
+    | Phaser.GameObjects.Rectangle
+    | Phaser.GameObjects.Arc
+    | Phaser.GameObjects.Triangle
+    | Phaser.GameObjects.Graphics;
   blood: number | null;
+  /** A big part of a wreck comes to rest with its middle this far above the floor. */
+  rest?: number;
+  /** A wheel rolls on for about this long, where another piece would slide to a stop at once. */
+  slideMs?: number;
   /** How see-through it is by itself (glass), before it starts to fade. Not at all when left out. */
   alpha?: number;
   /** How long it lies there before it starts to fade, and how long fading takes. */
@@ -212,6 +223,8 @@ export class MainScene extends Phaser.Scene {
     ms: number;
     /** The body she has got to, and the time left of bending down for it and throwing it. */
     throwing: { body: Body; ms: number; thrown: boolean } | null;
+    /** How long she has been furious, chasing whoever hit her. */
+    rageMs: number;
     lastX: number;
     thrown: Set<Body>;
   } | null = null;
@@ -971,7 +984,7 @@ export class MainScene extends Phaser.Scene {
     this.items.push(broom);
     granny.hold(broom, this.solidBoxes(broom));
     granny.steer(steerFrom(false, true, false, false));
-    this.cleaning = { granny, ms: 0, throwing: null, lastX: x, thrown: new Set() };
+    this.cleaning = { granny, ms: 0, throwing: null, rageMs: 0, lastX: x, thrown: new Set() };
   }
 
   /**
@@ -1001,6 +1014,12 @@ export class MainScene extends Phaser.Scene {
       }
       // After a round that ended the game (or, against each other, any round) the next one starts now
       if (this.roundOver) this.newRound();
+      return;
+    }
+    if (granny.provoked) {
+      // Somebody has hit her: the cleaning waits until she has dealt with that
+      job.ms -= delta;
+      this.chase(job, x, delta);
       return;
     }
     const throwing = job.throwing;
@@ -1040,6 +1059,35 @@ export class MainScene extends Phaser.Scene {
     const stuck = Math.abs(x - job.lastX) < 0.05;
     job.lastX = x;
     granny.steer(steerFrom(false, true, stuck, false));
+  }
+
+  /**
+   * The cleaning lady is furious: she runs after the one who hit her (or, when she
+   * doesn't know who it was, the closest player's doll) and whacks it with her broom
+   * until it is out. Then she is calm again and goes on cleaning.
+   */
+  private chase(job: NonNullable<MainScene['cleaning']>, x: number, delta: number): void {
+    const { granny } = job;
+    const { reach, near, mostMs, emoji, fontSize, ms, grow } = CLEANER.rage;
+    const alive = (doll: Person | null): doll is Person =>
+      !!doll && !doll.dead && this.people.includes(doll);
+    const closest = this.players
+      .filter(alive)
+      .sort((one, other) => Math.abs(one.feet.x - x) - Math.abs(other.feet.x - x))[0];
+    const victim = alive(granny.provokedBy) ? granny.provokedBy : closest;
+    if (job.rageMs === 0) this.popUp(x, granny.box.top - 24, emoji, fontSize, ms, grow);
+    job.rageMs += delta;
+    if (!victim || job.rageMs > mostMs) {
+      granny.calm();
+      job.rageMs = 0;
+      job.throwing = null;
+      return;
+    }
+    const gap = victim.feet.x - x;
+    const close = Math.abs(gap) <= reach;
+    const stuck = Math.abs(x - job.lastX) < 0.05 && !close;
+    job.lastX = x;
+    granny.steer(steerFrom(gap < -near, gap > near, stuck, close && victim.canBeStruck));
   }
 
   /**
@@ -1804,6 +1852,8 @@ export class MainScene extends Phaser.Scene {
           if (every !== undefined) this.lastBurnt.set(victim, this.time.now);
           const solids = this.solidBoxes(victim);
           const wound = flame ? 'burn' : (bullet.gun.wound ?? 'hole');
+          // The cleaning lady remembers who shot at her
+          victim.provoke(bullet.shooter);
           const deadly = victim.shot(bullet.direction, solids, bullet.gun.damage, wound);
           this.showHit(bullet.x, bullet.y, deadly, 'none');
         }
@@ -2178,7 +2228,58 @@ export class MainScene extends Phaser.Scene {
     if (dust !== undefined) {
       this.world.sparkle((box.left + box.right) / 2, (box.top + box.bottom) / 2, dust);
     }
+    if (body instanceof Block) this.wreck(body, pushX);
     this.trimPieces();
+  }
+
+  /**
+   * A vehicle that is wrecked falls apart into parts too: its wheels drop off and roll
+   * away, and doors, hoods, wings and rotor blades are flung off, spinning.
+   */
+  private wreck(vehicle: Block, pushX: number): void {
+    const spec = WRECKS[vehicle.kind];
+    if (!spec) return;
+    const { fill, dark, light } = vehicle.def.colors;
+    for (const { kind, long, wide, crumb } of wreckParts(spec, vehicle.box, pushX, WRECK.burst)) {
+      const g = this.add
+        .graphics()
+        .setPosition(crumb.x, crumb.y)
+        .setDepth(DEBRIS.depth + 1);
+      if (kind === 'wheel') {
+        // A tire with a hub, and three spokes that show it turning
+        const radius = long / 2;
+        g.fillStyle(WRECK.tire);
+        g.fillCircle(0, 0, radius);
+        g.fillStyle(WRECK.hub);
+        g.fillCircle(0, 0, radius * 0.52);
+        g.lineStyle(Math.max(1, radius * 0.16), WRECK.cap);
+        for (const turn of [0, (Math.PI * 2) / 3, (Math.PI * 4) / 3]) {
+          g.lineBetween(0, 0, Math.cos(turn) * radius * 0.5, Math.sin(turn) * radius * 0.5);
+        }
+        g.fillStyle(WRECK.cap);
+        g.fillCircle(0, 0, radius * 0.18);
+      } else if (kind === 'blade') {
+        g.fillStyle(dark);
+        g.fillRoundedRect(-long / 2, -wide / 2, long, wide, wide / 2);
+      } else {
+        // A sheet of the body: its color, a dark edge and a shine along it
+        g.fillStyle(dark);
+        g.fillRoundedRect(-long / 2, -wide / 2, long, wide, 3);
+        g.fillStyle(fill);
+        g.fillRoundedRect(-long / 2 + 1.5, -wide / 2 + 1.5, long - 3, wide - 3, 2);
+        g.fillStyle(light, 0.7);
+        g.fillRect(-long / 2 + 3, -wide / 2 + 2.5, long - 6, 1.6);
+      }
+      this.pieces.push({
+        crumb,
+        picture: g,
+        blood: null,
+        lieMs: WRECK.lieMs,
+        fadeMs: WRECK.fadeMs,
+        rest: wide / 2,
+        slideMs: kind === 'wheel' ? WRECK.rollMs : undefined,
+      });
+    }
   }
 
   /** Burn something to ash: a puff of gray flakes that drift down and are soon gone. */
@@ -2260,8 +2361,12 @@ export class MainScene extends Phaser.Scene {
     let stained = false;
     const pools = this.pools();
     this.pieces = this.pieces.filter((piece) => {
-      const falling =
-        piece.gravity === undefined ? physics : { ...physics, gravity: piece.gravity };
+      const falling = {
+        ...physics,
+        gravity: piece.gravity ?? physics.gravity,
+        floorY: physics.floorY - (piece.rest ?? 0),
+        slideMs: piece.slideMs ?? physics.slideMs,
+      };
       piece.crumb = crumbStep(piece.crumb, falling, delta);
       const { x, y, turn, ageMs } = piece.crumb;
       const inWater = (pool: Box): boolean =>

@@ -177,6 +177,9 @@ export class Person extends Body {
   private readonly blinkAt = Math.random() * ALIVE.blink.everyMs;
   /** Nothing can hurt it, and nobody goes for it: the cleaning lady. */
   safe = false;
+  /** Somebody has hit it all the same, and now it is furious: at whom, if that is known. */
+  provoked = false;
+  provokedBy: Person | null = null;
   /** What the player who steers it tells it to do, or `null` when it does as it likes. */
   private pilot: Steer | null = null;
   /** Time left of choking on a stink cloud: it is down on its knees and can do nothing else. */
@@ -521,6 +524,7 @@ export class Person extends Body {
     this.facing = toward;
     if (this.waitMs > 0) return 'stand';
     if (target instanceof Person) {
+      target.provoke(this);
       world.zap(from.x, from.y, target, zap.damage, zap.pushSpeed, zap.spark);
     } else {
       world.flash(from.x, from.y, to.x, to.y, zap.spark);
@@ -706,6 +710,29 @@ export class Person extends Body {
     return this.lives;
   }
 
+  /**
+   * Somebody has hit the one that nothing can hurt. It doesn't hurt, but it makes her
+   * furious. `by` is who did it, when that is known.
+   */
+  provoke(by: Person | null): void {
+    if (!this.safe) return;
+    this.provoked = true;
+    if (by) this.provokedBy = by;
+    this.figure.setAngry(true);
+  }
+
+  /** She has had her revenge, and is calm again. */
+  calm(): void {
+    this.provoked = false;
+    this.provokedBy = null;
+    this.figure.setAngry(false);
+  }
+
+  /** Could a player's swing land on it? On anybody who is on their feet, the cleaning lady too. */
+  get canBeStruck(): boolean {
+    return !this.dead && this.state === 'resting' && !this.ragdoll && this.seat === null;
+  }
+
   /** Hold this pose for a while, standing still: bending down for something, or throwing it. */
   perform(pose: PoseKind, ms: number): void {
     this.shown = { pose, ms };
@@ -872,7 +899,10 @@ export class Person extends Body {
     pushSpeed: number = KNOCK.pushSpeed,
     wound: WoundKind = 'bruise',
   ): boolean {
-    if (this.safe) return false;
+    if (this.safe) {
+      this.provoke(null);
+      return false;
+    }
     this.thaw();
     // The laser that finishes a doll off doesn't knock it over: it turns to ash as it stands
     const toAsh = wound === 'laser' && !this.dead && isDead(takeHit(this.lives, damage));
@@ -893,7 +923,11 @@ export class Person extends Body {
     damage: number,
     wound: WoundKind = 'hole',
   ): boolean {
-    if (this.dead || this.safe) return false;
+    if (this.dead) return false;
+    if (this.safe) {
+      this.provoke(null);
+      return false;
+    }
     this.thaw();
     this.flinchMs = PERSON.flinch.ms;
     this.flinchDir = direction;
@@ -1801,6 +1835,8 @@ export class Person extends Body {
       gloved;
     const sound = weapon?.melee ? (weapon.melee.sound ?? 'clang') : 'punch';
     if (target instanceof Person) {
+      // The cleaning lady remembers who hit her
+      target.provoke(this);
       const deadly = target.hit(
         this.facing,
         world.solidBoxes(target),
@@ -1838,8 +1874,10 @@ export class Person extends Body {
     if (pilot.x !== 0) {
       this.facing = pilot.x;
       // An old one walks, and sweeps as it goes if it has a broom; anybody else runs
-      const stroll = this.look.stroll;
-      const speed = stroll ?? DUEL.speed * this.pace;
+      // Unless it is furious: then it runs, faster than it ever walked
+      const stroll = this.provoked ? undefined : this.look.stroll;
+      const fury = this.provoked ? this.look.fury : undefined;
+      const speed = fury ?? stroll ?? DUEL.speed * this.pace;
       this.walkTo(this.x + pilot.x * speed * (deltaMs / 1000), world);
       pose = stroll === undefined ? 'run' : this.item?.def.wipes ? 'sweep' : 'walk';
     }
@@ -1870,7 +1908,9 @@ export class Person extends Body {
     }
     // In a battle everybody else is fair game, whatever their color
     const others: (Person | Block)[] = [
-      ...world.people.filter((other) => other !== this && other.canBeHit && !this.friendOf(other)),
+      ...world.people.filter(
+        (other) => other !== this && other.canBeStruck && !this.friendOf(other),
+      ),
       ...world.monsters(),
     ];
     const closest = nearestIndex(
