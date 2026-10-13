@@ -655,6 +655,21 @@ export const DUEL = {
   score: { fontSize: '27px', down: 26, star: '⭐', sides: ['🔵', '🔴'], goal: '🏆' },
   /** A golden weapon that has just been won drops in from this far below the ceiling. */
   prizeDown: 70,
+  /**
+   * In a battle of two, things fall from the sky: the first after `firstMs`, and then
+   * one every now and then. Mostly a weapon; sometimes a power orb, now and then the
+   * mega power or a golden weapon that has been won. They land at least `margin` from
+   * the sides. With more than `most` of them lying around, the oldest one goes.
+   */
+  drops: {
+    firstMs: 2500,
+    everyMs: { min: 4500, max: 8000 },
+    margin: 90,
+    down: 34,
+    most: 6,
+    shares: { weapon: 55, power: 30, mega: 5, golden: 10 },
+    sparkle: 0xffffff,
+  },
   hint: {
     text: '🎮   1:  A  D  W  +  F          2:  ←  →  ↑  +  Enter',
     fontSize: '19px',
@@ -2679,9 +2694,11 @@ export type GearKind =
   | 'shield'
   | 'rubberBoots'
   | 'magnetBoots'
-  | 'jetpack';
+  | 'jetpack'
+  | 'legArmor'
+  | 'gauntlets';
 /** Where on a doll a piece of gear goes. A doll wears one piece in each place at the most. */
-export type GearSlot = 'face' | 'head' | 'chest' | 'arm' | 'feet' | 'back';
+export type GearSlot = 'face' | 'head' | 'chest' | 'arm' | 'feet' | 'back' | 'legs' | 'hands';
 /** Superpowers: a doll that touches one of these orbs takes the power into itself. */
 export type PowerKind =
   | 'lightningOrb'
@@ -2767,6 +2784,8 @@ export interface GearDef {
   stops?: readonly WoundKind[];
   /** Its special power: the doll that wears it can breathe anywhere, under water and in a stink cloud. */
   air?: true;
+  /** Its special power: the bare fists of the doll that wears it take this many more lives. */
+  punch?: number;
   /** Its special power: switched on, it carries the doll that wears it through the air. */
   jet?: true;
   /** Its special power: the doll that wears it sticks to the ceiling, feet first, and walks there. */
@@ -2823,7 +2842,7 @@ export const CLING = { snap: 16 } as const;
  * that is taken off lands this far in front of the doll.
  */
 export const GEAR = {
-  order: ['arm', 'chest', 'back', 'head', 'face', 'feet'],
+  order: ['arm', 'hands', 'chest', 'legs', 'back', 'head', 'face', 'feet'],
   crack: 0x101010,
   crackWidth: 1.3,
   /** A crack is a jagged line of this many bits, across about this much of the piece. */
@@ -3463,6 +3482,30 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     hand: { rotation: 0, along: 0 },
     gear: { slot: 'feet', hits: 3, clings: true },
   },
+  // Steel plates on the thighs and the shins of both legs
+  legArmor: {
+    melts: true,
+    metal: true,
+    crumbs: [0x90a4ae, 0x455a64, 0xffc107],
+    halfWidth: 15,
+    height: 38,
+    menuScale: 1.25,
+    lie: { x: 0, y: -19 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'legs', hits: 5 },
+  },
+  // Iron gloves, one on each hand. Their power: bare fists hit harder
+  gauntlets: {
+    melts: true,
+    metal: true,
+    crumbs: [0x78909c, 0x37474f, 0xffc107],
+    halfWidth: 15,
+    height: 19,
+    menuScale: 1.8,
+    lie: { x: 0, y: -9.5 },
+    hand: { rotation: 0, along: 0 },
+    gear: { slot: 'hands', hits: 3, punch: 1 },
+  },
   // Worn on the back. Its power: flying, when it is switched on
   jetpack: {
     melts: true,
@@ -3695,6 +3738,24 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'ship',
 ];
 /** The gear page. */
+/** The weapons that can fall from the sky in a two-player battle. */
+export const DROP_WEAPONS: readonly WeaponKind[] = [
+  'pistol',
+  'mgun',
+  'shotgun',
+  'sword',
+  'katana',
+  'axe',
+  'spear',
+  'bat',
+  'hammer',
+  'thunderHammer',
+  'knife',
+  'bow',
+  'laserGun',
+  'laserSword',
+  'rocketLauncher',
+];
 /** The golden weapons, in the order they are won. */
 export const GOLDEN_KINDS: readonly GoldenKind[] = [
   'goldenSword',
@@ -3724,6 +3785,8 @@ export const GEAR_KINDS: readonly GearKind[] = [
   'rubberBoots',
   'magnetBoots',
   'jetpack',
+  'legArmor',
+  'gauntlets',
 ];
 export const JUNK_KINDS: readonly (
   { type: 'block'; kind: JunkBlockKind } | { type: 'item'; kind: JunkItemKind }
@@ -3782,6 +3845,8 @@ export const ITEM_COLORS = {
   rubberBoots: { fill: 0xfdd835, dark: 0xb8960c, sole: 0x37474f, shine: 0xfff59d },
   magnetBoots: { fill: 0x90a4ae, dark: 0x455a64, sole: 0xe53935, shine: 0xeceff1 },
   jetpack: { fill: 0xcfd8dc, dark: 0x455a64, shine: 0xffffff, stripe: 0xe53935 },
+  legArmor: { fill: 0x90a4ae, dark: 0x455a64, shine: 0xeceff1, trim: 0xffc107 },
+  gauntlets: { fill: 0x78909c, dark: 0x37474f, shine: 0xcfd8dc, trim: 0xffc107 },
   stinkBomb: { body: 0x558b2f, shine: 0xc5e1a5, cap: 0x8d6e63, fuse: 0xbcaaa4 },
   trident: { gold: 0xffd54f, dark: 0xb8860b, shaft: 0x4e342e, shaftLight: 0x8d6e63 },
   bow: { wood: 0x8d6e63, dark: 0x4e342e, string: 0xeeeeee, tip: 0xb4c0c8, feather: 0xe53935 },

@@ -14,6 +14,7 @@ import {
   DEPTH,
   DISSOLVE,
   DOUBLE_CLICK_MS,
+  DROP_WEAPONS,
   DUEL,
   FIREWORK,
   FLAME,
@@ -33,6 +34,7 @@ import {
   PHYSICS,
   PEOPLE,
   PICK_PADDING,
+  type ItemKind,
   type PersonLook,
   PORTAL,
   POWER,
@@ -73,6 +75,7 @@ import { placeFeet, type PlaceArea } from '../logic/place';
 import { fan, segmentHit } from '../logic/shot';
 import { flameAt } from '../logic/fire';
 import { steerFrom, takeSeat } from '../logic/duel';
+import { pickDrop } from '../logic/drops';
 import { NEW_MATCH, nextMatch, roundWon, unlockNext, type Match, type Seat } from '../logic/match';
 import { loadGolden, saveGolden } from '../storage';
 import { sameTeam } from '../logic/team';
@@ -166,6 +169,9 @@ export class MainScene extends Phaser.Scene {
   private scoreBoard!: Phaser.GameObjects.Text;
   private seatLooks: PersonLook[] = [];
   private roundOver: { ms: number; matchWon: boolean } | null = null;
+  /** Time left until the next thing falls from the sky in a battle, and the things that have fallen. */
+  private dropMs = 0;
+  private dropped: Item[] = [];
   private unlocked = 0;
   /** When each doll was last burnt by a stream of fire. */
   private readonly lastBurnt = new WeakMap<Person, number>();
@@ -433,6 +439,8 @@ export class MainScene extends Phaser.Scene {
     this.duelHint = null;
     this.match = NEW_MATCH;
     this.roundOver = null;
+    this.dropMs = DUEL.drops.firstMs;
+    this.dropped = [];
     this.seatLooks = DUEL.dolls.map(
       ({ look }) => PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
     );
@@ -516,6 +524,7 @@ export class MainScene extends Phaser.Scene {
     this.updateBullets(delta);
     this.updatePieces(delta);
     this.updateFumes(delta);
+    this.dropFromSky(delta);
     this.sweep();
     this.handOutItems();
     this.swing(delta);
@@ -663,6 +672,38 @@ export class MainScene extends Phaser.Scene {
   }
 
   /**
+   * While two players are in a battle, things fall from the sky every now and then:
+   * mostly a weapon, sometimes a power orb, now and then the mega power or a golden
+   * weapon that has been won. When too many of them lie around, the oldest one goes.
+   */
+  private dropFromSky(delta: number): void {
+    const battle = this.players.every((doll) => doll !== null) && !this.roundOver;
+    if (!battle) return;
+    this.dropMs -= delta;
+    if (this.dropMs > 0) return;
+    const { everyMs, margin, down, most, shares, sparkle } = DUEL.drops;
+    this.dropMs = everyMs.min + Math.random() * (everyMs.max - everyMs.min);
+    const kind = pickDrop<ItemKind>([
+      { share: shares.weapon, things: DROP_WEAPONS },
+      { share: shares.power, things: POWER_KINDS.filter((power) => power !== 'megaOrb') },
+      { share: shares.mega, things: ['megaOrb'] },
+      { share: shares.golden, things: GOLDEN_KINDS.slice(0, this.unlocked) },
+    ]);
+    if (!kind) return;
+    const x = AREA.left + margin + Math.random() * (AREA.right - AREA.left - margin * 2);
+    const feet = placeFeet(x, AREA.top + down, AREA, ITEMS[kind]);
+    const item = new Item(this, kind, feet.x, feet.y);
+    this.items.push(item);
+    this.world.sparkle(feet.x, feet.y - ITEMS[kind].height / 2, sparkle);
+    // What a doll has taken, or what has gone some other way, doesn't count any more
+    this.dropped = [...this.dropped.filter((one) => this.items.includes(one)), item];
+    const lying = this.dropped.filter((one) => !one.isHeld);
+    const oldest = lying.length > most ? lying[0] : undefined;
+    if (oldest) this.forget([oldest]);
+    if (this.blocks.length + this.items.length > THINGS_MAX) this.forgetOldest(this.items);
+  }
+
+  /**
    * The scoreboard: the rounds each player has won, a star by the one who won last,
    * and how many rounds win the match. It shows while two players are in a battle.
    */
@@ -701,7 +742,10 @@ export class MainScene extends Phaser.Scene {
     }
     this.menu.showDuel(on);
     this.showScore();
-    if (on && starting) this.showDuelHint();
+    if (on && starting) {
+      this.showDuelHint();
+      this.dropMs = DUEL.drops.firstMs;
+    }
   }
 
   /** Show for a while which keys the players use. */

@@ -86,6 +86,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
     case 'knightArmor':
     case 'shield':
     case 'jetpack':
+    case 'legArmor':
+    case 'gauntlets':
       return drawGear(g, kind);
     case 'rubberBoots':
     case 'magnetBoots':
