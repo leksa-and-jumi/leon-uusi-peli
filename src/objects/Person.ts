@@ -4,6 +4,7 @@ import {
   ANGRY,
   BLOOD,
   CLING,
+  DUEL,
   JET,
   JET_ACTIONS,
   PORTAL,
@@ -42,6 +43,7 @@ import {
   type WoundKind,
 } from '../config';
 import { clamp } from '../logic/bounds';
+import type { Steer } from '../logic/duel';
 import { gearHit } from '../logic/gear';
 import { turnStep } from '../logic/power';
 import { lobSpeed } from '../logic/toss';
@@ -161,6 +163,8 @@ export class Person extends Body {
   private slamMs = 0;
   /** How long it has been pushing out a stream of fire without a rest. */
   private streamMs = 0;
+  /** What the player who steers it tells it to do, or `null` when it does as it likes. */
+  private pilot: Steer | null = null;
   /** Time left of choking on a stink cloud: it is down on its knees and can do nothing else. */
   private gagMs = 0;
   /** Time left before the next punch or shot. */
@@ -677,7 +681,13 @@ export class Person extends Body {
   }
 
   isOn(action: ActionId): boolean {
+    if (action === 'play') return this.pilot !== null;
     return action === 'jet' ? this.jetOn : this.activity === action;
+  }
+
+  /** A player steers it from now on, and tells it this right now. With `null` it does as it likes again. */
+  steer(input: Steer | null): void {
+    this.pilot = input;
   }
 
   /** Switch its jetpack on, or off again. */
@@ -995,7 +1005,13 @@ export class Person extends Body {
       const sway = lifts ? lifts.sway * Math.sin((this.clockMs / lifts.swayMs) * Math.PI * 2) : 0;
       this.draw('held', sway);
     } else if (state !== 'resting') {
-      this.draw(this.jumpVx === 0 ? 'held' : 'run', 0);
+      // In the air a player can still steer it to the side
+      const side = this.pilot?.x ?? 0;
+      if (side !== 0) {
+        this.facing = side;
+        this.walkTo(this.x + side * DUEL.speed * this.pace * (deltaMs / 1000), world);
+      }
+      this.draw(this.jumpVx === 0 && side === 0 ? 'held' : 'run', 0);
     } else if (this.gagMs > 0 && !this.dead) {
       // Choking: down on its knees, hands at its throat. It can't walk, dance or fight now
       this.draw('choke', 0);
@@ -1302,9 +1318,11 @@ export class Person extends Body {
     this.physics(deltaMs, world);
     // It fights up there too: with the others on the ceiling, hand to hand
     let pose: PoseKind = 'stand';
-    if (this.activity === 'dance') pose = 'dance';
-    if (this.activity === 'angry') pose = this.rage(deltaMs, world);
-    if (this.activity === 'walk') {
+    const pilot = this.pilot;
+    if (pilot) pose = this.drive(pilot, deltaMs, world);
+    else if (this.activity === 'dance') pose = 'dance';
+    else if (this.activity === 'angry') pose = this.rage(deltaMs, world);
+    if (!pilot && this.activity === 'walk') {
       const edge = PERSON.halfWidth;
       const walker = walkStep(
         { x: this.x, facing: this.facing },
@@ -1601,6 +1619,8 @@ export class Person extends Body {
   private act(deltaMs: number, world: World): PoseKind {
     // A heavy doll on the bottom of the water can't walk, dance or fight down there
     if (this.submerged && this.look.heavy) return 'stand';
+    // A doll that a player steers does what the player says, and nothing by itself
+    if (this.pilot) return this.drive(this.pilot, deltaMs, world);
     if (this.activity === 'walk') {
       const edge = PERSON.halfWidth;
       const walker = walkStep(
@@ -1726,6 +1746,15 @@ export class Person extends Body {
       return aiming;
     }
 
+    this.punchAt(target, world);
+    this.waitMs = ANGRY.restMs;
+    this.inReach = false;
+    return 'punch';
+  }
+
+  /** Hit a doll or a monster with a fist, or with what is in the hand. */
+  private punchAt(target: Person | Block, world: World): void {
+    const weapon = this.item?.def;
     // Super strength is in the bare fists: they take more lives, and send the other flying
     const strong = weapon ? undefined : this.might?.punch;
     const damage =
@@ -1743,16 +1772,94 @@ export class Person extends Body {
         weapon?.melee?.wound,
       );
       world.hitEffect(target.feet.x, target.feet.y - PERSON.height * 0.75, deadly, sound);
-    } else {
-      // A hit on a monster counts like bullets: one for every life it would have taken
-      const box = target.box;
-      const side = this.facing === 1 ? box.left : box.right;
-      const high = clamp(this.y - PERSON.height * 0.6, box.top, box.bottom);
-      target.shot(side, high, world, Math.min(damage, ANGRY.monsterHits));
-      world.hitEffect(side, high, false, sound);
+      return;
     }
-    this.waitMs = ANGRY.restMs;
-    this.inReach = false;
+    // A hit on a monster counts like bullets: one for every life it would have taken
+    const box = target.box;
+    const side = this.facing === 1 ? box.left : box.right;
+    const high = clamp(this.y - PERSON.height * 0.6, box.top, box.bottom);
+    target.shot(side, high, world, Math.min(damage, ANGRY.monsterHits));
+    world.hitEffect(side, high, false, sound);
+  }
+
+  /**
+   * A player steers it: it runs the way the player says, jumps, and hits when the
+   * player hits. Gives the pose for what it is doing.
+   */
+  private drive(pilot: Steer, deltaMs: number, world: World): PoseKind {
+    this.waitMs = Math.max(0, this.waitMs - deltaMs);
+    this.castMs = Math.max(0, this.castMs - deltaMs);
+    if (pilot.jump && this.state === 'resting' && !this.hovering) this.hop(DUEL.jump);
+    let pose: PoseKind = 'stand';
+    if (pilot.x !== 0) {
+      this.facing = pilot.x;
+      this.walkTo(this.x + pilot.x * DUEL.speed * this.pace * (deltaMs / 1000), world);
+      pose = 'run';
+    }
+    if (this.slamMs > 0) {
+      this.slamMs -= deltaMs;
+      return 'slam';
+    }
+    if (this.punchMs > 0) {
+      this.punchMs -= deltaMs;
+      return 'punch';
+    }
+    return pilot.hit && this.waitMs <= 0 ? this.strike(world) : pose;
+  }
+
+  /**
+   * The player hits. With the thunder hammer the doll slams it down; with a power that
+   * strikes from afar, or a teleport, it uses that on the closest one around; with a
+   * gun or a spell it shoots the way it faces; and otherwise it swings at whoever is
+   * right in front of it.
+   */
+  private strike(world: World): PoseKind {
+    const held = this.item;
+    if (held?.def.thunder) {
+      this.slamMs = THUNDER.slamMs;
+      this.waitMs = THUNDER.restMs;
+      world.thunder(held, this);
+      return 'slam';
+    }
+    // In a battle everybody else is fair game, whatever their color
+    const others: (Person | Block)[] = [
+      ...world.people.filter((other) => other !== this && other.canBeHit),
+      ...world.monsters(),
+    ];
+    const closest = nearestIndex(
+      this.x,
+      others.map((other) => other.feet.x),
+    );
+    const foe = closest === null ? undefined : others[closest];
+    const cast = foe ? this.cast(foe, world) : null;
+    if (cast) return cast;
+    const weapon = held?.def;
+    const spell = this.might?.spell ?? this.look.spell;
+    const gun = weapon?.gun ?? (weapon ? undefined : spell);
+    if (gun) {
+      const { muzzle } = gun;
+      const from = this.x + this.facing * muzzle.x;
+      world.shoot(this, from, this.heightAt(muzzle.y), this.facing, gun);
+      this.waitMs = gun.everyMs;
+      // Fire comes in a stream, so the arms stay out; anything else kicks back for a moment
+      this.punchMs = gun.flame ? 0 : ANGRY.punchMs;
+      return gun.flame && !weapon ? 'push' : 'punch';
+    }
+    this.punchMs = ANGRY.punchMs;
+    this.waitMs = DUEL.restMs;
+    const reach = (weapon?.melee?.reach ?? ANGRY.reach) + DUEL.reach;
+    const inFront = others.filter((other) => {
+      const girth = other instanceof Person ? 0 : other.def.halfWidth;
+      const ahead = (other.feet.x - this.x) * this.facing;
+      const level = Math.abs(other.feet.y - this.y) <= ANGRY.levelSlack;
+      return level && ahead >= -DUEL.behind - girth && ahead <= reach + girth;
+    });
+    const hit = nearestIndex(
+      this.x,
+      inFront.map((other) => other.feet.x),
+    );
+    const target = hit === null ? undefined : inFront[hit];
+    if (target) this.punchAt(target, world);
     return 'punch';
   }
 
