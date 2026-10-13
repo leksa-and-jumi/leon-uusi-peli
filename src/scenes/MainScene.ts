@@ -16,6 +16,7 @@ import {
   DOUBLE_CLICK_MS,
   DROP_WEAPONS,
   DUEL,
+  FIGHTERS,
   FIREWORK,
   FLAME,
   FLOOR,
@@ -46,6 +47,7 @@ import {
   SHADOW,
   SMOKE,
   STINK,
+  TEAM,
   SOUND,
   SPARK,
   SWING,
@@ -76,6 +78,7 @@ import { fan, segmentHit } from '../logic/shot';
 import { flameAt } from '../logic/fire';
 import { steerFrom, takeSeat } from '../logic/duel';
 import { pickDrop } from '../logic/drops';
+import { waveKinds, waveSize } from '../logic/waves';
 import { NEW_MATCH, nextMatch, roundWon, unlockNext, type Match, type Seat } from '../logic/match';
 import { loadGolden, saveGolden } from '../storage';
 import { sameTeam } from '../logic/team';
@@ -99,7 +102,10 @@ const AREA: PlaceArea = {
 };
 
 /** The keys of a two-player battle: left, right, jump and hit for each player. */
-const DUEL_KEYS = ['A', 'D', 'W', 'F', 'LEFT', 'RIGHT', 'UP', 'ENTER'] as const;
+const DUEL_KEYS = ['A', 'D', 'W', 'F', 'G', 'LEFT', 'RIGHT', 'UP', 'ENTER', 'K'] as const;
+
+/** The two kinds of battle: against each other, or together against enemies. */
+type BattleMode = 'versus' | 'team';
 type DuelKey = (typeof DUEL_KEYS)[number];
 
 /** A bullet on its way. It flies straight sideways. */
@@ -169,6 +175,16 @@ export class MainScene extends Phaser.Scene {
   private scoreBoard!: Phaser.GameObjects.Text;
   private seatLooks: PersonLook[] = [];
   private roundOver: { ms: number; matchWon: boolean } | null = null;
+  /**
+   * The kind of battle that is on, if one is. The buttons to pick it with, while they
+   * are open. And how a team game stands: the wave, the enemies put out so far, the
+   * time left until the next wave, and the enemies of this wave.
+   */
+  private mode: BattleMode | null = null;
+  private modeMenu: Phaser.GameObjects.Container | null = null;
+  private modeButtons: { mode: BattleMode; box: Box }[] = [];
+  private team = { wave: 0, kills: 0, restMs: 0, enemies: [] as Person[] };
+  private readonly counted = new WeakSet<Person>();
   /** Time left until the next thing falls from the sky in a battle, and the things that have fallen. */
   private dropMs = 0;
   private dropped: Item[] = [];
@@ -439,6 +455,10 @@ export class MainScene extends Phaser.Scene {
     this.duelHint = null;
     this.match = NEW_MATCH;
     this.roundOver = null;
+    this.mode = null;
+    this.modeMenu = null;
+    this.modeButtons = [];
+    this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     this.dropMs = DUEL.drops.firstMs;
     this.dropped = [];
     this.seatLooks = DUEL.dolls.map(
@@ -525,6 +545,7 @@ export class MainScene extends Phaser.Scene {
     this.updatePieces(delta);
     this.updateFumes(delta);
     this.dropFromSky(delta);
+    this.runTeamGame(delta);
     this.sweep();
     this.handOutItems();
     this.swing(delta);
@@ -596,21 +617,135 @@ export class MainScene extends Phaser.Scene {
       this.seat([null, null]);
       return;
     }
+    if (this.modeMenu) this.closeModeMenu();
+    else this.openModeMenu();
+  }
+
+  /** Two big buttons in the middle of the area: a battle against each other, or a team game. */
+  private openModeMenu(): void {
+    const { width, height, gap, radius, fill, edge, fontSize, depth, labels } = DUEL.modes;
+    const middleX = (AREA.left + AREA.right) / 2;
+    const middleY = (AREA.top + AREA.floorY) / 2;
+    const panel = this.make.graphics({}, false);
+    const parts: Phaser.GameObjects.GameObject[] = [panel];
+    this.modeButtons = (['versus', 'team'] as const).map((mode, index) => {
+      const left = middleX + (index === 0 ? -gap / 2 - width : gap / 2);
+      const top = middleY - height / 2;
+      panel.fillStyle(edge);
+      panel.fillRoundedRect(left - 4, top - 4, width + 8, height + 8, radius + 3);
+      panel.fillStyle(fill);
+      panel.fillRoundedRect(left, top, width, height, radius);
+      parts.push(
+        this.make
+          .text(
+            {
+              x: left + width / 2,
+              y: middleY,
+              text: labels[mode],
+              style: { fontSize, color: COLORS.text, align: 'center', fontStyle: 'bold' },
+            },
+            false,
+          )
+          .setOrigin(0.5)
+          .setResolution(SHARP),
+      );
+      return { mode, box: { left, right: left + width, top, bottom: top + height } };
+    });
+    this.modeMenu = this.add.container(0, 0, parts).setDepth(depth);
+  }
+
+  private closeModeMenu(): void {
+    this.modeMenu?.destroy();
+    this.modeMenu = null;
+    this.modeButtons = [];
+  }
+
+  /** Start a battle of this kind: a doll drops in for each player. */
+  private startBattle(mode: BattleMode): void {
+    this.mode = mode;
+    this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     this.seatLooks = DUEL.dolls.map(
       ({ look }) => PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
     );
     this.seat(this.dropInDolls());
   }
 
+  /** A new doll for one player, where a round starts, looking like that player's last one. */
+  private dropInDoll(seat: number): Person {
+    const across = DUEL.dolls[seat]?.across ?? 0.5;
+    const x = AREA.left + (AREA.right - AREA.left) * across;
+    const look = this.seatLooks[seat] ?? { body: 0xd9b382, joint: 0x8a6a45 };
+    const doll = new Person(this, look, x, AREA.floorY);
+    this.people.push(doll);
+    return doll;
+  }
+
+  /**
+   * A team game, wave after wave. Every enemy that is put out counts. When none of a
+   * wave is left, the next one drops in after a short rest: the old enemies go, a
+   * player whose doll is out gets a new one, and the new wave is a little bigger and
+   * has one more kind of fighter in it than the last.
+   */
+  private runTeamGame(delta: number): void {
+    const playing = this.mode === 'team' && !this.roundOver && this.players.every((doll) => doll);
+    if (!playing) return;
+    const team = this.team;
+    team.enemies = team.enemies.filter((enemy) => this.people.includes(enemy));
+    const out = team.enemies.filter((enemy) => enemy.dead && !this.counted.has(enemy));
+    out.forEach((enemy) => this.counted.add(enemy));
+    team.kills += out.length;
+    if (out.length > 0) this.showScore();
+    if (team.enemies.some((enemy) => !enemy.dead)) return;
+    team.restMs -= delta;
+    if (team.restMs > 0) return;
+
+    team.wave += 1;
+    team.restMs = TEAM.restMs;
+    this.forget(team.enemies);
+    const inGame = (doll: Person | null): doll is Person =>
+      !!doll && !doll.dead && this.people.includes(doll);
+    const gone = this.players.filter((doll): doll is Person => !!doll && !inGame(doll));
+    if (gone.length > 0) {
+      this.forget(gone.filter((doll) => this.people.includes(doll)));
+      this.seat(this.players.map((doll, seat) => (inGame(doll) ? doll : this.dropInDoll(seat))));
+    }
+    const kinds = waveKinds(team.wave, TEAM.waves, FIGHTERS.length);
+    team.enemies = Array.from({ length: waveSize(team.wave, TEAM.waves) }, (_, index) => {
+      const look = FIGHTERS[Math.floor(Math.random() * kinds)] ?? this.seatLooks[0];
+      // By turns at the left end and at the right end of the area
+      const offset = TEAM.edge + Math.random() * TEAM.spread;
+      const x = index % 2 === 0 ? AREA.left + offset : AREA.right - offset;
+      const enemy = new Person(
+        this,
+        look ?? { body: 0x607d8b, joint: 0x263238 },
+        x,
+        AREA.top + PERSON.height + 10,
+      );
+      enemy.side = 'enemies';
+      this.people.push(enemy);
+      return enemy;
+    });
+    while (this.people.length > PERSON.max) this.forgetOldest(this.people);
+    this.showScore();
+  }
+
+  /** Both players' dolls are out in a team game: it is over, and starts again in a moment. */
+  private endTeamGame(): void {
+    this.roundOver = { ms: DUEL.resetMs, matchWon: false };
+    const { emoji, fontSize, ms, grow } = TEAM.over;
+    this.popUp(
+      (AREA.left + AREA.right) / 2,
+      (AREA.top + AREA.floorY) / 2,
+      emoji,
+      fontSize,
+      ms,
+      grow,
+    );
+  }
+
   /** Put a new doll in for each player, where a round starts, looking like that player's last one. */
   private dropInDolls(): Person[] {
-    const dolls = DUEL.dolls.map(({ across }, seat) => {
-      const x = AREA.left + (AREA.right - AREA.left) * across;
-      const look = this.seatLooks[seat] ?? { body: 0xd9b382, joint: 0x8a6a45 };
-      const doll = new Person(this, look, x, AREA.floorY);
-      this.people.push(doll);
-      return doll;
-    });
+    const dolls = DUEL.dolls.map((_, seat) => this.dropInDoll(seat));
     while (this.people.length > PERSON.max) this.forgetOldest(this.people);
     return dolls;
   }
@@ -663,6 +798,11 @@ export class MainScene extends Phaser.Scene {
     const matchWon = this.roundOver?.matchWon ?? false;
     this.roundOver = null;
     if (matchWon) this.match = nextMatch(this.match);
+    if (this.mode === 'team') {
+      // A team game that is over starts again from the first wave, with no enemies left
+      this.forget(this.team.enemies.filter((enemy) => this.people.includes(enemy)));
+      this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
+    }
     const old = this.players.filter(
       (doll): doll is Person => doll !== null && this.people.includes(doll),
     );
@@ -711,6 +851,14 @@ export class MainScene extends Phaser.Scene {
     const battle = this.players.every((doll) => doll !== null) || this.roundOver !== null;
     this.scoreBoard.setVisible(battle);
     if (!battle) return;
+    if (this.mode === 'team') {
+      // A team game counts the waves and the enemies put out
+      const { wave, kills } = TEAM.score;
+      this.scoreBoard.setText(
+        `${wave} ${String(this.team.wave)}      ${kills} ${String(this.team.kills)}`,
+      );
+      return;
+    }
     const { star, sides, goal } = DUEL.score;
     const [first, second] = this.match.score;
     const mark = (seat: Seat): string => (this.match.last === seat ? star : '');
@@ -722,21 +870,29 @@ export class MainScene extends Phaser.Scene {
   /** Give the players these dolls to steer (or `null` for none), and take every other doll back. */
   private seat(dolls: readonly (Person | null)[]): void {
     for (const doll of this.players) {
-      if (doll && !dolls.includes(doll)) doll.steer(null);
+      if (!doll || dolls.includes(doll)) continue;
+      doll.steer(null);
+      doll.side = null;
     }
     const starting = this.players.every((doll) => doll === null);
     this.players = [...dolls];
     this.players.forEach((doll, seat) => {
       if (!doll) return;
       doll.steer(steerFrom(false, false, false, false));
+      // In a team game the players are on the same side, and can't hurt each other
+      doll.side = this.mode === 'team' ? 'players' : null;
       // The next round, this player's doll looks like this one
       this.seatLooks[seat] = doll.look;
     });
     const on = this.players.some((doll) => doll !== null);
     if (!on) {
-      // The battle is over: the next one starts from nothing
+      // The battle is over: the next one starts from nothing. The enemies that are
+      // left are on nobody's side any more
       this.match = NEW_MATCH;
       this.roundOver = null;
+      this.mode = null;
+      for (const enemy of this.team.enemies) enemy.side = null;
+      this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
       this.duelHint?.destroy();
       this.duelHint = null;
     }
@@ -795,6 +951,11 @@ export class MainScene extends Phaser.Scene {
       if (!inGame(doll)) {
         // Counted already: it waits for the next round
         if (this.roundOver) return;
+        if (this.mode === 'team') {
+          // In a team game it waits for the next wave. With both out, the game is over
+          if (!this.players.some(inGame)) this.endTeamGame();
+          return;
+        }
         const other: Seat = seat === 0 ? 1 : 0;
         if (battle) this.endRound(inGame(this.players[other]) ? other : null);
         else this.seat(this.players.map((sitting) => (sitting === doll ? null : sitting)));
@@ -808,6 +969,9 @@ export class MainScene extends Phaser.Scene {
       doll.steer(
         steerFrom(left.isDown, right.isDown, Phaser.Input.Keyboard.JustDown(jump), hit.isDown),
       );
+      // And one more key lets go of what it holds
+      const drop = seat === 0 ? keys.G : keys.K;
+      if (Phaser.Input.Keyboard.JustDown(drop)) doll.dropItem(this.solidBoxes(doll));
     });
   }
 
@@ -959,6 +1123,16 @@ export class MainScene extends Phaser.Scene {
         this.clearBullets();
         this.clearMess();
       }
+      return;
+    }
+
+    if (this.modeMenu) {
+      // The buttons to pick a battle with are open: a click on one starts it, any other click shuts them
+      const picked = this.modeButtons.find(
+        ({ box }) => px >= box.left && px <= box.right && py >= box.top && py <= box.bottom,
+      );
+      this.closeModeMenu();
+      if (picked) this.startBattle(picked.mode);
       return;
     }
 
@@ -1339,7 +1513,7 @@ export class MainScene extends Phaser.Scene {
           !person.dead &&
           !person.seated &&
           person.canBePicked &&
-          !(shooter && sameTeam(person.look, shooter.look)),
+          !(shooter && (sameTeam(person.look, shooter.look) || shooter.friendOf(person))),
       );
       const boxes = [...solids.map((solid) => solid.box), ...targets.map((p) => p.hitBox)];
       const hit = segmentHit(fromX, fromY, bullet.x, bullet.y, boxes);
@@ -1502,8 +1676,11 @@ export class MainScene extends Phaser.Scene {
     const caught = (body: Body): boolean =>
       body !== source && body !== spare && body !== rider && inBlast(x, y, body.box, blast.radius);
 
+    // In a team game a blast doesn't hurt the one who made it, or anybody on that side
+    const maker = spare instanceof Person ? spare : null;
     for (const person of this.people) {
       if (!person.canBePicked || !caught(person)) continue;
+      if (maker?.friendOf(person)) continue;
       const direction = blastDirection(x, person.feet.x);
       person.hit(direction, this.solidBoxes(person), blast.damage, blast.pushSpeed, 'blast');
     }
@@ -1618,6 +1795,8 @@ export class MainScene extends Phaser.Scene {
     const wet = this.pools().filter(touchesFloor);
     for (const person of this.people) {
       if (person === spare || person.seated || !person.canBePicked) continue;
+      // In a team game the lightning spares everybody on the side of the one who called it
+      if (spare instanceof Person && spare.friendOf(person)) continue;
       const body = person.hitBox;
       if (!touchesFloor(body) && !wet.some((pool) => overlaps(pool, body))) continue;
       const away: Facing = person.feet.x < x ? -1 : 1;
