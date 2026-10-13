@@ -1,3 +1,4 @@
+import type { Material, ShardKind } from './logic/debris';
 import type { Spring } from './logic/fall';
 import type { Pull } from './logic/pull';
 /** Shared game constants. Tweak values here instead of inside scenes. */
@@ -4010,6 +4011,109 @@ export const DEBRIS = {
   max: 320,
   depth: 15,
 } as const;
+
+/**
+ * What a thing breaks into, by what it is made of: wood into planks and splinters,
+ * straw into stalks, brick into bricks and grit, stone into chunks, metal into plates,
+ * chips and bolts, glass into sharp see-through shards, and anything else into crumbs.
+ * `more` is how many more pieces than usual there are, and `dust` the color of the
+ * little cloud that goes up where it broke (none when left out).
+ */
+export const SHARDS: Record<
+  Material,
+  { kinds: readonly ShardKind[]; more: number; dust?: number }
+> = {
+  wood: {
+    kinds: [
+      { share: 6, shape: 'bar', long: { min: 14, max: 30 }, wide: { min: 4, max: 6.5 } },
+      { share: 4, shape: 'bar', long: { min: 6, max: 13 }, wide: { min: 1.4, max: 2.6 } },
+    ],
+    more: 1.3,
+    dust: 0xc9a46a,
+  },
+  straw: {
+    kinds: [{ share: 1, shape: 'bar', long: { min: 9, max: 22 }, wide: { min: 1.2, max: 2.2 } }],
+    more: 1.9,
+    dust: 0xe6c35c,
+  },
+  brick: {
+    kinds: [
+      { share: 7, shape: 'bar', long: { min: 11, max: 13.5 }, wide: { min: 5.5, max: 6.8 } },
+      { share: 2, shape: 'chip', long: { min: 5, max: 9 }, wide: { min: 4, max: 7 } },
+      { share: 2, shape: 'dot', long: { min: 2.4, max: 4.4 }, wide: { min: 2.4, max: 4.4 } },
+    ],
+    more: 1.5,
+    dust: 0xc98a6e,
+  },
+  stone: {
+    kinds: [
+      { share: 6, shape: 'chip', long: { min: 9, max: 18 }, wide: { min: 7, max: 13 } },
+      { share: 3, shape: 'bar', long: { min: 5, max: 10 }, wide: { min: 4.5, max: 8 } },
+      { share: 2, shape: 'dot', long: { min: 2.4, max: 4.6 }, wide: { min: 2.4, max: 4.6 } },
+    ],
+    more: 1.2,
+    dust: 0xbdbdbd,
+  },
+  metal: {
+    kinds: [
+      { share: 6, shape: 'bar', long: { min: 9, max: 21 }, wide: { min: 5, max: 11 } },
+      { share: 2, shape: 'chip', long: { min: 6, max: 13 }, wide: { min: 5, max: 9 } },
+      { share: 2, shape: 'dot', long: { min: 2.6, max: 4 }, wide: { min: 2.6, max: 4 } },
+    ],
+    more: 1.1,
+    dust: 0xffe082,
+  },
+  glass: {
+    kinds: [
+      {
+        share: 7,
+        shape: 'chip',
+        long: { min: 7, max: 19 },
+        wide: { min: 4, max: 11 },
+        alpha: 0.72,
+      },
+      {
+        share: 3,
+        shape: 'chip',
+        long: { min: 3, max: 6 },
+        wide: { min: 2, max: 4 },
+        alpha: 0.85,
+      },
+    ],
+    more: 1.8,
+    dust: 0xe1f5fe,
+  },
+  other: {
+    kinds: [{ share: 1, shape: 'bar', long: { min: 4, max: 9 }, wide: { min: 4, max: 9 } }],
+    more: 1,
+  },
+};
+
+/**
+ * What the things are made of, where that can't be told from what they do (what burns
+ * is wood, what a magnet pulls is metal, what breaks at a touch is glass).
+ */
+export const MADE_OF: Partial<Record<BlockKind | ItemKind, Material>> = {
+  wall: 'brick',
+  tower: 'brick',
+  rampart: 'brick',
+  gate: 'brick',
+  stone: 'stone',
+  pillar: 'stone',
+  island: 'stone',
+  toilet: 'stone',
+  boulder: 'stone',
+  hay: 'straw',
+  broom: 'straw',
+  bottle: 'glass',
+  tv: 'glass',
+  // Rubber, plastic and cloth just crumble
+  tire: 'other',
+  cone: 'other',
+  trampoline: 'other',
+  banner: 'other',
+  cactus: 'other',
+};
 
 /** Wounds and blood. Hurt dolls bleed, and the drops stain the floor until they are wiped away. */
 export const BLOOD = {

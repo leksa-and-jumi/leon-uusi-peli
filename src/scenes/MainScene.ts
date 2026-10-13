@@ -48,6 +48,7 @@ import {
   RIDE_GAP,
   SEVER,
   SHADOW,
+  SHARDS,
   SMOKE,
   STINK,
   TEAM,
@@ -73,7 +74,7 @@ import { addDrop, wipe, type Stain } from '../logic/blood';
 import { jagged } from '../logic/bolt';
 import { floatLine } from '../logic/fall';
 import { pullStep } from '../logic/pull';
-import { crumbAlpha, crumbCount, crumbStep, scatter, type Crumb } from '../logic/debris';
+import { crumbAlpha, crumbCount, crumbStep, pickShard, scatter, type Crumb } from '../logic/debris';
 import { onFloor, overlaps, standsOn, type Box } from '../logic/ground';
 import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
@@ -142,8 +143,10 @@ interface Bullet {
 /** A flying piece of something that broke, or a drop of blood (then `blood` is its color). */
 interface Piece {
   crumb: Crumb;
-  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc;
+  picture: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Arc | Phaser.GameObjects.Triangle;
   blood: number | null;
+  /** How see-through it is by itself (glass), before it starts to fade. Not at all when left out. */
+  alpha?: number;
   /** How long it lies there before it starts to fade, and how long fading takes. */
   lieMs: number;
   fadeMs: number;
@@ -2148,19 +2151,32 @@ export class MainScene extends Phaser.Scene {
     const colors = body.crumbs;
     if (colors.length === 0) return;
     const box = body.box;
-    const count = crumbCount(box, DEBRIS.areaPerCrumb, DEBRIS.least, DEBRIS.most);
-    for (const crumb of scatter(box, count, { ...DEBRIS.burst, pushX, pushY })) {
+    // What the pieces are depends on what it was made of: planks, bricks, shards of glass...
+    const { kinds, more, dust } = SHARDS[body.material];
+    const usual = crumbCount(box, DEBRIS.areaPerCrumb, DEBRIS.least, DEBRIS.most);
+    for (const crumb of scatter(box, Math.round(usual * more), { ...DEBRIS.burst, pushX, pushY })) {
       const color = colors[Math.floor(Math.random() * colors.length)] ?? 0;
-      const picture = this.add
-        .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
-        .setDepth(DEBRIS.depth);
+      const { shape, long, wide, alpha } = pickShard(kinds);
+      const picture =
+        shape === 'dot'
+          ? this.add.circle(crumb.x, crumb.y, long / 2, color)
+          : shape === 'chip'
+            ? // A pointed chip: a triangle with its point a little to one side
+              this.add.triangle(crumb.x, crumb.y, 0, wide, long * 0.35, 0, long, wide * 0.85, color)
+            : this.add.rectangle(crumb.x, crumb.y, long, wide, color);
+      picture.setDepth(DEBRIS.depth);
       this.pieces.push({
         crumb,
         picture,
         blood: null,
+        alpha,
         lieMs: DEBRIS.lieMs,
         fadeMs: DEBRIS.fadeMs,
       });
+    }
+    // And a little cloud of dust goes up where it broke
+    if (dust !== undefined) {
+      this.world.sparkle((box.left + box.right) / 2, (box.top + box.bottom) / 2, dust);
     }
     this.trimPieces();
   }
@@ -2268,7 +2284,7 @@ export class MainScene extends Phaser.Scene {
         piece.picture.destroy();
         return false;
       }
-      piece.picture.setPosition(x, y).setAlpha(alpha);
+      piece.picture.setPosition(x, y).setAlpha(alpha * (piece.alpha ?? 1));
       piece.picture.rotation = turn;
       return true;
     });

@@ -1,3 +1,4 @@
+import { materialOf, type Material } from '../logic/debris';
 import type Phaser from 'phaser';
 import {
   BARREL_ACTIONS,
@@ -19,6 +20,7 @@ import {
   POOL,
   SKIBIDI,
   LASER_TOWER,
+  MADE_OF,
   TESLA,
   THUNDER,
   THING_ACTIONS,
@@ -166,7 +168,12 @@ export class Block extends Body {
   private smashWaitMs = 0;
   private hopMs = 0;
 
-  constructor(scene: Phaser.Scene, kind: BlockKind, x: number, y: number) {
+  constructor(
+    scene: Phaser.Scene,
+    readonly kind: BlockKind,
+    x: number,
+    y: number,
+  ) {
     super(x, y);
     this.def = BLOCKS[kind];
     const ghost = this.def.monster?.ghost;
@@ -400,6 +407,10 @@ export class Block extends Body {
   /** Make the doll in it get out, when the vehicle blows up or is taken away. */
   ejectDriver(): void {
     this.driver?.leaveSeat();
+  }
+
+  override get material(): Material {
+    return materialOf(this.def, MADE_OF[this.kind]);
   }
 
   /**

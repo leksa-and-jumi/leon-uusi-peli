@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { crumbAlpha, crumbCount, crumbStep, scatter, settleTurn } from './debris';
+import {
+  crumbAlpha,
+  crumbCount,
+  crumbStep,
+  scatter,
+  settleTurn,
+  materialOf,
+  pickShard,
+} from './debris';
 
 const box = { left: 100, right: 160, top: 400, bottom: 460 };
 const burst = { pushX: 50, pushY: -100, spread: 20, size: { min: 4, max: 8 }, spin: 6 };
@@ -115,5 +123,61 @@ describe('settleTurn', () => {
 
   it('stays put once it lies flat', () => {
     expect(settleTurn(Math.PI / 2, 16, 100)).toBeCloseTo(Math.PI / 2);
+  });
+});
+
+describe('materialOf', () => {
+  it('goes by what the thing says it is made of, first of all', () => {
+    expect(materialOf({ burns: true }, 'straw')).toBe('straw');
+    expect(materialOf({}, 'brick')).toBe('brick');
+  });
+
+  it('works it out from what the thing does, otherwise', () => {
+    expect(materialOf({ fragile: {} })).toBe('glass');
+    expect(materialOf({ burns: true })).toBe('wood');
+    expect(materialOf({ metal: true })).toBe('metal');
+    expect(materialOf({})).toBe('other');
+  });
+
+  it('takes what breaks at a touch for glass, whatever else it is', () => {
+    expect(materialOf({ fragile: {}, metal: true })).toBe('glass');
+  });
+});
+
+describe('pickShard', () => {
+  const kinds = [
+    { share: 3, shape: 'bar' as const, long: { min: 10, max: 20 }, wide: { min: 4, max: 6 } },
+    {
+      share: 1,
+      shape: 'chip' as const,
+      long: { min: 2, max: 4 },
+      wide: { min: 2, max: 4 },
+      alpha: 0.5,
+    },
+  ];
+  const rolls = (...numbers: number[]): (() => number) => {
+    let next = 0;
+    return () => numbers[next++ % numbers.length] ?? 0;
+  };
+
+  it('picks a kind of piece by its share', () => {
+    expect(pickShard(kinds, rolls(0, 0, 0)).shape).toBe('bar');
+    expect(pickShard(kinds, rolls(0.7, 0, 0)).shape).toBe('bar');
+    expect(pickShard(kinds, rolls(0.8, 0, 0)).shape).toBe('chip');
+  });
+
+  it('gives it a size between the smallest and the biggest of its kind', () => {
+    expect(pickShard(kinds, rolls(0, 0, 0))).toEqual({ shape: 'bar', long: 10, wide: 4, alpha: 1 });
+    const middle = pickShard(kinds, rolls(0, 0.5, 0.5));
+    expect(middle.long).toBeCloseTo(15);
+    expect(middle.wide).toBeCloseTo(5);
+  });
+
+  it('keeps how see-through the kind is', () => {
+    expect(pickShard(kinds, rolls(0.9, 0, 0)).alpha).toBe(0.5);
+  });
+
+  it('gives a plain piece when there is no kind to pick from', () => {
+    expect(pickShard([], rolls(0.5)).shape).toBe('bar');
   });
 });

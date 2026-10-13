@@ -1,3 +1,4 @@
+import { materialOf, type Material } from '../logic/debris';
 import type Phaser from 'phaser';
 import {
   BLAST,
@@ -16,6 +17,7 @@ import {
   type ActionId,
   type ItemDef,
   type ItemKind,
+  MADE_OF,
 } from '../config';
 import { clamp } from '../logic/bounds';
 import { blockedX, overlaps, type Box } from '../logic/ground';
@@ -89,6 +91,10 @@ export class Item extends Body {
     }
     this.display = scene.add.container(0, 0, parts).setDepth(DEPTH.item);
     this.lieAt(0);
+  }
+
+  override get material(): Material {
+    return materialOf(this.size, MADE_OF[this.kind]);
   }
 
   /** Everything that makes this item what it is: gun, melee or bomb numbers. */
