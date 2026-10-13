@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import {
+  ALIVE,
   ASHEN,
   ANGRY,
   BLOOD,
@@ -83,6 +84,8 @@ import {
   STILL,
   type Pose,
   type PoseKind,
+  breathing,
+  stooping,
 } from '../logic/pose';
 import { aimAt, canSee, segmentHit } from '../logic/shot';
 import { sameTeam } from '../logic/team';
@@ -168,6 +171,10 @@ export class Person extends Body {
    * side never go for each other and can't hurt each other. `null` when it is on no side.
    */
   side: 'players' | 'enemies' | null = null;
+  /** A pose it has been told to hold for a while, and the time left of it. It stays where it is meanwhile. */
+  private shown: { pose: PoseKind; ms: number } | null = null;
+  /** Every doll blinks at its own moment. */
+  private readonly blinkAt = Math.random() * ALIVE.blink.everyMs;
   /** Nothing can hurt it, and nobody goes for it: the cleaning lady. */
   safe = false;
   /** What the player who steers it tells it to do, or `null` when it does as it likes. */
@@ -699,6 +706,11 @@ export class Person extends Body {
     return this.lives;
   }
 
+  /** Hold this pose for a while, standing still: bending down for something, or throwing it. */
+  perform(pose: PoseKind, ms: number): void {
+    this.shown = { pose, ms };
+  }
+
   /** Is the other one on its side in a team game? */
   friendOf(other: Person): boolean {
     return this.side !== null && other.side === this.side;
@@ -1142,7 +1154,7 @@ export class Person extends Body {
   private land(fallSpeed: number, world: World): void {
     const kick = Math.min(Math.max(fallSpeed, 0) * LIMP.landKick, LIMP.landKickMax);
     this.limbSpeeds = kickJoints(this.limbSpeeds, kick);
-    world.landed(fallSpeed);
+    world.landed(fallSpeed, this.x, this.y);
     if (this.tossed && fallSpeed >= TOSS.bounceMinSpeed) {
       this.hop(fallSpeed * TOSS.floorBounce);
     }
@@ -1814,12 +1826,22 @@ export class Person extends Body {
   private drive(pilot: Steer, deltaMs: number, world: World): PoseKind {
     this.waitMs = Math.max(0, this.waitMs - deltaMs);
     this.castMs = Math.max(0, this.castMs - deltaMs);
+    if (this.shown) {
+      // Told to hold a pose: it does that, and nothing else
+      this.shown.ms -= deltaMs;
+      const { pose: held, ms } = this.shown;
+      if (ms <= 0) this.shown = null;
+      return held;
+    }
     if (pilot.jump && this.state === 'resting' && !this.hovering) this.hop(DUEL.jump);
     let pose: PoseKind = 'stand';
     if (pilot.x !== 0) {
       this.facing = pilot.x;
-      this.walkTo(this.x + pilot.x * DUEL.speed * this.pace * (deltaMs / 1000), world);
-      pose = 'run';
+      // An old one walks, and sweeps as it goes if it has a broom; anybody else runs
+      const stroll = this.look.stroll;
+      const speed = stroll ?? DUEL.speed * this.pace;
+      this.walkTo(this.x + pilot.x * speed * (deltaMs / 1000), world);
+      pose = stroll === undefined ? 'run' : this.item?.def.wipes ? 'sweep' : 'walk';
     }
     if (this.slamMs > 0) {
       this.slamMs -= deltaMs;
@@ -2053,13 +2075,19 @@ export class Person extends Body {
     this.strokes = this.swimming && moving && !this.ragdoll;
     const pose = this.ragdoll ? this.limbs : this.standingPose(this.strokes ? 'swim' : kind);
     this.figure.setPose(pose);
+    // Every few seconds it blinks. A machine doesn't
+    const blink = (this.clockMs + this.blinkAt) % ALIVE.blink.everyMs < ALIVE.blink.ms;
+    this.figure.blink(blink && !this.machine && !this.dead);
     // A bullet makes it jerk back for a moment
     const flinch = this.flinchMs > 0 ? this.flinchDir * PERSON.flinch.lean : 0;
     this.place(this.x, this.y - pose.lift, rotation + this.facing * pose.lean + flinch);
   }
 
   private standingPose(kind: PoseKind): Pose {
-    const pose = poseFor(kind, this.clockMs);
+    const plain = poseFor(kind, this.clockMs);
+    // A living thing breathes while it stands, and an old back is bent whatever it does
+    const alive = kind === 'stand' && !this.machine ? breathing(plain, this.clockMs) : plain;
+    const pose = this.look.stoop ? stooping(alive, this.look.stoop) : alive;
     const moving = kind === 'walk' || kind === 'run';
     if (!this.look.armsForward || !moving) return pose;
     // A zombie shuffles along with both arms stretched out in front
