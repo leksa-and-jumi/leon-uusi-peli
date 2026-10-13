@@ -694,6 +694,11 @@ export class Person extends Body {
     return action === 'jet' ? this.jetOn : this.activity === action;
   }
 
+  /** How many lives it has left. */
+  get livesLeft(): number {
+    return this.lives;
+  }
+
   /** Is the other one on its side in a team game? */
   friendOf(other: Person): boolean {
     return this.side !== null && other.side === this.side;
