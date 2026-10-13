@@ -649,10 +649,16 @@ export const DUEL = {
   ],
   colors: ['#42a5f5', '#ef5350'],
   mark: { up: 30, fontSize: '17px', stroke: '#101010', strokeWidth: 4 },
+  /** A match goes to this many rounds won. After a round the next one starts this soon. */
+  toWin: 5,
+  resetMs: 1900,
+  score: { fontSize: '27px', down: 26, star: '⭐', sides: ['🔵', '🔴'], goal: '🏆' },
+  /** A golden weapon that has just been won drops in from this far below the ceiling. */
+  prizeDown: 70,
   hint: {
     text: '🎮   1:  A  D  W  +  F          2:  ←  →  ↑  +  Enter',
     fontSize: '19px',
-    down: 26,
+    down: 62,
     ms: 9000,
     fadeMs: 800,
     depth: 70,
@@ -882,11 +888,13 @@ export const MENU = {
   edge: 0x000000,
   /** The small buttons on the left that switch between dolls, items and building pieces. */
   // Buttons, two under each other in five columns
-  tabs: { x: 6, y: 7, width: 30, height: 41, gap: 3, vertical: true, wrap: 2 },
+  tabs: { x: 6, y: 6, width: 36, height: 27, gap: 3, vertical: true, wrap: 3 },
   tabColor: 0x555555,
   tabSelectedColor: 0xffd54f,
   tabRadius: 7,
-  tabFontSize: '19px',
+  tabFontSize: '17px',
+  /** A golden weapon that hasn't been won yet shows as a padlock of these colors. */
+  lock: { body: 0x6b6f76, shackle: 0x9a9fa7, hole: 0x2b2d33 },
   slots: { x: 210, y: 10, width: 58, height: 80, gap: 6 },
   /** The slots of a page end before this. A page with many things gets narrower slots. */
   slotsEnd: GAME_WIDTH - 202,
@@ -936,6 +944,7 @@ export const TABS = [
   { id: 'gear', emoji: '🛡️' },
   { id: 'powers', emoji: '🔮' },
   { id: 'fighters', emoji: '🥷' },
+  { id: 'golden', emoji: '🏆' },
 ] as const;
 
 export type TabId = (typeof TABS)[number]['id'];
@@ -2683,7 +2692,14 @@ export type PowerKind =
   | 'healingOrb'
   | 'teleportOrb'
   | 'megaOrb';
-export type ItemKind = WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind | PowerKind;
+/**
+ * Golden weapons: better than the plain ones, and won in two-player battles. Every
+ * match that is won unlocks the next one, and from then on it is in the menu for good.
+ */
+export type GoldenKind =
+  'goldenSword' | 'goldenPistol' | 'goldenHammer' | 'goldenBow' | 'goldenLaser';
+export type ItemKind =
+  WeaponKind | JunkItemKind | OddItemKind | AmmoKind | GearKind | PowerKind | GoldenKind;
 
 /**
  * A superpower. A doll has one at a time, and glows in its `color`. What it does:
@@ -3166,6 +3182,90 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       flame: { reach: 250, width: 18, height: 18, color: 0xff7a1a, burnEveryMs: 170 },
     },
   },
+  // The golden weapons, in the order they are won
+  goldenSword: {
+    melts: true,
+    metal: true,
+    crumbs: [0xffd54f, 0xfffde7, 0xb8860b],
+    halfWidth: 36,
+    height: 18,
+    menuScale: 0.95,
+    lie: { x: -22.5, y: -9 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 92, damage: 3, wound: 'slash', pushSpeed: 420 },
+    stick: { out: 38 },
+  },
+  goldenPistol: {
+    melts: true,
+    metal: true,
+    crumbs: [0xffd54f, 0xfffde7, 0x4e342e],
+    halfWidth: 15,
+    height: 20,
+    menuScale: 2,
+    lie: { x: -9.5, y: -13 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 540,
+      damage: 2,
+      everyMs: 450,
+      autoMs: 250,
+      bulletSpeed: 920,
+      muzzle: { x: 80, y: 86 },
+      barrelUp: 16,
+      look: { width: 12, height: 4, color: 0xffd54f },
+    },
+  },
+  goldenHammer: {
+    melts: true,
+    metal: true,
+    crumbs: [0xffd54f, 0x6d4c41, 0xb8860b],
+    halfWidth: 27,
+    height: 26,
+    menuScale: 1.15,
+    lie: { x: -15, y: -13 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 80, damage: 4, wound: 'bruise', pushSpeed: 1100 },
+  },
+  goldenBow: {
+    floats: true,
+    crumbs: [0xffd54f, 0xb8860b, 0xffffff],
+    halfWidth: 14,
+    height: 46,
+    menuScale: 1.05,
+    lie: { x: -4, y: -23 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 640,
+      damage: 3,
+      everyMs: 800,
+      autoMs: 500,
+      bulletSpeed: 820,
+      muzzle: { x: 70, y: 86 },
+      barrelUp: 23,
+      look: { width: 24, height: 3, color: 0xffd54f },
+      wound: 'stab',
+    },
+  },
+  goldenLaser: {
+    melts: true,
+    crumbs: [0xffd54f, 0xb8860b, 0x00e5ff],
+    halfWidth: 22,
+    height: 22,
+    menuScale: 1.5,
+    lie: { x: -15, y: -13 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 640,
+      damage: 3,
+      everyMs: 600,
+      autoMs: 300,
+      bulletSpeed: 1500,
+      muzzle: { x: 92, y: 86 },
+      barrelUp: 15,
+      look: { width: 32, height: 3.5, color: 0xffea00 },
+      wound: 'laser',
+    },
+  },
   // Superpowers: glowing orbs. A doll that touches one has that power from then on
   lightningOrb: {
     floats: true,
@@ -3595,6 +3695,14 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'ship',
 ];
 /** The gear page. */
+/** The golden weapons, in the order they are won. */
+export const GOLDEN_KINDS: readonly GoldenKind[] = [
+  'goldenSword',
+  'goldenPistol',
+  'goldenHammer',
+  'goldenBow',
+  'goldenLaser',
+];
 /** The superpowers page. */
 export const POWER_KINDS: readonly PowerKind[] = [
   'lightningOrb',
@@ -3637,6 +3745,15 @@ export const JUNK_KINDS: readonly (
 /** The colors of the items. */
 export const ITEM_COLORS = {
   gun: { body: 0x455a64, dark: 0x1c262b, shine: 0xa7b8c0, grip: 0x4e342e, gripDark: 0x2b1b17 },
+  /** The same parts as the plain weapons have, in gold. */
+  golden: {
+    gun: { body: 0xffd54f, dark: 0xb8860b, shine: 0xfffde7, grip: 0x4e342e, gripDark: 0x2b1b17 },
+    blade: { light: 0xfffde7, steel: 0xffd54f, dark: 0xb8860b },
+    sword: { guard: 0xe53935, guardDark: 0x8a1c1c, grip: 0x4e342e, wrap: 0x2b1b17 },
+    wood: { fill: 0x6d4c41, dark: 0x3e2723, light: 0x8d6e63, wrap: 0xffd54f },
+    bow: { wood: 0xffd54f, dark: 0xb8860b, string: 0xffffff, tip: 0xfffde7, feather: 0xe53935 },
+    laser: { body: 0xffd54f, dark: 0xb8860b, shine: 0xfffde7, crystal: 0x00e5ff, grip: 0x4e342e },
+  },
   blade: { light: 0xeef3f6, steel: 0xb4c0c8, dark: 0x6f7b83 },
   sword: { guard: 0xffc107, guardDark: 0xb8860b, grip: 0x5d4037, wrap: 0x3e2723 },
   wood: { fill: 0xc9a46a, dark: 0x7a5a2e, light: 0xecd2a0, wrap: 0x3e2723 },

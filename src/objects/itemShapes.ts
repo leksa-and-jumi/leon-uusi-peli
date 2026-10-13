@@ -13,6 +13,16 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
   switch (kind) {
     case 'pistol':
       return drawPistol(g);
+    case 'goldenPistol':
+      return drawPistol(g, ITEM_COLORS.golden.gun);
+    case 'goldenSword':
+      return drawSword(g, ITEM_COLORS.golden.blade, ITEM_COLORS.golden.sword);
+    case 'goldenHammer':
+      return drawHammer(g, ITEM_COLORS.golden.blade, ITEM_COLORS.golden.wood);
+    case 'goldenBow':
+      return drawBow(g, ITEM_COLORS.golden.bow);
+    case 'goldenLaser':
+      return drawRayGun(g, ITEM_COLORS.golden.laser);
     case 'mgun':
       return drawMachineGun(g);
     case 'shotgun':
@@ -105,6 +115,9 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
   }
 }
 
+/** The colors of a weapon's parts: the plain ones, or others with the same names (gold). */
+type Colors<Parts> = { [Part in keyof Parts]: number };
+
 /** Fill a shape with corners at the given points. */
 function shape(g: Graphics, color: number, points: readonly Point[], alpha = 1): void {
   const [first, ...rest] = points;
@@ -119,8 +132,7 @@ function shape(g: Graphics, color: number, points: readonly Point[], alpha = 1):
   g.fillPath();
 }
 
-function drawPistol(g: Graphics): Graphics {
-  const c = ITEM_COLORS.gun;
+function drawPistol(g: Graphics, c: Colors<typeof ITEM_COLORS.gun> = ITEM_COLORS.gun): Graphics {
   // Grip, leaning back a little, with grooves
   shape(g, c.gripDark, [
     [-4, -1],
@@ -472,8 +484,7 @@ function drawBoulder(g: Graphics): Graphics {
  * A bow with an arrow on the string, ready to shoot: the stave bends forward, the
  * string runs straight behind it.
  */
-function drawBow(g: Graphics): Graphics {
-  const c = ITEM_COLORS.bow;
+function drawBow(g: Graphics, c: Colors<typeof ITEM_COLORS.bow> = ITEM_COLORS.bow): Graphics {
   g.lineStyle(1, c.string);
   g.lineBetween(-4, -21, -4, 21);
   // The stave: a thick curve from tip to tip
@@ -790,9 +801,11 @@ function drawFlamethrower(g: Graphics): Graphics {
 }
 
 /** A sledgehammer: a wooden handle with a heavy block of steel across its end. */
-function drawHammer(g: Graphics): Graphics {
-  const blade = ITEM_COLORS.blade;
-  const wood = ITEM_COLORS.wood;
+function drawHammer(
+  g: Graphics,
+  blade: Colors<typeof ITEM_COLORS.blade> = ITEM_COLORS.blade,
+  wood: Colors<typeof ITEM_COLORS.wood> = ITEM_COLORS.wood,
+): Graphics {
   g.fillStyle(wood.dark);
   g.fillRoundedRect(-12, -3, 50, 6, 2.5);
   g.fillStyle(wood.fill);
@@ -871,9 +884,11 @@ function drawDynamite(g: Graphics): Graphics {
   return g;
 }
 
-function drawSword(g: Graphics): Graphics {
-  const blade = ITEM_COLORS.blade;
-  const c = ITEM_COLORS.sword;
+function drawSword(
+  g: Graphics,
+  blade: Colors<typeof ITEM_COLORS.blade> = ITEM_COLORS.blade,
+  c: Colors<typeof ITEM_COLORS.sword> = ITEM_COLORS.sword,
+): Graphics {
   // Blade: dark edge all around, bright upper half, darker lower half
   shape(g, blade.dark, [
     [3, -5.5],
