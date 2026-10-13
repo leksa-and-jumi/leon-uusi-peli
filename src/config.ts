@@ -1,4 +1,5 @@
 import type { Material, ShardKind } from './logic/debris';
+import type { WreckSpec } from './logic/wreck';
 import type { Spring } from './logic/fall';
 import type { Pull } from './logic/pull';
 /** Shared game constants. Tweak values here instead of inside scenes. */
@@ -271,6 +272,8 @@ export interface PersonLook {
    */
   stroll?: number;
   stoop?: number;
+  /** Nothing can hurt it, but hitting it makes it furious: then it runs this fast after whoever did it. */
+  fury?: number;
   /** It is heavy (a knight in armor): in water it sinks to the bottom, and under water it drowns. */
   heavy?: boolean;
 }
@@ -745,12 +748,20 @@ export const CLEANER = {
   broomAhead: 46,
   edge: 34,
   mostMs: 45000,
+  /**
+   * Somebody has hit her: she goes after that one, and whacks it with her broom from
+   * this close, until it is out. She doesn't keep it up for longer than `mostMs`.
+   */
+  rage: { reach: 78, near: 14, mostMs: 30000, emoji: '💢', fontSize: '40px', ms: 900, grow: 1.3 },
   look: {
     body: 0x7e57c2,
     joint: 0x5e3f8f,
     extra: 'apron',
     stroll: 72,
     stoop: 0.3,
+    // Furious, she is quicker than anybody, and every whack of her broom takes a life
+    fury: 250,
+    punch: 2,
     human: {
       skin: 0xf1c9a5,
       hair: 0xe0e0e0,
@@ -4086,6 +4097,46 @@ export const SHARDS: Record<
   other: {
     kinds: [{ share: 1, shape: 'bar', long: { min: 4, max: 9 }, wide: { min: 4, max: 9 } }],
     more: 1,
+  },
+};
+
+/**
+ * A vehicle that is wrecked falls apart into parts as well: its wheels drop off and
+ * roll away, and the big sheets of its body (doors, a hood, wings) are flung off,
+ * spinning. A helicopter loses its rotor blades. The parts lie where they stop for
+ * `lieMs` and then fade; a wheel rolls on for about `rollMs`.
+ */
+export const WRECK = {
+  burst: {
+    roll: { min: 140, max: 360 },
+    hop: { min: 120, max: 300 },
+    fling: 320,
+    lift: { min: 240, max: 470 },
+    spin: 9,
+  },
+  lieMs: 4200,
+  fadeMs: 1700,
+  rollMs: 2400,
+  tire: 0x1b1b1b,
+  hub: 0x9e9e9e,
+  cap: 0x424242,
+} as const;
+
+export const WRECKS: Partial<Record<BlockKind, WreckSpec>> = {
+  car: { wheels: 2, wheelRadius: 13, panels: 3, panel: { long: 30, wide: 16 } },
+  truck: { wheels: 3, wheelRadius: 14, panels: 4, panel: { long: 40, wide: 20 } },
+  tank: { wheels: 4, wheelRadius: 8, panels: 4, panel: { long: 40, wide: 18 } },
+  bike: { wheels: 2, wheelRadius: 15, panels: 1, panel: { long: 24, wide: 10 } },
+  skateboard: { wheels: 4, wheelRadius: 4, panels: 1, panel: { long: 42, wide: 5 } },
+  plane: { wheels: 2, wheelRadius: 7, panels: 4, panel: { long: 58, wide: 10 } },
+  saucer: { wheels: 0, wheelRadius: 0, panels: 4, panel: { long: 38, wide: 12 } },
+  helicopter: {
+    wheels: 0,
+    wheelRadius: 0,
+    panels: 3,
+    panel: { long: 34, wide: 18 },
+    blades: 2,
+    blade: { long: 72, wide: 4 },
   },
 };
 
