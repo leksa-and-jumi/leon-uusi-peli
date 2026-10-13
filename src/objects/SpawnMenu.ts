@@ -14,6 +14,7 @@ import {
   TABS,
   FIGHTERS,
   GEAR_KINDS,
+  GOLDEN_KINDS,
   POWER_KINDS,
   TRAP_KINDS,
   VEHICLE_KINDS,
@@ -32,6 +33,8 @@ import { PersonFigure } from './personShape';
 /** One thing you can pick from the menu and put into the area. */
 export type SpawnChoice =
   | { type: 'none' }
+  /** A golden weapon that hasn't been won yet: it shows as a padlock, and puts nothing in. */
+  | { type: 'locked' }
   | { type: 'person'; look: PersonLook }
   | { type: 'item'; kind: ItemKind }
   | { type: 'block'; kind: BlockKind };
@@ -41,7 +44,7 @@ const NOTHING: SpawnChoice = { type: 'none' };
 /** The slot that is picked when a page opens: the first one with something in it. */
 const FIRST_THING = 1;
 
-const CHOICES: Record<TabId, readonly SpawnChoice[]> = {
+const CHOICES: Record<Exclude<TabId, 'golden'>, readonly SpawnChoice[]> = {
   people: [NOTHING, ...PEOPLE.map((look): SpawnChoice => ({ type: 'person', look }))],
   fighters: [NOTHING, ...FIGHTERS.map((look): SpawnChoice => ({ type: 'person', look }))],
   items: [NOTHING, ...WEAPON_KINDS.map((kind): SpawnChoice => ({ type: 'item', kind }))],
@@ -74,6 +77,7 @@ export class SpawnMenu {
   private tab: TabId = 'people';
   private selectedIndex = FIRST_THING;
   private duelOn = false;
+  private unlocked = 0;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -134,7 +138,7 @@ export class SpawnMenu {
 
   /** What gets put into the area on the next click. */
   get selected(): SpawnChoice {
-    const choice = CHOICES[this.tab][this.selectedIndex];
+    const choice = this.choices()[this.selectedIndex];
     if (!choice) {
       throw new Error(`Nothing at menu slot ${this.selectedIndex} of ${this.tab}`);
     }
@@ -171,12 +175,30 @@ export class SpawnMenu {
       return null;
     }
 
-    const index = slotAt(this.row(), CHOICES[this.tab].length, px, py);
+    const index = slotAt(this.row(), this.choices().length, px, py);
     if (index !== null) {
       this.selectedIndex = index;
       this.drawHighlight();
     }
     return null;
+  }
+
+  /** The things on the open page. The golden page shows what has been won, and padlocks for the rest. */
+  private choices(): readonly SpawnChoice[] {
+    if (this.tab !== 'golden') return CHOICES[this.tab];
+    return [
+      NOTHING,
+      ...GOLDEN_KINDS.map((kind, index): SpawnChoice =>
+        index < this.unlocked ? { type: 'item', kind } : { type: 'locked' },
+      ),
+    ];
+  }
+
+  /** This many of the golden weapons have been won: they are on the golden page from now on. */
+  setUnlocked(count: number): void {
+    if (this.unlocked === count) return;
+    this.unlocked = count;
+    this.showPage();
   }
 
   /** Light the battle button while a two-player battle is on. */
@@ -188,7 +210,7 @@ export class SpawnMenu {
 
   /** The slots of the open page: narrower than usual when the page holds many things. */
   private row(): SlotRow {
-    return fitRow(MENU.slots, CHOICES[this.tab].length, MENU.slotsEnd);
+    return fitRow(MENU.slots, this.choices().length, MENU.slotsEnd);
   }
 
   /** Draw the open page: the panel, the tab buttons and a picture in every slot. */
@@ -221,7 +243,7 @@ export class SpawnMenu {
       panel.fillRoundedRect(button.x, button.y, button.width, button.height, MENU.slotRadius);
     }
 
-    CHOICES[this.tab].forEach((choice, index) => {
+    this.choices().forEach((choice, index) => {
       const slot = slotRect(this.row(), index);
       panel.fillStyle(MENU.slotColor);
       panel.fillRoundedRect(slot.x, slot.y, slot.width, slot.height, MENU.slotRadius);
@@ -237,6 +259,22 @@ export class SpawnMenu {
           (slot.height - MENU.slotPadding * 2) / height,
         );
       if (choice.type === 'none') return;
+      if (choice.type === 'locked') {
+        // A padlock: a body with a keyhole, and a shackle over it
+        const { body, shackle, hole } = MENU.lock;
+        const lock = scene.add.graphics().setPosition(middleX, middleY);
+        lock.lineStyle(4, shackle);
+        lock.beginPath();
+        lock.arc(0, -3, 7.5, Math.PI, 0);
+        lock.strokePath();
+        lock.fillStyle(body);
+        lock.fillRoundedRect(-11, -3, 22, 18, 4);
+        lock.fillStyle(hole);
+        lock.fillCircle(0, 4, 2.6);
+        lock.fillRect(-1.1, 4, 2.2, 6);
+        this.pictures.push(lock.setDepth(MENU.depth + 1));
+        return;
+      }
       if (choice.type === 'person') {
         const figure = new PersonFigure(scene, choice.look).container
           .setScale(fit(PERSON.halfWidth, PERSON.height, MENU.personScale))

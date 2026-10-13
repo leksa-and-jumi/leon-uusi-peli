@@ -20,6 +20,7 @@ import {
   FLOOR,
   GEAR,
   GEAR_KINDS,
+  GOLDEN_KINDS,
   GAME_HEIGHT,
   GAME_WIDTH,
   HINT,
@@ -32,6 +33,7 @@ import {
   PHYSICS,
   PEOPLE,
   PICK_PADDING,
+  type PersonLook,
   PORTAL,
   POWER,
   POWER_KINDS,
@@ -71,6 +73,8 @@ import { placeFeet, type PlaceArea } from '../logic/place';
 import { fan, segmentHit } from '../logic/shot';
 import { flameAt } from '../logic/fire';
 import { steerFrom, takeSeat } from '../logic/duel';
+import { NEW_MATCH, nextMatch, roundWon, unlockNext, type Match, type Seat } from '../logic/match';
+import { loadGolden, saveGolden } from '../storage';
 import { sameTeam } from '../logic/team';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
 import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
@@ -152,6 +156,17 @@ export class MainScene extends Phaser.Scene {
   private playerMarks: Phaser.GameObjects.Text[] = [];
   private duelKeys: Record<DuelKey, Phaser.Input.Keyboard.Key> | null = null;
   private duelHint: Phaser.GameObjects.Text | null = null;
+  /**
+   * How the battle stands, and the scoreboard that shows it. The look of each
+   * player's doll, for the next round. While a round is over: the time left until the
+   * next one starts, and whether that round won the whole match. And how many golden
+   * weapons have been won so far.
+   */
+  private match: Match = NEW_MATCH;
+  private scoreBoard!: Phaser.GameObjects.Text;
+  private seatLooks: PersonLook[] = [];
+  private roundOver: { ms: number; matchWon: boolean } | null = null;
+  private unlocked = 0;
   /** When each doll was last burnt by a stream of fire. */
   private readonly lastBurnt = new WeakMap<Person, number>();
   /**
@@ -416,6 +431,26 @@ export class MainScene extends Phaser.Scene {
     this.bubbles = new ActionBubbles(this);
     this.players = [null, null];
     this.duelHint = null;
+    this.match = NEW_MATCH;
+    this.roundOver = null;
+    this.seatLooks = DUEL.dolls.map(
+      ({ look }) => PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
+    );
+    this.scoreBoard = this.add
+      .text(GAME_WIDTH / 2, AREA.top + DUEL.score.down, '', {
+        fontSize: DUEL.score.fontSize,
+        fontStyle: 'bold',
+        color: COLORS.text,
+        stroke: DUEL.mark.stroke,
+        strokeThickness: DUEL.mark.strokeWidth + 1,
+      })
+      .setOrigin(0.5)
+      .setResolution(SHARP)
+      .setDepth(DUEL.hint.depth)
+      .setVisible(false);
+    // The golden weapons won before on this device are in the menu from the start
+    this.unlocked = loadGolden(GOLDEN_KINDS.length);
+    this.menu.setUnlocked(this.unlocked);
     this.playerMarks = DUEL.colors.map((color, seat) =>
       this.add
         .text(0, 0, `${String(seat + 1)}\n▼`, {
@@ -457,7 +492,7 @@ export class MainScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.world.people = this.people;
-    this.steerPlayers();
+    this.steerPlayers(delta);
     // A piece that leans on something is a flight of steps: several boxes for one body
     this.solids = this.blocks
       .filter((block) => block.carries)
@@ -552,19 +587,95 @@ export class MainScene extends Phaser.Scene {
       this.seat([null, null]);
       return;
     }
-    const dolls = DUEL.dolls.map(({ look, across }) => {
+    this.seatLooks = DUEL.dolls.map(
+      ({ look }) => PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
+    );
+    this.seat(this.dropInDolls());
+  }
+
+  /** Put a new doll in for each player, where a round starts, looking like that player's last one. */
+  private dropInDolls(): Person[] {
+    const dolls = DUEL.dolls.map(({ across }, seat) => {
       const x = AREA.left + (AREA.right - AREA.left) * across;
-      const doll = new Person(
-        this,
-        PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
-        x,
-        AREA.floorY,
-      );
+      const look = this.seatLooks[seat] ?? { body: 0xd9b382, joint: 0x8a6a45 };
+      const doll = new Person(this, look, x, AREA.floorY);
       this.people.push(doll);
       return doll;
     });
     while (this.people.length > PERSON.max) this.forgetOldest(this.people);
-    this.seat(dolls);
+    return dolls;
+  }
+
+  /**
+   * A round is over. The winner gets a point and a trophy over its doll (nobody, when
+   * both went out at once). The fifth point wins the match, and a match that is won
+   * unlocks the next golden weapon. The next round starts in a moment.
+   */
+  private endRound(winner: Seat | null): void {
+    this.roundOver = { ms: DUEL.resetMs, matchWon: false };
+    const doll = winner === null ? null : this.players[winner];
+    if (winner === null || !doll) return;
+    const { emoji, fontSize, ms, grow, up } = DUEL.trophy;
+    this.popUp(doll.feet.x, doll.box.top - up, emoji, fontSize, ms, grow);
+    const { match, won } = roundWon(this.match, winner, DUEL.toWin);
+    this.match = match;
+    this.roundOver.matchWon = won;
+    this.showScore();
+    if (won) this.winPrize();
+  }
+
+  /**
+   * A match has been won: fireworks, and a golden weapon drops in. If there is one
+   * that hasn't been won before, it is that one, and it is in the menu from now on.
+   * With all of them won already, it is one of them at random.
+   */
+  private winPrize(): void {
+    const middle = (AREA.left + AREA.right) / 2;
+    const fresh = GOLDEN_KINDS[this.unlocked];
+    const any = GOLDEN_KINDS[Math.floor(Math.random() * GOLDEN_KINDS.length)];
+    const kind = fresh ?? any;
+    if (fresh) {
+      this.unlocked = unlockNext(this.unlocked, GOLDEN_KINDS.length);
+      saveGolden(this.unlocked);
+      this.menu.setUnlocked(this.unlocked);
+    }
+    for (const side of [-1, 0, 1]) this.world.fireworks(middle + side * 150, AREA.top + 110);
+    if (!kind) return;
+    const feet = placeFeet(middle, AREA.top + DUEL.prizeDown, AREA, ITEMS[kind]);
+    this.items.push(new Item(this, kind, feet.x, feet.y));
+  }
+
+  /**
+   * The next round: the dolls of the last one go (what they held stays in the area),
+   * and a new doll drops in for each player. After a match that was won, the score
+   * starts from nothing again.
+   */
+  private newRound(): void {
+    const matchWon = this.roundOver?.matchWon ?? false;
+    this.roundOver = null;
+    if (matchWon) this.match = nextMatch(this.match);
+    const old = this.players.filter(
+      (doll): doll is Person => doll !== null && this.people.includes(doll),
+    );
+    for (const doll of old) doll.dropItem(this.solidBoxes(doll));
+    this.forget(old);
+    this.seat(this.dropInDolls());
+  }
+
+  /**
+   * The scoreboard: the rounds each player has won, a star by the one who won last,
+   * and how many rounds win the match. It shows while two players are in a battle.
+   */
+  private showScore(): void {
+    const battle = this.players.every((doll) => doll !== null) || this.roundOver !== null;
+    this.scoreBoard.setVisible(battle);
+    if (!battle) return;
+    const { star, sides, goal } = DUEL.score;
+    const [first, second] = this.match.score;
+    const mark = (seat: Seat): string => (this.match.last === seat ? star : '');
+    this.scoreBoard.setText(
+      `${mark(0)}${sides[0]} ${String(first)}  –  ${String(second)} ${sides[1]}${mark(1)}      ${goal} ${String(DUEL.toWin)}`,
+    );
   }
 
   /** Give the players these dolls to steer (or `null` for none), and take every other doll back. */
@@ -574,9 +685,22 @@ export class MainScene extends Phaser.Scene {
     }
     const starting = this.players.every((doll) => doll === null);
     this.players = [...dolls];
-    for (const doll of this.players) doll?.steer(steerFrom(false, false, false, false));
+    this.players.forEach((doll, seat) => {
+      if (!doll) return;
+      doll.steer(steerFrom(false, false, false, false));
+      // The next round, this player's doll looks like this one
+      this.seatLooks[seat] = doll.look;
+    });
     const on = this.players.some((doll) => doll !== null);
+    if (!on) {
+      // The battle is over: the next one starts from nothing
+      this.match = NEW_MATCH;
+      this.roundOver = null;
+      this.duelHint?.destroy();
+      this.duelHint = null;
+    }
     this.menu.showDuel(on);
+    this.showScore();
     if (on && starting) this.showDuelHint();
   }
 
@@ -608,21 +732,28 @@ export class MainScene extends Phaser.Scene {
   }
 
   /**
-   * Pass on to each player's doll what its player is telling it with the keys. A doll
-   * that is out or gone is no longer its player's, and if the other player's doll is
-   * still in the game, that one has won: a trophy pops up over it.
+   * Pass on to each player's doll what its player is telling it with the keys. When a
+   * doll is out or gone in a battle of two, the round is over: the other player has
+   * won it, and the next round starts in a moment. A doll that is steered all alone
+   * is just let go when it is out.
    */
-  private steerPlayers(): void {
+  private steerPlayers(delta: number): void {
+    if (this.roundOver) {
+      this.roundOver.ms -= delta;
+      if (this.roundOver.ms <= 0) this.newRound();
+    }
     const keys = this.duelKeys;
+    const inGame = (doll: Person | null | undefined): doll is Person =>
+      !!doll && !doll.dead && this.people.includes(doll);
+    const battle = this.players.every((doll) => doll !== null);
     this.players.forEach((doll, seat) => {
       if (!doll) return;
-      if (doll.dead || !this.people.includes(doll)) {
-        const winner = this.players[1 - seat];
-        if (winner && !winner.dead && this.people.includes(winner)) {
-          const { emoji, fontSize, ms, grow, up } = DUEL.trophy;
-          this.popUp(winner.feet.x, winner.box.top - up, emoji, fontSize, ms, grow);
-        }
-        this.seat(this.players.map((other) => (other === doll ? null : other)));
+      if (!inGame(doll)) {
+        // Counted already: it waits for the next round
+        if (this.roundOver) return;
+        const other: Seat = seat === 0 ? 1 : 0;
+        if (battle) this.endRound(inGame(this.players[other]) ? other : null);
+        else this.seat(this.players.map((sitting) => (sitting === doll ? null : sitting)));
         return;
       }
       if (!keys) return;
@@ -1004,7 +1135,7 @@ export class MainScene extends Phaser.Scene {
   /** Put what is picked in the menu into the area, around the click. */
   private spawn(px: number, py: number): void {
     const choice = this.menu.selected;
-    if (choice.type === 'none') return;
+    if (choice.type === 'none' || choice.type === 'locked') return;
     if (choice.type === 'person') {
       const feet = placeFeet(px, py, AREA, PERSON);
       this.people.push(new Person(this, choice.look, feet.x, feet.y));
