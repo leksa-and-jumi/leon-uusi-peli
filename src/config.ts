@@ -274,6 +274,10 @@ export interface PersonLook {
   stoop?: number;
   /** Nothing can hurt it, but hitting it makes it furious: then it runs this fast after whoever did it. */
   fury?: number;
+  /** The first time it is hit, it flies into a rage and takes this superpower. */
+  rages?: PowerKind;
+  /** It comes with this in its hand. */
+  holds?: ItemKind;
   /** It is heavy (a knight in armor): in water it sinks to the bottom, and under water it drowns. */
   heavy?: boolean;
 }
@@ -435,9 +439,34 @@ export const PEOPLE: readonly PersonLook[] = [
 ];
 
 /**
+ * The old lady: gray hair in a bun, round glasses, a purple dress and a white apron,
+ * her back bent, and a broom in her hand. Hit her, and she flies into a rage: she
+ * takes the mega power, grows big and muscular, and has every power there is.
+ */
+export const GRANNY = {
+  body: 0x7e57c2,
+  joint: 0x5e3f8f,
+  extra: 'apron',
+  stoop: 0.3,
+  punch: 2,
+  rages: 'megaOrb',
+  holds: 'broom',
+  human: {
+    skin: 0xf1c9a5,
+    hair: 0xe0e0e0,
+    style: 'bun',
+    shirt: 0x7e57c2,
+    sleeves: 'long',
+    trousers: 0x7e57c2,
+    shoes: 0x4e342e,
+  },
+} as const satisfies PersonLook;
+
+/**
  * The fighters: always angry, tougher than a plain doll, and each with a look of its
  * own. A robot, a ninja (fast), a knight (heavy) and a zombie (slow, arms out); a
- * viking, a pirate, a samurai, an alien, a demon that throws fire, and a mummy.
+ * viking, a pirate, a samurai, an alien, a demon that throws fire, a mummy, and the
+ * old lady with her broom.
  */
 export const FIGHTERS: readonly PersonLook[] = [
   {
@@ -572,6 +601,8 @@ export const FIGHTERS: readonly PersonLook[] = [
     angry: true,
     blood: 0xc2b280,
   },
+  // The old lady, as a fighter: tough, and the first hit she takes sends her into a rage
+  { ...GRANNY, lives: 6, angry: true },
 ];
 
 /** The colors of the extras that the special dolls wear. */
@@ -753,25 +784,8 @@ export const CLEANER = {
    * this close, until it is out. She doesn't keep it up for longer than `mostMs`.
    */
   rage: { reach: 78, near: 14, mostMs: 30000, emoji: '💢', fontSize: '40px', ms: 900, grow: 1.3 },
-  look: {
-    body: 0x7e57c2,
-    joint: 0x5e3f8f,
-    extra: 'apron',
-    stroll: 72,
-    stoop: 0.3,
-    // Furious, she is quicker than anybody, and every whack of her broom takes a life
-    fury: 250,
-    punch: 2,
-    human: {
-      skin: 0xf1c9a5,
-      hair: 0xe0e0e0,
-      style: 'bun',
-      shirt: 0x7e57c2,
-      sleeves: 'long',
-      trousers: 0x7e57c2,
-      shoes: 0x4e342e,
-    },
-  },
+  // At work she walks slowly. Furious, she is quicker than anybody
+  look: { ...GRANNY, stroll: 72, fury: 250 },
 } as const satisfies { look: PersonLook } & Record<string, unknown>;
 
 /**

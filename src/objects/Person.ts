@@ -719,6 +719,13 @@ export class Person extends Body {
     this.provoked = true;
     if (by) this.provokedBy = by;
     this.figure.setAngry(true);
+    this.enrage();
+  }
+
+  /** It has been hit, and it is one that flies into a rage at that: it takes its rage's superpower. */
+  private enrage(): void {
+    const kind = this.look.rages;
+    if (kind && !this.power && !this.dead) this.learn(kind);
   }
 
   /** She has had her revenge, and is calm again. */
@@ -726,6 +733,8 @@ export class Person extends Body {
     this.provoked = false;
     this.provokedBy = null;
     this.figure.setAngry(false);
+    // Her rage is over, and so is the power it gave her
+    this.forgetPower();
   }
 
   /** Could a player's swing land on it? On anybody who is on their feet, the cleaning lady too. */
@@ -982,7 +991,10 @@ export class Person extends Body {
       this.bleedMs = Math.max(this.bleedMs, bleeding.bleedMs);
     }
     this.lives = takeHit(this.lives, damage);
-    if (!isDead(this.lives)) return false;
+    if (!isDead(this.lives)) {
+      if (damage > 0) this.enrage();
+      return false;
+    }
     this.out = true;
     this.activity = 'idle';
     this.figure.setAngry(false);
