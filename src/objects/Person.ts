@@ -163,6 +163,11 @@ export class Person extends Body {
   private slamMs = 0;
   /** How long it has been pushing out a stream of fire without a rest. */
   private streamMs = 0;
+  /**
+   * The side it is on in a team game: the players' or the enemies'. Dolls on the same
+   * side never go for each other and can't hurt each other. `null` when it is on no side.
+   */
+  side: 'players' | 'enemies' | null = null;
   /** What the player who steers it tells it to do, or `null` when it does as it likes. */
   private pilot: Steer | null = null;
   /** Time left of choking on a stink cloud: it is down on its knees and can do nothing else. */
@@ -683,6 +688,11 @@ export class Person extends Body {
   isOn(action: ActionId): boolean {
     if (action === 'play') return this.pilot !== null;
     return action === 'jet' ? this.jetOn : this.activity === action;
+  }
+
+  /** Is the other one on its side in a team game? */
+  friendOf(other: Person): boolean {
+    return this.side !== null && other.side === this.side;
   }
 
   /** A player steers it from now on, and tells it this right now. With `null` it does as it likes again. */
@@ -1828,7 +1838,7 @@ export class Person extends Body {
     }
     // In a battle everybody else is fair game, whatever their color
     const others: (Person | Block)[] = [
-      ...world.people.filter((other) => other !== this && other.canBeHit),
+      ...world.people.filter((other) => other !== this && other.canBeHit && !this.friendOf(other)),
       ...world.monsters(),
     ];
     const closest = nearestIndex(
@@ -1839,8 +1849,10 @@ export class Person extends Body {
     const cast = foe ? this.cast(foe, world) : null;
     if (cast) return cast;
     const weapon = held?.def;
-    const spell = this.might?.spell ?? this.look.spell;
-    const gun = weapon?.gun ?? (weapon ? undefined : spell);
+    // A superpower that is a spell always comes first: with one, the doll throws that
+    // and not what it holds. To use the weapon in its hand, it has no such power
+    const power = this.might?.spell;
+    const gun = power ?? weapon?.gun ?? (weapon ? undefined : this.look.spell);
     if (gun) {
       const { muzzle } = gun;
       const from = this.x + this.facing * muzzle.x;
@@ -1848,7 +1860,7 @@ export class Person extends Body {
       this.waitMs = gun.everyMs;
       // Fire comes in a stream, so the arms stay out; anything else kicks back for a moment
       this.punchMs = gun.flame ? 0 : ANGRY.punchMs;
-      return gun.flame && !weapon ? 'push' : 'punch';
+      return gun.flame && gun !== weapon?.gun ? 'push' : 'punch';
     }
     this.punchMs = ANGRY.punchMs;
     this.waitMs = DUEL.restMs;
@@ -1940,7 +1952,11 @@ export class Person extends Body {
    */
   private pickTarget(world: World): Person | Block | undefined {
     const dolls = world.people.filter(
-      (other) => other !== this && other.canBeHit && !sameTeam(other.look, this.look),
+      (other) =>
+        other !== this &&
+        other.canBeHit &&
+        !sameTeam(other.look, this.look) &&
+        !this.friendOf(other),
     );
     const standing = [...dolls, ...world.monsters()];
     const level = standing.filter((other) => Math.abs(other.feet.y - this.y) <= ANGRY.levelSlack);

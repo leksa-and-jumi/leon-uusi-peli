@@ -649,6 +649,21 @@ export const DUEL = {
   ],
   colors: ['#42a5f5', '#ef5350'],
   mark: { up: 30, fontSize: '17px', stroke: '#101010', strokeWidth: 4 },
+  /**
+   * The two kinds of battle to pick from when the battle button is pressed: two big
+   * buttons in the middle of the area. Against each other, or together as a team.
+   */
+  modes: {
+    width: 250,
+    height: 150,
+    gap: 50,
+    radius: 18,
+    fill: 0x263238,
+    edge: 0xfdd835,
+    fontSize: '44px',
+    depth: 80,
+    labels: { versus: '⚔️\n1  vs  2', team: '🤝\n1  +  2' },
+  },
   /** A match goes to this many rounds won. After a round the next one starts this soon. */
   toWin: 5,
   resetMs: 1900,
@@ -671,7 +686,7 @@ export const DUEL = {
     sparkle: 0xffffff,
   },
   hint: {
-    text: '🎮   1:  A  D  W  +  F          2:  ←  →  ↑  +  Enter',
+    text: '🎮   1:  A  D  W  +  F   (G ⤓)          2:  ←  →  ↑  +  Enter   (K ⤓)',
     fontSize: '19px',
     down: 62,
     ms: 9000,
@@ -679,6 +694,23 @@ export const DUEL = {
     depth: 70,
   },
   trophy: { emoji: '🏆', fontSize: '58px', ms: 1800, grow: 1.4, up: 40 },
+} as const;
+
+/**
+ * A team game: the two players are on the same side and can't hurt each other, and
+ * enemies drop in from the sky in waves, at the two ends of the area. The first wave
+ * comes after `firstMs`, and the next one `restMs` after the last enemy is out. A
+ * player whose doll is out gets a new one when the next wave comes. With both dolls
+ * out the game is over, and it starts again from the first wave.
+ */
+export const TEAM = {
+  firstMs: 1800,
+  restMs: 2600,
+  waves: { first: 2, everyWaves: 2, most: 7, kindsFirst: 3 },
+  edge: 70,
+  spread: 90,
+  score: { wave: '🌊', kills: '💀' },
+  over: { emoji: '💀', fontSize: '84px', ms: 1900, grow: 1.3 },
 } as const;
 
 /** Angry mode: run to the closest person and punch them over. */
