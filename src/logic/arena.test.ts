@@ -5,13 +5,14 @@ const sizes = {
   crate: { halfWidth: 28, height: 56 },
   steelCrate: { halfWidth: 28, height: 56 },
   plank: { halfWidth: 70, height: 18 },
+  girder: { halfWidth: 90, height: 14 },
   stone: { halfWidth: 30, height: 30 },
   hay: { halfWidth: 34, height: 42 },
   fence: { halfWidth: 50, height: 46 },
   barrel: { halfWidth: 19, height: 50 },
   trampoline: { halfWidth: 46, height: 24 },
 };
-const rules = { mid: 190, far: 370, middleChance: 0.6, placeChance: 0.75 };
+const rules = { mid: 240, far: 420, middleChance: 0.85, placeChance: 0.9 };
 
 /** Numbers like `Math.random`'s, but the same every time for the same seed. */
 const seeded = (seed: number): (() => number) => {
@@ -81,11 +82,26 @@ describe('layOutArena', () => {
     }
   });
 
-  it('stays within its far places, with room for the widest thing', () => {
+  it('stays within the area, which is 560 to either side of its middle', () => {
     for (let seed = 1; seed <= 60; seed++) {
       for (const piece of layOutArena(sizes, rules, seeded(seed))) {
-        expect(Math.abs(piece.dx)).toBeLessThanOrEqual(rules.far + 70);
+        expect(Math.abs(piece.dx) + sizes[piece.kind].halfWidth).toBeLessThanOrEqual(560);
       }
+    }
+  });
+
+  it('keeps the things on the sides clear of the thing in the middle', () => {
+    // Nothing on the floor overlaps anything else on the floor
+    for (let seed = 1; seed <= 60; seed++) {
+      const floor = layOutArena(sizes, rules, seeded(seed)).filter((piece) => piece.up === 0);
+      floor.forEach((piece, index) => {
+        for (const other of floor.slice(index + 1)) {
+          const apart = Math.abs(piece.dx - other.dx);
+          expect(apart).toBeGreaterThanOrEqual(
+            sizes[piece.kind].halfWidth + sizes[other.kind].halfWidth - 0.001,
+          );
+        }
+      });
     }
   });
 });

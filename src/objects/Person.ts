@@ -168,6 +168,8 @@ export class Person extends Body {
    * side never go for each other and can't hurt each other. `null` when it is on no side.
    */
   side: 'players' | 'enemies' | null = null;
+  /** Nothing can hurt it, and nobody goes for it: the cleaning lady. */
+  safe = false;
   /** What the player who steers it tells it to do, or `null` when it does as it likes. */
   private pilot: Steer | null = null;
   /** Time left of choking on a stink cloud: it is down on its knees and can do nothing else. */
@@ -614,7 +616,9 @@ export class Person extends Body {
 
   /** Standing on the ground, so it can be punched or shot. */
   get canBeHit(): boolean {
-    return !this.dead && this.state === 'resting' && !this.ragdoll && this.seat === null;
+    return (
+      !this.dead && !this.safe && this.state === 'resting' && !this.ragdoll && this.seat === null
+    );
   }
 
   /** Sitting in a vehicle right now? */
@@ -851,6 +855,7 @@ export class Person extends Body {
     pushSpeed: number = KNOCK.pushSpeed,
     wound: WoundKind = 'bruise',
   ): boolean {
+    if (this.safe) return false;
     this.thaw();
     // The laser that finishes a doll off doesn't knock it over: it turns to ash as it stands
     const toAsh = wound === 'laser' && !this.dead && isDead(takeHit(this.lives, damage));
@@ -871,7 +876,7 @@ export class Person extends Body {
     damage: number,
     wound: WoundKind = 'hole',
   ): boolean {
-    if (this.dead) return false;
+    if (this.dead || this.safe) return false;
     this.thaw();
     this.flinchMs = PERSON.flinch.ms;
     this.flinchDir = direction;
