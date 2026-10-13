@@ -1033,6 +1033,14 @@ class Painter {
         g.fillTriangle(4, head.y + 11, 11.5, head.y + 10, 9, head.y + 20);
         break;
       }
+      case 'apron': {
+        // An old lady's round glasses
+        g.lineStyle(1.3, EXTRA_COLORS.apron.glasses);
+        g.strokeCircle(eye.back - 0.5, eye.y, 3.7);
+        g.strokeCircle(eye.front + 0.5, eye.y, 3.7);
+        g.lineBetween(back + 2, eye.y - 1, eye.back - 4.2, eye.y);
+        break;
+      }
       case 'bandages': {
         const c = EXTRA_COLORS.bandages;
         // A dark gap for the eyes, bandages wound around the head, and a loose end at the back
@@ -1090,6 +1098,18 @@ class Painter {
       ] as const) {
         g.lineBetween(chest.x + 1.5, chest.y + from, chest.x + chest.width - 1.5, chest.y + to);
       }
+    }
+    if (this.look.extra === 'apron') {
+      // A white apron with a pocket, tied on with two straps
+      const c = EXTRA_COLORS.apron;
+      g.fillStyle(c.shade);
+      g.fillRect(chest.x + 7, chest.y, 2, 8);
+      g.fillRect(chest.x + chest.width - 9, chest.y, 2, 8);
+      g.fillRoundedRect(chest.x + 4, chest.y + 6.5, chest.width - 8, chest.height - 6, 3);
+      g.fillStyle(c.cloth);
+      g.fillRoundedRect(chest.x + 5, chest.y + 7.5, chest.width - 10, chest.height - 8, 2.5);
+      g.fillStyle(c.shade);
+      g.fillRoundedRect(chest.x + 10, chest.y + 14, 10, 6, 1.5);
     }
     if (this.look.extra === 'kabuto') {
       // A samurai's armor is made of rows of plates, tied with golden cord
@@ -1178,6 +1198,8 @@ class Painter {
         g.fillEllipse(-2.5, head.y - head.radius * 0.6, head.radius * 1.9, head.radius * 0.95);
         const down = human.style === 'long' ? 33 : 15;
         g.fillRoundedRect(back - 1.5, head.y - 9, 8.5, down, 4);
+        // A bun: the hair is tied up in a knot at the back of the head
+        if (human.style === 'bun') g.fillCircle(back + 1.5, top + 3.5, 6.8);
       }
       if (human.beard) {
         g.fillEllipse(6, head.y + 8.5, 16, 11);

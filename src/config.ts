@@ -224,7 +224,8 @@ export interface PersonLook {
     | 'kabuto'
     | 'feelers'
     | 'horns'
-    | 'bandages';
+    | 'bandages'
+    | 'apron';
   /** How many hits it takes, when not the usual `PERSON.lives`. */
   lives?: number;
   /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
@@ -253,7 +254,7 @@ export interface PersonLook {
   human?: {
     skin: number;
     hair: number;
-    style: 'short' | 'long' | 'bald';
+    style: 'short' | 'long' | 'bald' | 'bun';
     /** A full beard, of the color of the hair. */
     beard?: boolean;
     shirt: number;
@@ -583,6 +584,7 @@ export const EXTRA_COLORS = {
   feelers: { stalk: 0x2e7d32, tip: 0x18ffff, eye: 0x0b0f14 },
   horns: { horn: 0x2b1b17, tip: 0x8d6e63, beard: 0x1b1b1b },
   bandages: { line: 0xa1937a, dark: 0x3e2f1c },
+  apron: { cloth: 0xfafafa, shade: 0xb0bec5, glasses: 0x263238 },
 } as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */
@@ -697,12 +699,42 @@ export const DUEL = {
 } as const;
 
 /**
+ * The cleaning lady. After every `everyRounds`th round of a battle (or wave of a team
+ * game) an old lady with a broom walks across the area, from one end to the other. She
+ * sweeps the floor clean under her (`reach` to either side), and every body and loose
+ * part she gets to, she throws out, stopping for `pauseMs` to do it. Nothing can hurt
+ * her. If she hasn't got across after `mostMs`, she gives up and goes.
+ */
+export const CLEANER = {
+  everyRounds: 5,
+  reach: 48,
+  pauseMs: 300,
+  edge: 34,
+  mostMs: 14000,
+  look: {
+    body: 0x7e57c2,
+    joint: 0x5e3f8f,
+    extra: 'apron',
+    speed: 0.85,
+    human: {
+      skin: 0xf1c9a5,
+      hair: 0xe0e0e0,
+      style: 'bun',
+      shirt: 0x7e57c2,
+      sleeves: 'long',
+      trousers: 0x7e57c2,
+      shoes: 0x4e342e,
+    },
+  },
+} as const satisfies { look: PersonLook } & Record<string, unknown>;
+
+/**
  * The arena of a battle: every round a few things are built of building pieces, the
  * same on both sides of the middle of the area and different every time. One may
  * stand in the middle; on each side there is a place a little way out (`mid`) and
  * one far out (`far`).
  */
-export const ARENA = { mid: 190, far: 370, middleChance: 0.6, placeChance: 0.75 } as const;
+export const ARENA = { mid: 240, far: 420, middleChance: 0.85, placeChance: 0.9 } as const;
 
 /**
  * A team game: the two players are on the same side and can't hurt each other, and

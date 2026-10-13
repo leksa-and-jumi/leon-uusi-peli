@@ -10,7 +10,7 @@ export type PieceSizes<Kind extends string> = Record<Kind, { halfWidth: number; 
 
 /** The pieces an arena is built from. */
 export type ArenaKind =
-  'crate' | 'steelCrate' | 'plank' | 'stone' | 'hay' | 'fence' | 'barrel' | 'trampoline';
+  'crate' | 'steelCrate' | 'plank' | 'girder' | 'stone' | 'hay' | 'fence' | 'barrel' | 'trampoline';
 
 /** How an arena is laid out. */
 export interface ArenaRules {
@@ -30,8 +30,13 @@ type Feature = readonly ArenaPiece<ArenaKind>[];
  * than a doll can jump. The ones that look the same from both sides can stand in the
  * middle of the area.
  */
-function features(sizes: PieceSizes<ArenaKind>): { even: Feature[]; uneven: Feature[] } {
-  const { crate, plank, stone, hay } = sizes;
+function features(sizes: PieceSizes<ArenaKind>): {
+  even: Feature[];
+  uneven: Feature[];
+  wide: Feature[];
+} {
+  const { crate, plank, stone, hay, girder } = sizes;
+  const step = crate.halfWidth * 2;
   const one = (kind: ArenaKind): Feature => [{ kind, dx: 0, up: 0 }];
   // Two crates with a plank across them: a little hut. Something may stand on its roof
   const hut = (onTop?: ArenaKind): Feature => [
@@ -75,7 +80,45 @@ function features(sizes: PieceSizes<ArenaKind>): { even: Feature[]; uneven: Feat
       { kind: 'steelCrate', dx: 0, up: crate.height },
     ],
   ];
-  return { even, uneven };
+  // Stairs of crates, three high toward the middle
+  uneven.push([
+    { kind: 'crate', dx: -step, up: 0 },
+    { kind: 'crate', dx: 0, up: 0 },
+    { kind: 'crate', dx: step, up: 0 },
+    { kind: 'crate', dx: 0, up: crate.height },
+    { kind: 'crate', dx: step, up: crate.height },
+    { kind: 'steelCrate', dx: step, up: crate.height * 2 },
+  ]);
+  // The big things, which only fit in the middle of the area
+  const reach = girder.halfWidth - crate.halfWidth;
+  const wide: Feature[] = [
+    // A big pyramid: three crates, two on those, and one on top
+    [
+      { kind: 'crate', dx: -step, up: 0 },
+      { kind: 'crate', dx: 0, up: 0 },
+      { kind: 'crate', dx: step, up: 0 },
+      { kind: 'crate', dx: -step / 2, up: crate.height },
+      { kind: 'crate', dx: step / 2, up: crate.height },
+      { kind: 'steelCrate', dx: 0, up: crate.height * 2 },
+    ],
+    // A bridge: a steel beam across two towers of crates, with a crate at each end to step up from
+    [
+      { kind: 'crate', dx: -reach - step, up: 0 },
+      { kind: 'crate', dx: -reach, up: 0 },
+      { kind: 'crate', dx: reach, up: 0 },
+      { kind: 'crate', dx: reach + step, up: 0 },
+      { kind: 'crate', dx: -reach, up: crate.height },
+      { kind: 'crate', dx: reach, up: crate.height },
+      { kind: 'girder', dx: 0, up: crate.height * 2 },
+    ],
+    // Two huts side by side, and a third one on top of where they meet: a house with an upper floor
+    [
+      ...hut().map((piece) => ({ ...piece, dx: piece.dx - plank.halfWidth })),
+      ...hut().map((piece) => ({ ...piece, dx: piece.dx + plank.halfWidth })),
+      ...hut('barrel').map((piece) => ({ ...piece, up: piece.up + crate.height + plank.height })),
+    ],
+  ];
+  return { even, uneven, wide };
 }
 
 /**
@@ -90,11 +133,12 @@ export function layOutArena(
   rules: ArenaRules,
   random: () => number = Math.random,
 ): ArenaPiece<ArenaKind>[] {
-  const { even, uneven } = features(sizes);
+  const { even, uneven, wide } = features(sizes);
   const pick = (from: readonly Feature[]): Feature =>
     from[Math.min(from.length - 1, Math.floor(random() * from.length))] ?? [];
   const any = [...even, ...uneven];
-  const middle = random() < rules.middleChance ? pick(even) : null;
+  // In the middle there is room for the big things too
+  const middle = random() < rules.middleChance ? pick([...wide, ...wide, ...even]) : null;
   let sides = [rules.mid, rules.far].filter(() => random() < rules.placeChance);
   // Never an empty arena: with nothing in the middle and nothing drawn for the sides, both places get something
   if (sides.length === 0 || (!middle && sides.length < 2)) sides = [rules.mid, rules.far];

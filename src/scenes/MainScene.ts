@@ -8,6 +8,7 @@ import {
   BLOOD,
   BULLET,
   CEILING,
+  CLEANER,
   CHOMPER,
   COLORS,
   CRUSH,
@@ -187,6 +188,21 @@ export class MainScene extends Phaser.Scene {
   private modeButtons: { mode: BattleMode; box: Box }[] = [];
   private team = { wave: 0, kills: 0, restMs: 0, enemies: [] as Person[] };
   private readonly counted = new WeakSet<Person>();
+  /**
+   * The cleaning lady, while she is at work: how long she has been at it, how long she
+   * still stops for the body she is throwing out, where she was a moment ago, and what
+   * she has thrown out already. How many rounds this battle has had, and after which
+   * round (or wave) she last came.
+   */
+  private cleaning: {
+    granny: Person;
+    ms: number;
+    pauseMs: number;
+    lastX: number;
+    thrown: Set<Body>;
+  } | null = null;
+  private roundsDone = 0;
+  private cleanedAt = 0;
   /** The boss of a boss wave, while it is in the game. And the building pieces of this round's arena. */
   private boss: Block | null = null;
   private arena: Block[] = [];
@@ -465,6 +481,9 @@ export class MainScene extends Phaser.Scene {
     this.modeButtons = [];
     this.boss = null;
     this.arena = [];
+    this.cleaning = null;
+    this.roundsDone = 0;
+    this.cleanedAt = 0;
     this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     this.dropMs = DUEL.drops.firstMs;
     this.dropped = [];
@@ -671,6 +690,8 @@ export class MainScene extends Phaser.Scene {
   private startBattle(mode: BattleMode): void {
     this.mode = mode;
     this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
+    this.roundsDone = 0;
+    this.cleanedAt = 0;
     this.seatLooks = DUEL.dolls.map(
       ({ look }) => PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
     );
@@ -724,7 +745,7 @@ export class MainScene extends Phaser.Scene {
    */
   private runTeamGame(delta: number): void {
     const playing = this.mode === 'team' && !this.roundOver && this.players.every((doll) => doll);
-    if (!playing) return;
+    if (!playing || this.cleaning) return;
     const team = this.team;
     team.enemies = team.enemies.filter((enemy) => this.people.includes(enemy));
     const out = team.enemies.filter((enemy) => enemy.dead && !this.counted.has(enemy));
@@ -740,6 +761,11 @@ export class MainScene extends Phaser.Scene {
     if (this.boss || team.enemies.some((enemy) => !enemy.dead)) return;
     team.restMs -= delta;
     if (team.restMs > 0) return;
+    if (team.wave > 0 && team.wave % CLEANER.everyRounds === 0 && this.cleanedAt !== team.wave) {
+      // After every fifth wave the cleaning lady comes first
+      this.startCleaning();
+      return;
+    }
 
     team.wave += 1;
     team.restMs = TEAM.restMs;
@@ -808,6 +834,7 @@ export class MainScene extends Phaser.Scene {
    */
   private endRound(winner: Seat | null): void {
     this.roundOver = { ms: DUEL.resetMs, matchWon: false };
+    this.roundsDone += 1;
     const doll = winner === null ? null : this.players[winner];
     if (winner === null || !doll) return;
     const { emoji, fontSize, ms, grow, up } = DUEL.trophy;
@@ -854,6 +881,7 @@ export class MainScene extends Phaser.Scene {
       this.forget(this.team.enemies.filter((enemy) => this.people.includes(enemy)));
       if (this.boss && this.blocks.includes(this.boss)) this.forget([this.boss]);
       this.boss = null;
+      this.cleanedAt = 0;
       this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     }
     const old = this.players.filter(
@@ -896,6 +924,75 @@ export class MainScene extends Phaser.Scene {
     const oldest = lying.length > most ? lying[0] : undefined;
     if (oldest) this.forget([oldest]);
     if (this.blocks.length + this.items.length > THINGS_MAX) this.forgetOldest(this.items);
+  }
+
+  /**
+   * The cleaning lady comes in at one end of the area, broom in hand. The arena is
+   * taken down first, so that she has the whole floor to herself.
+   */
+  private startCleaning(): void {
+    this.cleanedAt = this.mode === 'team' ? this.team.wave : this.roundsDone;
+    this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
+    this.arena = [];
+    const x = AREA.left + CLEANER.edge;
+    const granny = new Person(this, CLEANER.look, x, AREA.floorY);
+    granny.safe = true;
+    this.people.push(granny);
+    const broom = new Item(this, 'broom', x, AREA.floorY - PERSON.height / 2);
+    this.items.push(broom);
+    granny.hold(broom, this.solidBoxes(broom));
+    granny.steer(steerFrom(false, true, false, false));
+    this.cleaning = { granny, ms: 0, pauseMs: 0, lastX: x, thrown: new Set() };
+  }
+
+  /**
+   * The cleaning lady at work: she walks across the area and sweeps the floor clean
+   * under her. Every body and loose part she gets to, she stops at and throws out.
+   * When she is across (or gone, or has taken far too long), the battle goes on.
+   */
+  private clean(delta: number): void {
+    const job = this.cleaning;
+    if (!job) return;
+    const { granny } = job;
+    job.ms += delta;
+    const x = granny.feet.x;
+    const swept = wipe(this.stains, x - CLEANER.reach, x + CLEANER.reach);
+    if (swept.length !== this.stains.length) {
+      this.stains = swept;
+      this.drawStains();
+    }
+    const there = this.people.includes(granny);
+    if (!there || x >= AREA.right - CLEANER.edge || job.ms > CLEANER.mostMs) {
+      this.cleaning = null;
+      if (there) {
+        // Across: the last spots by the walls are done too, and off she goes
+        this.stains = [];
+        this.drawStains();
+        this.forget([granny]);
+      }
+      if (this.mode !== 'team') this.newRound();
+      return;
+    }
+    if (job.pauseMs > 0) {
+      job.pauseMs -= delta;
+      granny.steer(steerFrom(false, false, false, false));
+      return;
+    }
+    const lying: Body[] = [...this.people.filter((person) => person.dead), ...this.parts];
+    const body = lying.find(
+      (one) => !job.thrown.has(one) && one.canBePicked && Math.abs(one.feet.x - x) <= CLEANER.reach,
+    );
+    if (body) {
+      job.thrown.add(body);
+      body.throwAway(AREA);
+      this.sfx.boing();
+      job.pauseMs = CLEANER.pauseMs;
+      return;
+    }
+    // Whatever is in her way, she hops over
+    const stuck = Math.abs(x - job.lastX) < 0.2;
+    job.lastX = x;
+    granny.steer(steerFrom(false, true, stuck, false));
   }
 
   /**
@@ -952,6 +1049,9 @@ export class MainScene extends Phaser.Scene {
       this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
       this.arena = [];
       this.boss = null;
+      const granny = this.cleaning?.granny;
+      this.cleaning = null;
+      if (granny && this.people.includes(granny)) this.forget([granny]);
       this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
       this.duelHint?.destroy();
       this.duelHint = null;
@@ -998,9 +1098,19 @@ export class MainScene extends Phaser.Scene {
    * is just let go when it is out.
    */
   private steerPlayers(delta: number): void {
-    if (this.roundOver) {
+    if (this.cleaning) {
+      this.clean(delta);
+    } else if (this.roundOver) {
       this.roundOver.ms -= delta;
-      if (this.roundOver.ms <= 0) this.newRound();
+      // After every fifth round of a battle against each other, the cleaning lady comes first
+      const cleanFirst =
+        this.mode !== 'team' &&
+        this.roundsDone % CLEANER.everyRounds === 0 &&
+        this.cleanedAt !== this.roundsDone;
+      if (this.roundOver.ms <= 0) {
+        if (cleanFirst) this.startCleaning();
+        else this.newRound();
+      }
     }
     const keys = this.duelKeys;
     const inGame = (doll: Person | null | undefined): doll is Person =>
