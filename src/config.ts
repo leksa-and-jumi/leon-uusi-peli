@@ -650,7 +650,15 @@ export const DUEL = {
     { look: 3, across: 0.7 },
   ],
   colors: ['#42a5f5', '#ef5350'],
-  mark: { up: 30, fontSize: '17px', stroke: '#101010', strokeWidth: 4 },
+  /** Over each player's doll: its lives as hearts (one heart and a number when there are more than `mostHearts`), and the player's number. */
+  mark: {
+    up: 30,
+    fontSize: '17px',
+    stroke: '#101010',
+    strokeWidth: 4,
+    heart: '❤️',
+    mostHearts: 6,
+  },
   /**
    * The two kinds of battle to pick from when the battle button is pressed: two big
    * buttons in the middle of the area. Against each other, or together as a team.
@@ -699,8 +707,8 @@ export const DUEL = {
 } as const;
 
 /**
- * The cleaning lady. After every `everyRounds`th round of a battle (or wave of a team
- * game) an old lady with a broom walks across the area, from one end to the other. She
+ * The cleaning lady. After every `everyRounds`th round of a battle, whoever won it (in
+ * a team game a round is a wave that was beaten, or a game that was lost), an old lady with a broom walks across the area, from one end to the other. She
  * sweeps the floor clean under her (`reach` to either side), and every body and loose
  * part she gets to, she throws out, stopping for `pauseMs` to do it. Nothing can hurt
  * her. If she hasn't got across after `mostMs`, she gives up and goes.

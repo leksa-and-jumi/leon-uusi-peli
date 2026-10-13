@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NEW_MATCH, nextMatch, roundWon, unlockNext } from './match';
+import { cleanerDue, heartsFor, NEW_MATCH, nextMatch, roundWon, unlockNext } from './match';
 
 describe('roundWon', () => {
   it('gives the winner a point and remembers who won last', () => {
@@ -28,6 +28,39 @@ describe('roundWon', () => {
 describe('nextMatch', () => {
   it('starts from nothing, but keeps who won last', () => {
     expect(nextMatch({ score: [5, 2], last: 0 })).toEqual({ score: [0, 0], last: 0 });
+  });
+});
+
+describe('cleanerDue', () => {
+  it('is time after every fifth round', () => {
+    expect(cleanerDue(5, 5, 0)).toBe(true);
+    expect(cleanerDue(10, 5, 5)).toBe(true);
+  });
+
+  it('is not time in between, or before the first round', () => {
+    expect(cleanerDue(0, 5, 0)).toBe(false);
+    expect(cleanerDue(4, 5, 0)).toBe(false);
+    expect(cleanerDue(6, 5, 5)).toBe(false);
+  });
+
+  it('is not time twice for the same round', () => {
+    expect(cleanerDue(5, 5, 5)).toBe(false);
+  });
+});
+
+describe('heartsFor', () => {
+  it('shows a heart for every life', () => {
+    expect(heartsFor(3, '♥', 6)).toBe('♥♥♥');
+    expect(heartsFor(1, '♥', 6)).toBe('♥');
+  });
+
+  it('shows one heart and the number when there are too many', () => {
+    expect(heartsFor(8, '♥', 6)).toBe('♥×8');
+  });
+
+  it('shows nothing when no life is left', () => {
+    expect(heartsFor(0, '♥', 6)).toBe('');
+    expect(heartsFor(-2, '♥', 6)).toBe('');
   });
 });
 

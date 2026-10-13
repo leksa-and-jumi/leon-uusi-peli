@@ -82,7 +82,16 @@ import { steerFrom, takeSeat } from '../logic/duel';
 import { pickDrop } from '../logic/drops';
 import { waveKinds, waveSize } from '../logic/waves';
 import { layOutArena } from '../logic/arena';
-import { NEW_MATCH, nextMatch, roundWon, unlockNext, type Match, type Seat } from '../logic/match';
+import {
+  cleanerDue,
+  heartsFor,
+  NEW_MATCH,
+  nextMatch,
+  roundWon,
+  unlockNext,
+  type Match,
+  type Seat,
+} from '../logic/match';
 import { loadGolden, saveGolden } from '../storage';
 import { sameTeam } from '../logic/team';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
@@ -203,6 +212,8 @@ export class MainScene extends Phaser.Scene {
   } | null = null;
   private roundsDone = 0;
   private cleanedAt = 0;
+  /** In a team game: the last wave that was counted as a round, once it was beaten. */
+  private countedWave = 0;
   /** The boss of a boss wave, while it is in the game. And the building pieces of this round's arena. */
   private boss: Block | null = null;
   private arena: Block[] = [];
@@ -484,6 +495,7 @@ export class MainScene extends Phaser.Scene {
     this.cleaning = null;
     this.roundsDone = 0;
     this.cleanedAt = 0;
+    this.countedWave = 0;
     this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     this.dropMs = DUEL.drops.firstMs;
     this.dropped = [];
@@ -692,6 +704,7 @@ export class MainScene extends Phaser.Scene {
     this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     this.roundsDone = 0;
     this.cleanedAt = 0;
+    this.countedWave = 0;
     this.seatLooks = DUEL.dolls.map(
       ({ look }) => PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
     );
@@ -761,8 +774,13 @@ export class MainScene extends Phaser.Scene {
     if (this.boss || team.enemies.some((enemy) => !enemy.dead)) return;
     team.restMs -= delta;
     if (team.restMs > 0) return;
-    if (team.wave > 0 && team.wave % CLEANER.everyRounds === 0 && this.cleanedAt !== team.wave) {
-      // After every fifth wave the cleaning lady comes first
+    if (team.wave > 0 && this.countedWave !== team.wave) {
+      // The wave that has just been beaten is a round that is over
+      this.countedWave = team.wave;
+      this.roundsDone += 1;
+    }
+    if (cleanerDue(this.roundsDone, CLEANER.everyRounds, this.cleanedAt)) {
+      // After every fifth round, won or lost, the cleaning lady comes first
       this.startCleaning();
       return;
     }
@@ -809,6 +827,8 @@ export class MainScene extends Phaser.Scene {
   /** Both players' dolls are out in a team game: it is over, and starts again in a moment. */
   private endTeamGame(): void {
     this.roundOver = { ms: DUEL.resetMs, matchWon: false };
+    // A game that is lost is a round that is over, too
+    this.roundsDone += 1;
     const { emoji, fontSize, ms, grow } = TEAM.over;
     this.popUp(
       (AREA.left + AREA.right) / 2,
@@ -881,7 +901,7 @@ export class MainScene extends Phaser.Scene {
       this.forget(this.team.enemies.filter((enemy) => this.people.includes(enemy)));
       if (this.boss && this.blocks.includes(this.boss)) this.forget([this.boss]);
       this.boss = null;
-      this.cleanedAt = 0;
+      this.countedWave = 0;
       this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     }
     const old = this.players.filter(
@@ -931,7 +951,7 @@ export class MainScene extends Phaser.Scene {
    * taken down first, so that she has the whole floor to herself.
    */
   private startCleaning(): void {
-    this.cleanedAt = this.mode === 'team' ? this.team.wave : this.roundsDone;
+    this.cleanedAt = this.roundsDone;
     this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
     this.arena = [];
     const x = AREA.left + CLEANER.edge;
@@ -970,7 +990,8 @@ export class MainScene extends Phaser.Scene {
         this.drawStains();
         this.forget([granny]);
       }
-      if (this.mode !== 'team') this.newRound();
+      // After a round that ended the game (or, against each other, any round) the next one starts now
+      if (this.roundOver) this.newRound();
       return;
     }
     if (job.pauseMs > 0) {
@@ -1102,11 +1123,8 @@ export class MainScene extends Phaser.Scene {
       this.clean(delta);
     } else if (this.roundOver) {
       this.roundOver.ms -= delta;
-      // After every fifth round of a battle against each other, the cleaning lady comes first
-      const cleanFirst =
-        this.mode !== 'team' &&
-        this.roundsDone % CLEANER.everyRounds === 0 &&
-        this.cleanedAt !== this.roundsDone;
+      // After every fifth round, whoever won it, the cleaning lady comes first
+      const cleanFirst = cleanerDue(this.roundsDone, CLEANER.everyRounds, this.cleanedAt);
       if (this.roundOver.ms <= 0) {
         if (cleanFirst) this.startCleaning();
         else this.newRound();
@@ -1150,7 +1168,12 @@ export class MainScene extends Phaser.Scene {
     this.playerMarks.forEach((mark, seat) => {
       const doll = this.players[seat];
       mark.setVisible(doll !== null && doll !== undefined);
-      if (doll) mark.setPosition(doll.feet.x, doll.box.top - DUEL.mark.up + 20);
+      if (!doll) return;
+      mark.setPosition(doll.feet.x, doll.box.top - DUEL.mark.up + 20);
+      // Its lives as hearts, over the player's number
+      const hearts = heartsFor(doll.livesLeft, DUEL.mark.heart, DUEL.mark.mostHearts);
+      const text = `${hearts}\n${String(seat + 1)}\n▼`;
+      if (mark.text !== text) mark.setText(text);
     });
   }
 
