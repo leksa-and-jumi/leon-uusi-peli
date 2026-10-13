@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {
+  ARENA,
   ASH,
   ASHEN,
   BLAST,
@@ -79,6 +80,7 @@ import { flameAt } from '../logic/fire';
 import { steerFrom, takeSeat } from '../logic/duel';
 import { pickDrop } from '../logic/drops';
 import { waveKinds, waveSize } from '../logic/waves';
+import { layOutArena } from '../logic/arena';
 import { NEW_MATCH, nextMatch, roundWon, unlockNext, type Match, type Seat } from '../logic/match';
 import { loadGolden, saveGolden } from '../storage';
 import { sameTeam } from '../logic/team';
@@ -185,6 +187,9 @@ export class MainScene extends Phaser.Scene {
   private modeButtons: { mode: BattleMode; box: Box }[] = [];
   private team = { wave: 0, kills: 0, restMs: 0, enemies: [] as Person[] };
   private readonly counted = new WeakSet<Person>();
+  /** The boss of a boss wave, while it is in the game. And the building pieces of this round's arena. */
+  private boss: Block | null = null;
+  private arena: Block[] = [];
   /** Time left until the next thing falls from the sky in a battle, and the things that have fallen. */
   private dropMs = 0;
   private dropped: Item[] = [];
@@ -458,6 +463,8 @@ export class MainScene extends Phaser.Scene {
     this.mode = null;
     this.modeMenu = null;
     this.modeButtons = [];
+    this.boss = null;
+    this.arena = [];
     this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     this.dropMs = DUEL.drops.firstMs;
     this.dropped = [];
@@ -667,7 +674,35 @@ export class MainScene extends Phaser.Scene {
     this.seatLooks = DUEL.dolls.map(
       ({ look }) => PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
     );
+    // A team game builds its arena when the first wave comes
+    if (mode === 'versus') this.buildArena();
     this.seat(this.dropInDolls());
+  }
+
+  /**
+   * Build this round's arena: what is left of the last one goes, and a new one is
+   * put up, a few things built of building pieces, the same on both sides of the
+   * middle and different every time.
+   */
+  private buildArena(): void {
+    this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
+    const middle = (AREA.left + AREA.right) / 2;
+    this.arena = layOutArena(BLOCKS, ARENA).map(({ kind, dx, up }) => {
+      const piece = new Block(this, kind, middle + dx, AREA.floorY - up);
+      this.blocks.push(piece);
+      return piece;
+    });
+    while (this.blocks.length + this.items.length > THINGS_MAX) this.forgetOldest(this.items);
+    // Nobody ends up inside the new pieces, or under them: whoever was standing where
+    // one is now stands on top of it
+    for (const person of this.people) {
+      const body = person.box;
+      const tops = this.arena
+        .map((piece) => piece.box)
+        .filter((box) => box.left < body.right && box.right > body.left && box.top < body.bottom)
+        .map((box) => box.top);
+      if (tops.length > 0) person.liftOnto(Math.min(...tops) - 1);
+    }
   }
 
   /** A new doll for one player, where a round starts, looking like that player's last one. */
@@ -675,7 +710,8 @@ export class MainScene extends Phaser.Scene {
     const across = DUEL.dolls[seat]?.across ?? 0.5;
     const x = AREA.left + (AREA.right - AREA.left) * across;
     const look = this.seatLooks[seat] ?? { body: 0xd9b382, joint: 0x8a6a45 };
-    const doll = new Person(this, look, x, AREA.floorY);
+    // It drops in from above, so that it lands on top of whatever is built there
+    const doll = new Person(this, look, x, AREA.top + PERSON.height + 10);
     this.people.push(doll);
     return doll;
   }
@@ -694,8 +730,14 @@ export class MainScene extends Phaser.Scene {
     const out = team.enemies.filter((enemy) => enemy.dead && !this.counted.has(enemy));
     out.forEach((enemy) => this.counted.add(enemy));
     team.kills += out.length;
+    if (this.boss && !this.blocks.includes(this.boss)) {
+      // The boss is out
+      this.boss = null;
+      team.kills += TEAM.boss.kills;
+      this.showScore();
+    }
     if (out.length > 0) this.showScore();
-    if (team.enemies.some((enemy) => !enemy.dead)) return;
+    if (this.boss || team.enemies.some((enemy) => !enemy.dead)) return;
     team.restMs -= delta;
     if (team.restMs > 0) return;
 
@@ -709,8 +751,17 @@ export class MainScene extends Phaser.Scene {
       this.forget(gone.filter((doll) => this.people.includes(doll)));
       this.seat(this.players.map((doll, seat) => (inGame(doll) ? doll : this.dropInDoll(seat))));
     }
+    this.buildArena();
+    // Every few waves the boss drops in, at one end of the area, with only a few fighters beside it
+    const bossWave = team.wave % TEAM.boss.everyWaves === 0;
+    if (bossWave) {
+      const end = Math.random() < 0.5 ? AREA.left + TEAM.boss.edge : AREA.right - TEAM.boss.edge;
+      this.boss = new Block(this, 'boss', end, AREA.floorY);
+      this.blocks.push(this.boss);
+    }
     const kinds = waveKinds(team.wave, TEAM.waves, FIGHTERS.length);
-    team.enemies = Array.from({ length: waveSize(team.wave, TEAM.waves) }, (_, index) => {
+    const size = bossWave ? TEAM.boss.fighters : waveSize(team.wave, TEAM.waves);
+    team.enemies = Array.from({ length: size }, (_, index) => {
       const look = FIGHTERS[Math.floor(Math.random() * kinds)] ?? this.seatLooks[0];
       // By turns at the left end and at the right end of the area
       const offset = TEAM.edge + Math.random() * TEAM.spread;
@@ -801,6 +852,8 @@ export class MainScene extends Phaser.Scene {
     if (this.mode === 'team') {
       // A team game that is over starts again from the first wave, with no enemies left
       this.forget(this.team.enemies.filter((enemy) => this.people.includes(enemy)));
+      if (this.boss && this.blocks.includes(this.boss)) this.forget([this.boss]);
+      this.boss = null;
       this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
     }
     const old = this.players.filter(
@@ -808,6 +861,8 @@ export class MainScene extends Phaser.Scene {
     );
     for (const doll of old) doll.dropItem(this.solidBoxes(doll));
     this.forget(old);
+    // Every round of a battle against each other has an arena of its own
+    if (this.mode !== 'team') this.buildArena();
     this.seat(this.dropInDolls());
   }
 
@@ -854,8 +909,9 @@ export class MainScene extends Phaser.Scene {
     if (this.mode === 'team') {
       // A team game counts the waves and the enemies put out
       const { wave, kills } = TEAM.score;
+      const boss = this.boss ? ` ${TEAM.boss.emoji}` : '';
       this.scoreBoard.setText(
-        `${wave} ${String(this.team.wave)}      ${kills} ${String(this.team.kills)}`,
+        `${wave} ${String(this.team.wave)}${boss}      ${kills} ${String(this.team.kills)}`,
       );
       return;
     }
@@ -892,6 +948,10 @@ export class MainScene extends Phaser.Scene {
       this.roundOver = null;
       this.mode = null;
       for (const enemy of this.team.enemies) enemy.side = null;
+      // The arena goes with the battle; a boss that is still there stays, as a monster like any other
+      this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
+      this.arena = [];
+      this.boss = null;
       this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
       this.duelHint?.destroy();
       this.duelHint = null;

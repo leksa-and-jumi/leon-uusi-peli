@@ -1958,7 +1958,8 @@ export class Person extends Body {
         !sameTeam(other.look, this.look) &&
         !this.friendOf(other),
     );
-    const standing = [...dolls, ...world.monsters()];
+    // The enemies of a team game leave the monsters alone: those are on nobody's side
+    const standing = [...dolls, ...(this.side === 'enemies' ? [] : world.monsters())];
     const level = standing.filter((other) => Math.abs(other.feet.y - this.y) <= ANGRY.levelSlack);
     const targets = level.length > 0 ? level : standing;
     const nearest = nearestIndex(
