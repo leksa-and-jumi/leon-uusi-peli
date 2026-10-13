@@ -27,6 +27,23 @@ export function drawGear(g: Graphics, kind: GearKind): Graphics {
       return drawBoot(g, ITEM_COLORS.magnetBoots);
     case 'jetpack':
       return drawJetpack(g);
+    case 'legArmor': {
+      // Lying around: a belt, and under it a thigh plate and a shin plate for each leg
+      const c = ITEM_COLORS.legArmor;
+      for (const x of [-7.5, 7.5]) {
+        drawPlate(g, c, x, -3, 13, 17);
+        drawPlate(g, c, x, 13, 11.5, 12);
+      }
+      g.fillStyle(c.dark);
+      g.fillRoundedRect(-15, -19, 30, 6, 2);
+      g.fillStyle(c.trim);
+      g.fillRoundedRect(-3, -18.5, 6, 5, 1.2);
+      return g;
+    }
+    case 'gauntlets':
+      // Lying around: the pair of them, side by side
+      for (const x of [-7.5, 7.5]) drawGauntlet(g, x, 0);
+      return g;
   }
 }
 
@@ -156,6 +173,48 @@ function drawSpaceHelmet(g: Graphics): Graphics {
   g.beginPath();
   g.arc(0, middle, 15, Math.PI * 1.1, Math.PI * 1.45);
   g.strokePath();
+  return g;
+}
+
+/** A plate of armor: steel with a dark edge, a shine down one side and a golden band at its lower end. */
+function drawPlate(
+  g: Graphics,
+  c: { fill: number; dark: number; shine: number; trim: number },
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(x - width / 2 - 1.2, y - height / 2 - 1.2, width + 2.4, height + 2.4, 4.5);
+  g.fillStyle(c.fill);
+  g.fillRoundedRect(x - width / 2, y - height / 2, width, height, 3.5);
+  g.fillStyle(c.shine, 0.7);
+  g.fillRoundedRect(x - width / 2 + 1.8, y - height / 2 + 2, 2.6, height - 5.5, 1.3);
+  g.fillStyle(c.trim);
+  g.fillRect(x - width / 2, y + height / 2 - 3, width, 1.8);
+}
+
+/** An iron glove: a cuff over the wrist and a fist with golden knuckles. */
+function drawGauntlet(g: Graphics, x: number, y: number): void {
+  const c = ITEM_COLORS.gauntlets;
+  drawPlate(g, c, x, y - 2.5, 11.5, 12);
+  g.fillStyle(c.dark);
+  g.fillCircle(x, y + 6, 7.2);
+  g.fillStyle(c.fill);
+  g.fillCircle(x, y + 6, 6);
+  g.fillStyle(c.trim);
+  for (const knuckle of [-3.2, 0, 3.2]) g.fillCircle(x + knuckle, y + 8.5, 1.3);
+}
+
+/**
+ * The part of a piece of gear that goes on one limb, with the middle of that part at
+ * (0, 0): a thigh plate or a shin plate of the leg armor, or one iron glove.
+ */
+export function drawGearPart(g: Graphics, part: 'thigh' | 'shin' | 'glove'): Graphics {
+  if (part === 'glove') drawGauntlet(g, 0, 0);
+  else if (part === 'thigh') drawPlate(g, ITEM_COLORS.legArmor, 0, 0, 14.5, 20);
+  else drawPlate(g, ITEM_COLORS.legArmor, 0, 0, 13, 15);
   return g;
 }
 

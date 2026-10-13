@@ -18,7 +18,7 @@ import {
   type WoundKind,
 } from '../config';
 import { blowOrder, blownOff, toArea, toPicture } from '../logic/ash';
-import { drawGear } from './gearShapes';
+import { drawGear, drawGearPart } from './gearShapes';
 import { shade } from '../logic/color';
 import type { Spot } from '../logic/pick';
 import type { Facing } from '../logic/walk';
@@ -58,6 +58,9 @@ const GEAR_AT: Record<GearSlot, { x: number; y: number }> = {
   arm: { x: 4, y: 17 },
   feet: { x: 2, y: 19 },
   back: { x: -24, y: -77 },
+  // Measured down each thigh from the hip, and down each forearm from the elbow
+  legs: { x: 0.5, y: 11.5 },
+  hands: { x: 0, y: 12.5 },
 };
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -429,6 +432,31 @@ export class PersonFigure {
       this.backLeg.lower.add(other.setPosition(at.x, at.y));
       this.frontLeg.lower.add(picture.setPosition(at.x, at.y));
       this.gear.set(slot, [picture, other]);
+      return;
+    }
+    if (slot === 'legs' || slot === 'hands') {
+      // A part on each limb, in place of the one picture: the back limb first, so that
+      // it is the front one that gets the cracks
+      picture.destroy();
+      const part = (
+        on: Container,
+        kind: 'thigh' | 'shin' | 'glove',
+        x: number,
+        y: number,
+      ): Graphics => {
+        const g = drawGearPart(this.scene.make.graphics({}, false), kind).setPosition(x, y);
+        // Over the limb's own shape, under what hangs from it
+        on.addAt(g, 1);
+        return g;
+      };
+      const parts =
+        slot === 'legs'
+          ? [this.frontLeg, this.backLeg].flatMap((leg) => [
+              part(leg.upper, 'thigh', at.x, at.y),
+              part(leg.lower, 'shin', at.x, SHAPE.shin.length * 0.42),
+            ])
+          : [this.frontArm, this.backArm].map((arm) => part(arm.lower, 'glove', at.x, at.y));
+      this.gear.set(slot, parts);
       return;
     }
     if (slot === 'back') {

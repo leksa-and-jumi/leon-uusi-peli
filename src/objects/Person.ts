@@ -1757,11 +1757,16 @@ export class Person extends Body {
     const weapon = this.item?.def;
     // Super strength is in the bare fists: they take more lives, and send the other flying
     const strong = weapon ? undefined : this.might?.punch;
+    // And so are iron gloves
+    const gloved = weapon
+      ? 0
+      : [...this.gear.values()].reduce((sum, { kind }) => sum + (ITEMS[kind].gear?.punch ?? 0), 0);
     const damage =
       (weapon?.melee?.damage ?? PUNCH_DAMAGE) +
       (this.look.punch ?? PUNCH_DAMAGE) -
       PUNCH_DAMAGE +
-      (strong?.damage ?? 0);
+      (strong?.damage ?? 0) +
+      gloved;
     const sound = weapon?.melee ? (weapon.melee.sound ?? 'clang') : 'punch';
     if (target instanceof Person) {
       const deadly = target.hit(
