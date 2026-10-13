@@ -179,6 +179,11 @@ export abstract class Body {
     if (this.solid) this.y = liftOut(this.box, solids);
   }
 
+  /** Something has been built right where it is: it is on top of that now, with its bottom at `y`. */
+  liftOnto(y: number): void {
+    this.y = Math.min(this.y, y);
+  }
+
   /** Fly up and off the nearest side of the screen, spinning. */
   throwAway(area: PlaceArea): void {
     const direction = throwDirection(this.x, area.left, area.right);

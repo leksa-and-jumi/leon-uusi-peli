@@ -697,6 +697,14 @@ export const DUEL = {
 } as const;
 
 /**
+ * The arena of a battle: every round a few things are built of building pieces, the
+ * same on both sides of the middle of the area and different every time. One may
+ * stand in the middle; on each side there is a place a little way out (`mid`) and
+ * one far out (`far`).
+ */
+export const ARENA = { mid: 190, far: 370, middleChance: 0.6, placeChance: 0.75 } as const;
+
+/**
  * A team game: the two players are on the same side and can't hurt each other, and
  * enemies drop in from the sky in waves, at the two ends of the area. The first wave
  * comes after `firstMs`, and the next one `restMs` after the last enemy is out. A
@@ -709,6 +717,11 @@ export const TEAM = {
   waves: { first: 2, everyWaves: 2, most: 7, kindsFirst: 3 },
   edge: 70,
   spread: 90,
+  /**
+   * Every `everyWaves`th wave is a boss wave: the boss drops in, with only this many
+   * fighters beside it. Putting the boss out counts as this many enemies.
+   */
+  boss: { everyWaves: 5, fighters: 2, kills: 5, edge: 110, emoji: '👹' },
   score: { wave: '🌊', kills: '💀' },
   over: { emoji: '💀', fontSize: '84px', ms: 1900, grow: 1.3 },
 } as const;
