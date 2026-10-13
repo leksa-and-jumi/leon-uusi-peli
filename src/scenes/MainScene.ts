@@ -767,9 +767,19 @@ export class MainScene extends Phaser.Scene {
     const x = AREA.left + (AREA.right - AREA.left) * across;
     const look = this.seatLooks[seat] ?? { body: 0xd9b382, joint: 0x8a6a45 };
     // It drops in from above, so that it lands on top of whatever is built there
-    const doll = new Person(this, look, x, AREA.top + PERSON.height + 10);
-    this.people.push(doll);
-    return doll;
+    return this.addPerson(look, x, AREA.top + PERSON.height + 10);
+  }
+
+  /** Put a doll into the area, with its feet at this spot, and with what it comes with in its hand. */
+  private addPerson(look: PersonLook, x: number, y: number): Person {
+    const person = new Person(this, look, x, y);
+    this.people.push(person);
+    if (look.holds) {
+      const item = new Item(this, look.holds, x, y - PERSON.height / 2);
+      this.items.push(item);
+      person.hold(item, this.solidBoxes(item));
+    }
+    return person;
   }
 
   /**
@@ -832,14 +842,12 @@ export class MainScene extends Phaser.Scene {
       // By turns at the left end and at the right end of the area
       const offset = TEAM.edge + Math.random() * TEAM.spread;
       const x = index % 2 === 0 ? AREA.left + offset : AREA.right - offset;
-      const enemy = new Person(
-        this,
+      const enemy = this.addPerson(
         look ?? { body: 0x607d8b, joint: 0x263238 },
         x,
         AREA.top + PERSON.height + 10,
       );
       enemy.side = 'enemies';
-      this.people.push(enemy);
       return enemy;
     });
     while (this.people.length > PERSON.max) this.forgetOldest(this.people);
@@ -977,12 +985,8 @@ export class MainScene extends Phaser.Scene {
     this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
     this.arena = [];
     const x = AREA.left + CLEANER.edge;
-    const granny = new Person(this, CLEANER.look, x, AREA.floorY);
+    const granny = this.addPerson(CLEANER.look, x, AREA.floorY);
     granny.safe = true;
-    this.people.push(granny);
-    const broom = new Item(this, 'broom', x, AREA.floorY - PERSON.height / 2);
-    this.items.push(broom);
-    granny.hold(broom, this.solidBoxes(broom));
     granny.steer(steerFrom(false, true, false, false));
     this.cleaning = { granny, ms: 0, throwing: null, rageMs: 0, lastX: x, thrown: new Set() };
   }
@@ -1087,7 +1091,8 @@ export class MainScene extends Phaser.Scene {
     const close = Math.abs(gap) <= reach;
     const stuck = Math.abs(x - job.lastX) < 0.05 && !close;
     job.lastX = x;
-    granny.steer(steerFrom(gap < -near, gap > near, stuck, close && victim.canBeStruck));
+    // In her rage she has every power: she hits out all the time, and whatever she has reaches as far as it reaches
+    granny.steer(steerFrom(gap < -near, gap > near, stuck, true));
   }
 
   /**
@@ -1623,7 +1628,7 @@ export class MainScene extends Phaser.Scene {
     if (choice.type === 'none' || choice.type === 'locked') return;
     if (choice.type === 'person') {
       const feet = placeFeet(px, py, AREA, PERSON);
-      this.people.push(new Person(this, choice.look, feet.x, feet.y));
+      this.addPerson(choice.look, feet.x, feet.y);
       if (this.people.length > PERSON.max) this.forgetOldest(this.people);
       return;
     }
