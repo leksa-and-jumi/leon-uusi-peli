@@ -106,3 +106,61 @@ export function settleTurn(turn: number, deltaMs: number, ms: number): number {
   const flat = Math.round((turn - quarter) / Math.PI) * Math.PI + quarter;
   return turn + (flat - turn) * Math.min(1, deltaMs / ms);
 }
+
+/** What a thing is made of, which decides what it breaks into. */
+export type Material = 'wood' | 'straw' | 'brick' | 'stone' | 'metal' | 'glass' | 'other';
+
+/**
+ * What a thing is made of. It can say so itself (`known`). Otherwise what breaks at a
+ * touch is glass, what burns is wood, what a magnet pulls is metal, and anything else
+ * just crumbles.
+ */
+export function materialOf(
+  thing: { fragile?: unknown; burns?: boolean; metal?: boolean },
+  known?: Material,
+): Material {
+  if (known) return known;
+  if (thing.fragile) return 'glass';
+  if (thing.burns) return 'wood';
+  if (thing.metal) return 'metal';
+  return 'other';
+}
+
+/** One kind of piece a thing breaks into: a long bar, a pointed chip or a round dot of some size. */
+export interface ShardKind {
+  /** How many of the pieces are of this kind, next to the other kinds. */
+  share: number;
+  shape: 'bar' | 'chip' | 'dot';
+  long: { min: number; max: number };
+  wide: { min: number; max: number };
+  /** How see-through it is (1 when left out: not at all). */
+  alpha?: number;
+}
+
+/** A piece of something that broke: its shape and its size. */
+export interface Shard {
+  shape: 'bar' | 'chip' | 'dot';
+  long: number;
+  wide: number;
+  alpha: number;
+}
+
+/**
+ * One piece of something that broke: one of the kinds of piece its material breaks
+ * into, picked by their shares, of a size between that kind's smallest and biggest.
+ * `random` gives numbers from 0 up to 1, like `Math.random`.
+ */
+export function pickShard(kinds: readonly ShardKind[], random: () => number = Math.random): Shard {
+  const whole = kinds.reduce((sum, kind) => sum + Math.max(0, kind.share), 0);
+  let left = random() * whole;
+  const kind = kinds.find((one) => (left -= Math.max(0, one.share)) < 0) ?? kinds[kinds.length - 1];
+  if (!kind) return { shape: 'bar', long: 6, wide: 6, alpha: 1 };
+  const between = (range: { min: number; max: number }): number =>
+    range.min + random() * (range.max - range.min);
+  return {
+    shape: kind.shape,
+    long: between(kind.long),
+    wide: between(kind.wide),
+    alpha: kind.alpha ?? 1,
+  };
+}

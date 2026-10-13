@@ -1,3 +1,4 @@
+import type { Material } from '../logic/debris';
 import { MELT, PHYSICS, PICK_PADDING, THROW, WATER, type ActionId } from '../config';
 import { bob, ceilingBounce, fallStep, springSpeed } from '../logic/fall';
 import { flyStep, isGone, throwDirection, type Flying } from '../logic/fly';
@@ -22,6 +23,10 @@ export abstract class Body {
   abstract readonly actions: readonly ActionId[];
   /** The colors of the small pieces it breaks into when it is destroyed. */
   abstract readonly crumbs: readonly number[];
+  /** What it is made of, which decides what kind of pieces those are. */
+  get material(): Material {
+    return 'other';
+  }
   /** Others can stand on it and can't walk through it. */
   readonly solid: boolean = false;
   protected x: number;
