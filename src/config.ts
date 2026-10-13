@@ -628,6 +628,38 @@ export const WALK = { speed: 80 } as const;
  */
 export const JUMP = { height: 72, clear: 14, speed: 150, least: 2, restMs: 1500 } as const;
 
+/**
+ * A two-player battle on one keyboard. Player 1 steers with A and D, jumps with W and
+ * hits with F; player 2 uses the arrow keys and Enter. The battle button puts in a doll
+ * for each (which of the `PEOPLE`, and how far across the area), and any doll can be
+ * taken over with its 🎮 bubble. A number in the player's color hangs over its doll.
+ * The one whose doll is left standing gets a trophy.
+ */
+export const DUEL = {
+  speed: 215,
+  jump: 560,
+  restMs: 300,
+  /** A swing reaches this far back as well, so that a doll right on top of the other still hits. */
+  behind: 12,
+  /** A player's swing reaches a little further than a doll's own, so that it isn't missed by a hair. */
+  reach: 18,
+  dolls: [
+    { look: 2, across: 0.3 },
+    { look: 3, across: 0.7 },
+  ],
+  colors: ['#42a5f5', '#ef5350'],
+  mark: { up: 30, fontSize: '17px', stroke: '#101010', strokeWidth: 4 },
+  hint: {
+    text: '🎮   1:  A  D  W  +  F          2:  ←  →  ↑  +  Enter',
+    fontSize: '19px',
+    down: 26,
+    ms: 9000,
+    fadeMs: 800,
+    depth: 70,
+  },
+  trophy: { emoji: '🏆', fontSize: '58px', ms: 1800, grow: 1.4, up: 40 },
+} as const;
+
 /** Angry mode: run to the closest person and punch them over. */
 export const ANGRY = {
   speed: 170,
@@ -791,6 +823,7 @@ export const ACTION_EMOJI = {
   gate: '🚪',
   bridge: '🌉',
   jet: '🛫',
+  play: '🎮',
 } as const;
 
 export type ActionId = keyof typeof ACTION_EMOJI;
@@ -803,6 +836,7 @@ export const PERSON_ACTIONS: readonly ActionId[] = [
   'dance',
   'angry',
   'drop',
+  'play',
 ];
 /** A doll with a jetpack on has one more: it switches the jetpack on and off. */
 export const JET_ACTIONS: readonly ActionId[] = [...PERSON_ACTIONS, 'jet'];
@@ -823,7 +857,7 @@ export const VEHICLE_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'drive'];
 /** The bubbles of a gun: turn it around, and make it fire nonstop. */
 export const GUN_ACTIONS: readonly ActionId[] = ['throw', 'turn', 'fire'];
 /** The most bubbles anything has. */
-export const MAX_BUBBLES = 7;
+export const MAX_BUBBLES = 8;
 
 /** The round action bubbles that come up above a double-clicked person. */
 export const BUBBLES = {
@@ -855,7 +889,13 @@ export const MENU = {
   tabFontSize: '19px',
   slots: { x: 210, y: 10, width: 58, height: 80, gap: 6 },
   /** The slots of a page end before this. A page with many things gets narrower slots. */
-  slotsEnd: GAME_WIDTH - 146,
+  slotsEnd: GAME_WIDTH - 202,
+  /** The button that starts and ends a two-player battle. It is lit while one is on. */
+  duel: { x: GAME_WIDTH - 194, y: 10, width: 50, height: 80, gap: 0 },
+  duelEmoji: '🎮',
+  duelFontSize: '28px',
+  duelColor: 0x3949ab,
+  duelOnColor: 0xfdd835,
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
   slotColor: 0x9e9e9e,

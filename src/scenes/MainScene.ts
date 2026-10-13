@@ -14,6 +14,7 @@ import {
   DEPTH,
   DISSOLVE,
   DOUBLE_CLICK_MS,
+  DUEL,
   FIREWORK,
   FLAME,
   FLOOR,
@@ -29,6 +30,7 @@ import {
   MENU,
   PERSON,
   PHYSICS,
+  PEOPLE,
   PICK_PADDING,
   PORTAL,
   POWER,
@@ -68,6 +70,7 @@ import { boxAt, isDoubleClick, type Click, type Spot } from '../logic/pick';
 import { placeFeet, type PlaceArea } from '../logic/place';
 import { fan, segmentHit } from '../logic/shot';
 import { flameAt } from '../logic/fire';
+import { steerFrom, takeSeat } from '../logic/duel';
 import { sameTeam } from '../logic/team';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
 import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
@@ -87,6 +90,10 @@ const AREA: PlaceArea = {
   top: MENU.height + CEILING.height,
   floorY: GAME_HEIGHT - FLOOR.height,
 };
+
+/** The keys of a two-player battle: left, right, jump and hit for each player. */
+const DUEL_KEYS = ['A', 'D', 'W', 'F', 'LEFT', 'RIGHT', 'UP', 'ENTER'] as const;
+type DuelKey = (typeof DUEL_KEYS)[number];
 
 /** A bullet on its way. It flies straight sideways. */
 interface Bullet {
@@ -137,6 +144,14 @@ export class MainScene extends Phaser.Scene {
   private stains: Stain[] = [];
   private stainLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
+  /**
+   * A two-player battle: the doll of each player (or `null`), the number that hangs
+   * over each of them, the keys the players use, and the reminder of which keys those are.
+   */
+  private players: (Person | null)[] = [null, null];
+  private playerMarks: Phaser.GameObjects.Text[] = [];
+  private duelKeys: Record<DuelKey, Phaser.Input.Keyboard.Key> | null = null;
+  private duelHint: Phaser.GameObjects.Text | null = null;
   /** When each doll was last burnt by a stream of fire. */
   private readonly lastBurnt = new WeakMap<Person, number>();
   /**
@@ -399,6 +414,25 @@ export class MainScene extends Phaser.Scene {
     this.stainLayer = this.add.graphics().setDepth(DEPTH.floorCover + 1);
     this.menu = new SpawnMenu(this);
     this.bubbles = new ActionBubbles(this);
+    this.players = [null, null];
+    this.duelHint = null;
+    this.playerMarks = DUEL.colors.map((color, seat) =>
+      this.add
+        .text(0, 0, `${String(seat + 1)}\n▼`, {
+          fontSize: DUEL.mark.fontSize,
+          fontStyle: 'bold',
+          color,
+          align: 'center',
+          stroke: DUEL.mark.stroke,
+          strokeThickness: DUEL.mark.strokeWidth,
+        })
+        .setOrigin(0.5, 1)
+        .setResolution(SHARP)
+        .setDepth(DUEL.hint.depth)
+        .setVisible(false),
+    );
+    const keys = this.input.keyboard?.addKeys(DUEL_KEYS.join(','));
+    this.duelKeys = keys ? (keys as Record<DuelKey, Phaser.Input.Keyboard.Key>) : null;
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.sfx.unlock();
@@ -423,6 +457,7 @@ export class MainScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.world.people = this.people;
+    this.steerPlayers();
     // A piece that leans on something is a flight of steps: several boxes for one body
     this.solids = this.blocks
       .filter((block) => block.carries)
@@ -453,6 +488,7 @@ export class MainScene extends Phaser.Scene {
     this.trackDrag();
     this.forget(this.everything().filter((body) => body.gone));
     this.drawShadows();
+    this.markPlayers();
     this.bubbles.update(delta, AREA);
   }
 
@@ -505,6 +541,108 @@ export class MainScene extends Phaser.Scene {
         );
       }
     }
+  }
+
+  /**
+   * The battle button. With no battle on, it puts in a doll for each player and gives
+   * them to the players. With one on, it ends it: the dolls do as they like again.
+   */
+  private toggleDuel(): void {
+    if (this.players.some((doll) => doll !== null)) {
+      this.seat([null, null]);
+      return;
+    }
+    const dolls = DUEL.dolls.map(({ look, across }) => {
+      const x = AREA.left + (AREA.right - AREA.left) * across;
+      const doll = new Person(
+        this,
+        PEOPLE[look] ?? { body: 0xd9b382, joint: 0x8a6a45 },
+        x,
+        AREA.floorY,
+      );
+      this.people.push(doll);
+      return doll;
+    });
+    while (this.people.length > PERSON.max) this.forgetOldest(this.people);
+    this.seat(dolls);
+  }
+
+  /** Give the players these dolls to steer (or `null` for none), and take every other doll back. */
+  private seat(dolls: readonly (Person | null)[]): void {
+    for (const doll of this.players) {
+      if (doll && !dolls.includes(doll)) doll.steer(null);
+    }
+    const starting = this.players.every((doll) => doll === null);
+    this.players = [...dolls];
+    for (const doll of this.players) doll?.steer(steerFrom(false, false, false, false));
+    const on = this.players.some((doll) => doll !== null);
+    this.menu.showDuel(on);
+    if (on && starting) this.showDuelHint();
+  }
+
+  /** Show for a while which keys the players use. */
+  private showDuelHint(): void {
+    this.duelHint?.destroy();
+    const { text, fontSize, down, ms, fadeMs, depth } = DUEL.hint;
+    const hint = this.add
+      .text(GAME_WIDTH / 2, AREA.top + down, text, {
+        fontSize,
+        color: COLORS.text,
+        stroke: DUEL.mark.stroke,
+        strokeThickness: DUEL.mark.strokeWidth,
+      })
+      .setOrigin(0.5)
+      .setResolution(SHARP)
+      .setDepth(depth);
+    this.duelHint = hint;
+    this.tweens.add({
+      targets: hint,
+      alpha: 0,
+      delay: ms,
+      duration: fadeMs,
+      onComplete: () => {
+        hint.destroy();
+        if (this.duelHint === hint) this.duelHint = null;
+      },
+    });
+  }
+
+  /**
+   * Pass on to each player's doll what its player is telling it with the keys. A doll
+   * that is out or gone is no longer its player's, and if the other player's doll is
+   * still in the game, that one has won: a trophy pops up over it.
+   */
+  private steerPlayers(): void {
+    const keys = this.duelKeys;
+    this.players.forEach((doll, seat) => {
+      if (!doll) return;
+      if (doll.dead || !this.people.includes(doll)) {
+        const winner = this.players[1 - seat];
+        if (winner && !winner.dead && this.people.includes(winner)) {
+          const { emoji, fontSize, ms, grow, up } = DUEL.trophy;
+          this.popUp(winner.feet.x, winner.box.top - up, emoji, fontSize, ms, grow);
+        }
+        this.seat(this.players.map((other) => (other === doll ? null : other)));
+        return;
+      }
+      if (!keys) return;
+      const [left, right, jump, hit] =
+        seat === 0
+          ? [keys.A, keys.D, keys.W, keys.F]
+          : [keys.LEFT, keys.RIGHT, keys.UP, keys.ENTER];
+      doll.steer(
+        steerFrom(left.isDown, right.isDown, Phaser.Input.Keyboard.JustDown(jump), hit.isDown),
+      );
+    });
+  }
+
+  /** The number of each player hangs over its doll. */
+  private markPlayers(): void {
+    this.playerMarks.forEach((mark, seat) => {
+      const doll = this.players[seat];
+      mark.setVisible(doll !== null && doll !== undefined);
+      if (doll) mark.setPosition(doll.feet.x, doll.box.top - DUEL.mark.up + 20);
+    });
   }
 
   /** Everything in the area, from the back to the front. */
@@ -640,6 +778,7 @@ export class MainScene extends Phaser.Scene {
         this.sfx.muted = !this.sfx.muted;
         this.menu.showSound(!this.sfx.muted);
       }
+      if (pressed === 'duel') this.toggleDuel();
       if (pressed === 'clear') {
         this.forget(this.everything());
         this.clearBullets();
@@ -826,6 +965,9 @@ export class MainScene extends Phaser.Scene {
         break;
       case 'jet':
         if (body instanceof Person) body.toggleJet();
+        break;
+      case 'play':
+        if (body instanceof Person) this.seat(takeSeat(this.players, body));
         break;
       case 'fuse':
         if (body instanceof Item || body instanceof Block) body.toggleFuse();

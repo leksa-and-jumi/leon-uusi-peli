@@ -73,6 +73,7 @@ export class SpawnMenu {
   private pictures: Phaser.GameObjects.GameObject[] = [];
   private tab: TabId = 'people';
   private selectedIndex = FIRST_THING;
+  private duelOn = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -94,6 +95,15 @@ export class SpawnMenu {
     scene.add
       .text(clear.x + clear.width / 2, clear.y + clear.height / 2, MENU.clearEmoji, {
         fontSize: MENU.clearFontSize,
+      })
+      .setOrigin(0.5)
+      .setResolution(SHARP)
+      .setDepth(MENU.depth + 1);
+
+    const duel = slotRect(MENU.duel, 0);
+    scene.add
+      .text(duel.x + duel.width / 2, duel.y + duel.height / 2, MENU.duelEmoji, {
+        fontSize: MENU.duelFontSize,
       })
       .setOrigin(0.5)
       .setResolution(SHARP)
@@ -145,8 +155,9 @@ export class SpawnMenu {
    * A click on the menu: switch the page, or pick the thing in the slot under it.
    * Says `'clear'`, `'sound'` or `'full'` when one of those buttons was pressed.
    */
-  click(px: number, py: number): 'clear' | 'sound' | 'full' | null {
+  click(px: number, py: number): 'clear' | 'sound' | 'full' | 'duel' | null {
     if (slotAt(MENU.clear, 1, px, py) !== null) return 'clear';
+    if (slotAt(MENU.duel, 1, px, py) !== null) return 'duel';
     if (slotAt(MENU.sound, 1, px, py) !== null) return 'sound';
     if (this.canGoFull && slotAt(MENU.full, 1, px, py) !== null) return 'full';
 
@@ -166,6 +177,13 @@ export class SpawnMenu {
       this.drawHighlight();
     }
     return null;
+  }
+
+  /** Light the battle button while a two-player battle is on. */
+  showDuel(on: boolean): void {
+    if (this.duelOn === on) return;
+    this.duelOn = on;
+    this.showPage();
   }
 
   /** The slots of the open page: narrower than usual when the page holds many things. */
@@ -194,6 +212,9 @@ export class SpawnMenu {
     const clear = slotRect(MENU.clear, 0);
     panel.fillStyle(MENU.clearColor);
     panel.fillRoundedRect(clear.x, clear.y, clear.width, clear.height, MENU.slotRadius);
+    const duel = slotRect(MENU.duel, 0);
+    panel.fillStyle(this.duelOn ? MENU.duelOnColor : MENU.duelColor);
+    panel.fillRoundedRect(duel.x, duel.y, duel.width, duel.height, MENU.slotRadius);
     const buttons = this.canGoFull ? [MENU.sound, MENU.full] : [MENU.sound];
     for (const button of buttons.map((row) => slotRect(row, 0))) {
       panel.fillStyle(MENU.soundColor);
