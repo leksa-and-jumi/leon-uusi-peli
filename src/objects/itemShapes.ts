@@ -114,6 +114,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawPan(g);
     case 'broom':
       return drawBroom(g);
+    case 'cane':
+      return drawCane(g);
   }
 }
 
@@ -1249,6 +1251,29 @@ function drawPan(g: Graphics): Graphics {
   g.fillEllipse(28.5, -5.5, 9, 5);
   g.lineStyle(1.2, c.shine, 0.6);
   g.strokeCircle(33, 0, 13.2);
+  return g;
+}
+
+/** A walking stick: a dark wooden shaft with a curved handle at one end and a rubber tip at the other. */
+function drawCane(g: Graphics): Graphics {
+  const c = ITEM_COLORS.cane;
+  // The handle curves down from where the hand holds it
+  g.lineStyle(5.4, c.dark);
+  g.beginPath();
+  g.arc(-2, 6, 6, Math.PI * 1.5, Math.PI * 0.5, true);
+  g.strokePath();
+  g.lineStyle(3.2, c.wood);
+  g.beginPath();
+  g.arc(-2, 6, 6, Math.PI * 1.5, Math.PI * 0.5, true);
+  g.strokePath();
+  g.fillStyle(c.dark);
+  g.fillRoundedRect(-3, -2.7, 56, 5.4, 2.4);
+  g.fillStyle(c.wood);
+  g.fillRect(-2, -1.7, 53, 3.2);
+  g.fillStyle(c.light, 0.7);
+  g.fillRect(-1, -1.5, 50, 1);
+  g.fillStyle(c.tip);
+  g.fillRoundedRect(50, -3, 5, 6, 1.5);
   return g;
 }
 

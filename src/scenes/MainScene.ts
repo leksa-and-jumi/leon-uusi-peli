@@ -125,6 +125,23 @@ const DUEL_KEYS = ['A', 'D', 'W', 'F', 'G', 'LEFT', 'RIGHT', 'UP', 'ENTER', 'K']
 type BattleMode = 'versus' | 'team';
 type DuelKey = (typeof DUEL_KEYS)[number];
 
+/**
+ * One of the two cleaners at work. The old lady sweeps the `floor` and throws the bodies
+ * out; the old man throws the `weapons` out. Each goes its own `way` across the area.
+ */
+interface Cleaner {
+  doll: Person;
+  way: Facing;
+  job: 'floor' | 'weapons';
+  /** What it has got to, and the time left of bending down for it and throwing it. */
+  throwing: { body: Body; ms: number; thrown: boolean } | null;
+  /** How long it has been furious, chasing whoever hit it. */
+  rageMs: number;
+  lastX: number;
+  /** Across the area, and gone. */
+  done: boolean;
+}
+
 /** A bullet on its way. It flies straight sideways. */
 interface Bullet {
   x: number;
@@ -213,21 +230,11 @@ export class MainScene extends Phaser.Scene {
   private team = { wave: 0, kills: 0, restMs: 0, enemies: [] as Person[] };
   private readonly counted = new WeakSet<Person>();
   /**
-   * The cleaning lady, while she is at work: how long she has been at it, how long she
-   * still stops for the body she is throwing out, where she was a moment ago, and what
-   * she has thrown out already. How many rounds this battle has had, and after which
-   * round (or wave) she last came.
+   * The cleaners at work, if they are: how long they have been at it, what has been
+   * thrown out already, and the two of them. How many rounds this battle has had, and
+   * after which round they last came.
    */
-  private cleaning: {
-    granny: Person;
-    ms: number;
-    /** The body she has got to, and the time left of bending down for it and throwing it. */
-    throwing: { body: Body; ms: number; thrown: boolean } | null;
-    /** How long she has been furious, chasing whoever hit her. */
-    rageMs: number;
-    lastX: number;
-    thrown: Set<Body>;
-  } | null = null;
+  private cleaning: { ms: number; thrown: Set<Body>; crew: Cleaner[] } | null = null;
   private roundsDone = 0;
   private cleanedAt = 0;
   /** In a team game: the last wave that was counted as a round, once it was beaten. */
@@ -946,8 +953,8 @@ export class MainScene extends Phaser.Scene {
 
   /**
    * While two players are in a battle, things fall from the sky every now and then:
-   * mostly a weapon, sometimes a power orb, now and then the mega power or a golden
-   * weapon that has been won. When too many of them lie around, the oldest one goes.
+   * mostly a weapon, sometimes a power orb or a piece of gear, now and then the mega
+   * power or a golden weapon that has been won. When too many of them lie around, the oldest one goes.
    */
   private dropFromSky(delta: number): void {
     const battle = this.players.every((doll) => doll !== null) && !this.roundOver;
@@ -960,6 +967,7 @@ export class MainScene extends Phaser.Scene {
       { share: shares.weapon, things: DROP_WEAPONS },
       { share: shares.power, things: POWER_KINDS.filter((power) => power !== 'megaOrb') },
       { share: shares.mega, things: ['megaOrb'] },
+      { share: shares.gear, things: GEAR_KINDS },
       { share: shares.golden, things: GOLDEN_KINDS.slice(0, this.unlocked) },
     ]);
     if (!kind) return;
@@ -977,122 +985,153 @@ export class MainScene extends Phaser.Scene {
   }
 
   /**
-   * The cleaning lady comes in at one end of the area, broom in hand. The arena is
-   * taken down first, so that she has the whole floor to herself.
+   * The cleaners come in, one at each end of the area: the old lady with her broom,
+   * and the old man with his walking stick. The arena is taken down first, so that they
+   * have the whole floor to themselves.
    */
   private startCleaning(): void {
     this.cleanedAt = this.roundsDone;
     this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
     this.arena = [];
-    const x = AREA.left + CLEANER.edge;
-    const granny = this.addPerson(CLEANER.look, x, AREA.floorY);
-    granny.safe = true;
-    granny.steer(steerFrom(false, true, false, false));
-    this.cleaning = { granny, ms: 0, throwing: null, rageMs: 0, lastX: x, thrown: new Set() };
+    const come = (job: Cleaner['job'], way: Facing, look: PersonLook): Cleaner => {
+      const x = way === 1 ? AREA.left + CLEANER.edge : AREA.right - CLEANER.edge;
+      const doll = this.addPerson(look, x, AREA.floorY);
+      doll.safe = true;
+      doll.steer(steerFrom(way === -1, way === 1, false, false));
+      return { doll, way, job, throwing: null, rageMs: 0, lastX: x, done: false };
+    };
+    const crew = [come('floor', 1, CLEANER.look), come('weapons', -1, CLEANER.helper)];
+    this.cleaning = { ms: 0, thrown: new Set(), crew };
   }
 
   /**
-   * The cleaning lady at work: she walks across the area and sweeps the floor clean
-   * under her. Every body and loose part she gets to, she stops at and throws out.
-   * When she is across (or gone, or has taken far too long), the battle goes on.
+   * The cleaners at work, both at once. When each of them is across the area (or
+   * gone, or they have taken far too long), the floor is clean and the battle goes on.
    */
   private clean(delta: number): void {
     const job = this.cleaning;
     if (!job) return;
-    const { granny } = job;
     job.ms += delta;
-    const x = granny.feet.x;
-    const swept = wipe(this.stains, x - CLEANER.reach, x + CLEANER.reach);
-    if (swept.length !== this.stains.length) {
-      this.stains = swept;
-      this.drawStains();
+    for (const cleaner of job.crew) {
+      if (!cleaner.done) this.work(job, cleaner, delta);
     }
-    const there = this.people.includes(granny);
-    if (!there || x >= AREA.right - CLEANER.edge || job.ms > CLEANER.mostMs) {
-      this.cleaning = null;
-      if (there) {
-        // Across: the last spots by the walls are done too, and off she goes
-        this.stains = [];
+    if (!job.crew.every((cleaner) => cleaner.done) && job.ms <= CLEANER.mostMs) return;
+    this.cleaning = null;
+    this.forget(job.crew.map(({ doll }) => doll).filter((doll) => this.people.includes(doll)));
+    // The last spots by the walls are done too
+    this.stains = [];
+    this.drawStains();
+    // After a round that ended the game (or, against each other, any round) the next one starts now
+    if (this.roundOver) this.newRound();
+  }
+
+  /**
+   * One cleaner's turn. The old lady walks across the area and sweeps the floor clean
+   * under her; every body and loose part she gets to, she bends down for and throws
+   * out. The old man walks the other way, and does the same with every weapon that
+   * lies around (not the golden ones: those were won). Across, each of them leaves.
+   */
+  private work(job: NonNullable<MainScene['cleaning']>, cleaner: Cleaner, delta: number): void {
+    const { doll, way } = cleaner;
+    if (!this.people.includes(doll)) {
+      cleaner.done = true;
+      return;
+    }
+    const x = doll.feet.x;
+    const sweeps = cleaner.job === 'floor';
+    if (sweeps) {
+      const swept = wipe(this.stains, x - CLEANER.reach, x + CLEANER.reach);
+      if (swept.length !== this.stains.length) {
+        this.stains = swept;
         this.drawStains();
-        this.forget([granny]);
       }
-      // After a round that ended the game (or, against each other, any round) the next one starts now
-      if (this.roundOver) this.newRound();
+    }
+    if (doll.provoked) {
+      // Somebody has hit this one: the cleaning waits until that is dealt with
+      this.chase(cleaner, x, delta);
       return;
     }
-    if (granny.provoked) {
-      // Somebody has hit her: the cleaning waits until she has dealt with that
-      job.ms -= delta;
-      this.chase(job, x, delta);
+    const across = way === 1 ? x >= AREA.right - CLEANER.edge : x <= AREA.left + CLEANER.edge;
+    if (across) {
+      cleaner.done = true;
+      this.forget([doll]);
       return;
     }
-    const throwing = job.throwing;
+    const throwing = cleaner.throwing;
     if (throwing) {
-      // She has bent down for a body: when she has hold of it, she throws it out with a swing of her arm
+      // Bent down for something: with a hold of it, it is thrown out with a swing of the arm
       throwing.ms -= delta;
-      granny.steer(steerFrom(false, false, false, false));
+      doll.steer(steerFrom(false, false, false, false));
       if (!throwing.thrown && throwing.ms <= CLEANER.throwMs) {
         throwing.thrown = true;
         if (throwing.body.canBePicked) throwing.body.throwAway(AREA);
-        granny.perform('punch', CLEANER.throwMs);
+        doll.perform('punch', CLEANER.throwMs);
         this.sfx.wind();
       }
-      if (throwing.ms <= 0) job.throwing = null;
+      if (throwing.ms <= 0) cleaner.throwing = null;
       return;
     }
-    const lying: Body[] = [...this.people.filter((person) => person.dead), ...this.parts];
+    const weapons = this.items.filter(({ def, kind, isHeld }) => {
+      const weapon = def.gun ?? def.melee ?? def.bomb ?? def.thunder ?? def.rocket;
+      return weapon !== undefined && !isHeld && !GOLDEN_KINDS.some((golden) => golden === kind);
+    });
+    const lying: Body[] = sweeps
+      ? [...this.people.filter((person) => person.dead), ...this.parts]
+      : weapons;
     const body = lying.find(
       (one) => !job.thrown.has(one) && one.canBePicked && Math.abs(one.feet.x - x) <= CLEANER.reach,
     );
     if (body) {
       job.thrown.add(body);
-      job.throwing = { body, ms: CLEANER.bendMs + CLEANER.throwMs, thrown: false };
-      granny.perform('slam', CLEANER.bendMs);
+      cleaner.throwing = { body, ms: CLEANER.bendMs + CLEANER.throwMs, thrown: false };
+      doll.perform('slam', CLEANER.bendMs);
       return;
     }
-    // Where her broom goes, a little dust flies up, and now and then the clean floor gleams behind her
-    const every = (ms: number): boolean =>
-      Math.floor(job.ms / ms) !== Math.floor((job.ms - delta) / ms);
-    if (every(CLEANER.dustEveryMs)) {
-      this.world.sparkle(x + CLEANER.broomAhead, AREA.floorY - 8, CLEANER.dust);
+    if (sweeps) {
+      // Where her broom goes, a little dust flies up, and now and then the clean floor gleams behind her
+      const every = (ms: number): boolean =>
+        Math.floor(job.ms / ms) !== Math.floor((job.ms - delta) / ms);
+      if (every(CLEANER.dustEveryMs)) {
+        this.world.sparkle(x + way * CLEANER.broomAhead, AREA.floorY - 8, CLEANER.dust);
+      }
+      if (every(CLEANER.gleamEveryMs)) {
+        this.world.sparkle(x - way * CLEANER.broomAhead, AREA.floorY - 10, CLEANER.gleam);
+      }
     }
-    if (every(CLEANER.gleamEveryMs)) {
-      this.world.sparkle(x - CLEANER.broomAhead, AREA.floorY - 10, CLEANER.gleam);
-    }
-    // Whatever is in her way, she hops over
-    const stuck = Math.abs(x - job.lastX) < 0.05;
-    job.lastX = x;
-    granny.steer(steerFrom(false, true, stuck, false));
+    // Whatever is in the way, it hops over
+    const stuck = Math.abs(x - cleaner.lastX) < 0.05;
+    cleaner.lastX = x;
+    doll.steer(steerFrom(way === -1, way === 1, stuck, false));
   }
 
   /**
-   * The cleaning lady is furious: she runs after the one who hit her (or, when she
-   * doesn't know who it was, the closest player's doll) and whacks it with her broom
-   * until it is out. Then she is calm again and goes on cleaning.
+   * A cleaner is furious: it runs after the one who hit it (or, when it doesn't know
+   * who it was, the closest player's doll) and uses everything its rage has given it
+   * until that one is out. Then it is calm again and goes on cleaning.
    */
-  private chase(job: NonNullable<MainScene['cleaning']>, x: number, delta: number): void {
-    const { granny } = job;
+  private chase(cleaner: Cleaner, x: number, delta: number): void {
+    const { doll } = cleaner;
     const { reach, near, mostMs, emoji, fontSize, ms, grow } = CLEANER.rage;
-    const alive = (doll: Person | null): doll is Person =>
-      !!doll && !doll.dead && this.people.includes(doll);
+    const alive = (other: Person | null): other is Person =>
+      !!other && !other.dead && this.people.includes(other);
     const closest = this.players
       .filter(alive)
       .sort((one, other) => Math.abs(one.feet.x - x) - Math.abs(other.feet.x - x))[0];
-    const victim = alive(granny.provokedBy) ? granny.provokedBy : closest;
-    if (job.rageMs === 0) this.popUp(x, granny.box.top - 24, emoji, fontSize, ms, grow);
-    job.rageMs += delta;
-    if (!victim || job.rageMs > mostMs) {
-      granny.calm();
-      job.rageMs = 0;
-      job.throwing = null;
+    const victim = alive(doll.provokedBy) ? doll.provokedBy : closest;
+    if (cleaner.rageMs === 0) this.popUp(x, doll.box.top - 24, emoji, fontSize, ms, grow);
+    cleaner.rageMs += delta;
+    if (!victim || cleaner.rageMs > mostMs) {
+      doll.calm();
+      cleaner.rageMs = 0;
+      cleaner.throwing = null;
       return;
     }
     const gap = victim.feet.x - x;
     const close = Math.abs(gap) <= reach;
-    const stuck = Math.abs(x - job.lastX) < 0.05 && !close;
-    job.lastX = x;
-    // In her rage she has every power: she hits out all the time, and whatever she has reaches as far as it reaches
-    granny.steer(steerFrom(gap < -near, gap > near, stuck, true));
+    const stuck = Math.abs(x - cleaner.lastX) < 0.05 && !close;
+    cleaner.lastX = x;
+    // In its rage it hits out all the time, and whatever it has reaches as far as it reaches
+    doll.steer(steerFrom(gap < -near, gap > near, stuck, true));
   }
 
   /**
@@ -1149,9 +1188,9 @@ export class MainScene extends Phaser.Scene {
       this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
       this.arena = [];
       this.boss = null;
-      const granny = this.cleaning?.granny;
+      const crew = this.cleaning?.crew.map(({ doll }) => doll) ?? [];
       this.cleaning = null;
-      if (granny && this.people.includes(granny)) this.forget([granny]);
+      this.forget(crew.filter((doll) => this.people.includes(doll)));
       this.team = { wave: 0, kills: 0, restMs: TEAM.firstMs, enemies: [] };
       this.duelHint?.destroy();
       this.duelHint = null;

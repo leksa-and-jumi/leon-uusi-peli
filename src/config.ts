@@ -227,7 +227,8 @@ export interface PersonLook {
     | 'feelers'
     | 'horns'
     | 'bandages'
-    | 'apron';
+    | 'apron'
+    | 'flatCap';
   /** How many hits it takes, when not the usual `PERSON.lives`. */
   lives?: number;
   /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
@@ -463,10 +464,34 @@ export const GRANNY = {
 } as const satisfies PersonLook;
 
 /**
+ * The old man: a flat cap, a gray beard, a brown cardigan, his back bent, and a
+ * walking stick in his hand. Hit him, and he flies into a rage too: his is lightning.
+ */
+export const GRANDPA = {
+  body: 0x8d6e63,
+  joint: 0x5d4037,
+  extra: 'flatCap',
+  stoop: 0.3,
+  punch: 2,
+  rages: 'lightningOrb',
+  holds: 'cane',
+  human: {
+    skin: 0xf1c9a5,
+    hair: 0xe0e0e0,
+    style: 'bald',
+    beard: true,
+    shirt: 0x8d6e63,
+    sleeves: 'long',
+    trousers: 0x546e7a,
+    shoes: 0x3e2723,
+  },
+} as const satisfies PersonLook;
+
+/**
  * The fighters: always angry, tougher than a plain doll, and each with a look of its
  * own. A robot, a ninja (fast), a knight (heavy) and a zombie (slow, arms out); a
- * viking, a pirate, a samurai, an alien, a demon that throws fire, a mummy, and the
- * old lady with her broom.
+ * viking, a pirate, a samurai, an alien, a demon that throws fire, a mummy, the old
+ * lady with her broom and the old man with his walking stick.
  */
 export const FIGHTERS: readonly PersonLook[] = [
   {
@@ -603,6 +628,8 @@ export const FIGHTERS: readonly PersonLook[] = [
   },
   // The old lady, as a fighter: tough, and the first hit she takes sends her into a rage
   { ...GRANNY, lives: 6, angry: true },
+  // And the old man, with his walking stick: his rage is lightning
+  { ...GRANDPA, lives: 6, angry: true },
 ];
 
 /** The colors of the extras that the special dolls wear. */
@@ -626,6 +653,7 @@ export const EXTRA_COLORS = {
   horns: { horn: 0x2b1b17, tip: 0x8d6e63, beard: 0x1b1b1b },
   bandages: { line: 0xa1937a, dark: 0x3e2f1c },
   apron: { cloth: 0xfafafa, shade: 0xb0bec5, glasses: 0x263238 },
+  flatCap: { cloth: 0x6d6f73, dark: 0x3d3f43, light: 0x9a9da3 },
 } as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */
@@ -723,8 +751,8 @@ export const DUEL = {
   prizeDown: 70,
   /**
    * In a battle of two, things fall from the sky: the first after `firstMs`, and then
-   * one every now and then. Mostly a weapon; sometimes a power orb, now and then the
-   * mega power or a golden weapon that has been won. They land at least `margin` from
+   * one every now and then. Mostly a weapon; sometimes a power orb or a piece of gear,
+   * now and then the mega power or a golden weapon that has been won. They land at least `margin` from
    * the sides. With more than `most` of them lying around, the oldest one goes.
    */
   drops: {
@@ -733,7 +761,7 @@ export const DUEL = {
     margin: 90,
     down: 34,
     most: 6,
-    shares: { weapon: 55, power: 30, mega: 5, golden: 10 },
+    shares: { weapon: 45, power: 24, gear: 20, mega: 4, golden: 7 },
     sparkle: 0xffffff,
   },
   hint: {
@@ -778,7 +806,7 @@ export const CLEANER = {
   gleam: 0xffffff,
   broomAhead: 46,
   edge: 34,
-  mostMs: 45000,
+  mostMs: 60000,
   /**
    * Somebody has hit her: she goes after that one, and whacks it with her broom from
    * this close, until it is out. She doesn't keep it up for longer than `mostMs`.
@@ -786,7 +814,13 @@ export const CLEANER = {
   rage: { reach: 78, near: 14, mostMs: 30000, emoji: '💢', fontSize: '40px', ms: 900, grow: 1.3 },
   // At work she walks slowly. Furious, she is quicker than anybody
   look: { ...GRANNY, stroll: 72, fury: 250 },
-} as const satisfies { look: PersonLook } & Record<string, unknown>;
+  /**
+   * And the old man comes with her, from the other end of the area. He leaves the
+   * floor and the bodies to her: his job is the weapons that lie around, which he
+   * throws out one by one. He has his walking stick, and the same temper.
+   */
+  helper: { ...GRANDPA, stroll: 72, fury: 250 },
+} as const satisfies { look: PersonLook; helper: PersonLook } & Record<string, unknown>;
 
 /**
  * The arena of a battle: every round a few things are built of building pieces, the
@@ -2807,7 +2841,7 @@ export type WeaponKind =
   | 'laserGun'
   | 'laserSword';
 /** Junk a doll can hold, and hit others with. */
-export type JunkItemKind = 'bottle' | 'pan' | 'broom';
+export type JunkItemKind = 'bottle' | 'pan' | 'broom' | 'cane';
 /** Odd weapons, on the traps page. */
 export type OddItemKind =
   | 'glove'
@@ -3205,6 +3239,18 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: -19, y: -6 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 78, damage: 1, wound: 'bruise', pushSpeed: 620 },
+  },
+  // A walking stick with a curved handle: an old man's, and good for a whack
+  cane: {
+    floats: true,
+    burns: true,
+    crumbs: [0x6d4c41, 0x3e2723, 0xa1887f],
+    halfWidth: 33,
+    height: 16,
+    menuScale: 1,
+    lie: { x: -24, y: -5 },
+    hand: { rotation: Math.PI / 4, along: 0 },
+    melee: { reach: 82, damage: 1, wound: 'bruise', pushSpeed: 420 },
   },
   // Heavy: it takes 2 lives and sends the doll flying
   hammer: {
@@ -3939,6 +3985,7 @@ export const JUNK_KINDS: readonly (
   { type: 'item', kind: 'pan' },
   { type: 'block', kind: 'tire' },
   { type: 'item', kind: 'broom' },
+  { type: 'item', kind: 'cane' },
   { type: 'block', kind: 'piano' },
 ];
 
@@ -4005,6 +4052,7 @@ export const ITEM_COLORS = {
   bottle: { glass: 0x2e7d4f, dark: 0x174428, shine: 0xa5e0bd, label: 0xf3ead2, cap: 0xc9a227 },
   pan: { metal: 0x3a3f44, dark: 0x1a1d20, shine: 0x8b959c, handle: 0x5d4037, inside: 0x23272b },
   broom: { bristle: 0xd9b44a, bristleDark: 0x9a7a1e, band: 0xc62828, bandDark: 0x7f1d1d },
+  cane: { wood: 0x6d4c41, dark: 0x3e2723, light: 0xa1887f, tip: 0x212121 },
 } as const;
 
 /** Throwing an item: it flies like a thrown doll, and hurts the doll it hits. */
