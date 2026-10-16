@@ -242,6 +242,9 @@ export class MainScene extends Phaser.Scene {
   /** The boss of a boss wave, while it is in the game. And the building pieces of this round's arena. */
   private boss: Block | null = null;
   private arena: Block[] = [];
+  /** Are arenas built in the battles? It is picked under the battle buttons, and the button for it. */
+  private arenasOn = true;
+  private arenaButton: Box | null = null;
   /** Time left until the next thing falls from the sky in a battle, and the things that have fallen. */
   private dropMs = 0;
   private dropped: Item[] = [];
@@ -723,6 +726,29 @@ export class MainScene extends Phaser.Scene {
       );
       return { mode, box: { left, right: left + width, top, bottom: top + height } };
     });
+    // And under them, the one that says whether arenas are built
+    const arenas = DUEL.modes.arenas;
+    const left = middleX - arenas.width / 2;
+    const top = middleY + height / 2 + arenas.down;
+    panel.fillStyle(edge);
+    panel.fillRoundedRect(left - 4, top - 4, arenas.width + 8, arenas.height + 8, radius + 3);
+    panel.fillStyle(fill);
+    panel.fillRoundedRect(left, top, arenas.width, arenas.height, radius);
+    parts.push(
+      this.make
+        .text(
+          {
+            x: middleX,
+            y: top + arenas.height / 2,
+            text: this.arenasOn ? arenas.on : arenas.off,
+            style: { fontSize: arenas.fontSize, color: COLORS.text, fontStyle: 'bold' },
+          },
+          false,
+        )
+        .setOrigin(0.5)
+        .setResolution(SHARP),
+    );
+    this.arenaButton = { left, right: left + arenas.width, top, bottom: top + arenas.height };
     this.modeMenu = this.add.container(0, 0, parts).setDepth(depth);
   }
 
@@ -730,6 +756,7 @@ export class MainScene extends Phaser.Scene {
     this.modeMenu?.destroy();
     this.modeMenu = null;
     this.modeButtons = [];
+    this.arenaButton = null;
   }
 
   /** Is it a team game, with two players or with one alone? */
@@ -769,6 +796,9 @@ export class MainScene extends Phaser.Scene {
    */
   private buildArena(): void {
     this.forget(this.arena.filter((piece) => this.blocks.includes(piece)));
+    this.arena = [];
+    // Picked off: the battle is on the bare floor
+    if (!this.arenasOn) return;
     const middle = (AREA.left + AREA.right) / 2;
     this.arena = layOutArena(BLOCKS, ARENA).map(({ kind, dx, up }) => {
       const piece = new Block(this, kind, middle + dx, AREA.floorY - up);
@@ -1466,9 +1496,16 @@ export class MainScene extends Phaser.Scene {
 
     if (this.modeMenu) {
       // The buttons to pick a battle with are open: a click on one starts it, any other click shuts them
-      const picked = this.modeButtons.find(
-        ({ box }) => px >= box.left && px <= box.right && py >= box.top && py <= box.bottom,
-      );
+      const inside = (box: Box): boolean =>
+        px >= box.left && px <= box.right && py >= box.top && py <= box.bottom;
+      if (this.arenaButton && inside(this.arenaButton)) {
+        // Arenas on or off: the buttons stay open, showing which it is now
+        this.arenasOn = !this.arenasOn;
+        this.closeModeMenu();
+        this.openModeMenu();
+        return;
+      }
+      const picked = this.modeButtons.find(({ box }) => inside(box));
       this.closeModeMenu();
       if (picked) this.startBattle(picked.mode);
       return;

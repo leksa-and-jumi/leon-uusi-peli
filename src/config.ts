@@ -742,6 +742,15 @@ export const DUEL = {
     fontSize: '44px',
     depth: 80,
     labels: { versus: '⚔️\n1  vs  2', team: '🤝\n1  +  2', solo: '🦸\n1' },
+    /** Under the buttons: whether arenas are built of building pieces in the battles, on or off. */
+    arenas: {
+      width: 260,
+      height: 70,
+      down: 40,
+      fontSize: '36px',
+      on: '🏗️ 📦  ✅',
+      off: '🏗️ 📦  ❌',
+    },
   },
   /** A match goes to this many rounds won. After a round the next one starts this soon. */
   toWin: 5,
