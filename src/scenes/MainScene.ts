@@ -122,7 +122,7 @@ const AREA: PlaceArea = {
 const DUEL_KEYS = ['A', 'D', 'W', 'F', 'G', 'LEFT', 'RIGHT', 'UP', 'ENTER', 'K'] as const;
 
 /** The two kinds of battle: against each other, or together against enemies. */
-type BattleMode = 'versus' | 'team';
+type BattleMode = 'versus' | 'team' | 'solo';
 type DuelKey = (typeof DUEL_KEYS)[number];
 
 /**
@@ -688,15 +688,20 @@ export class MainScene extends Phaser.Scene {
     else this.openModeMenu();
   }
 
-  /** Two big buttons in the middle of the area: a battle against each other, or a team game. */
+  /**
+   * Big buttons in the middle of the area: a battle against each other, a team game,
+   * or the team game for one player alone.
+   */
   private openModeMenu(): void {
     const { width, height, gap, radius, fill, edge, fontSize, depth, labels } = DUEL.modes;
     const middleX = (AREA.left + AREA.right) / 2;
     const middleY = (AREA.top + AREA.floorY) / 2;
     const panel = this.make.graphics({}, false);
     const parts: Phaser.GameObjects.GameObject[] = [panel];
-    this.modeButtons = (['versus', 'team'] as const).map((mode, index) => {
-      const left = middleX + (index === 0 ? -gap / 2 - width : gap / 2);
+    const modes = ['versus', 'team', 'solo'] as const;
+    const across = modes.length * width + (modes.length - 1) * gap;
+    this.modeButtons = modes.map((mode, index) => {
+      const left = middleX - across / 2 + index * (width + gap);
       const top = middleY - height / 2;
       panel.fillStyle(edge);
       panel.fillRoundedRect(left - 4, top - 4, width + 8, height + 8, radius + 3);
@@ -725,6 +730,21 @@ export class MainScene extends Phaser.Scene {
     this.modeMenu?.destroy();
     this.modeMenu = null;
     this.modeButtons = [];
+  }
+
+  /** Is it a team game, with two players or with one alone? */
+  private get teamGame(): boolean {
+    return this.mode === 'team' || this.mode === 'solo';
+  }
+
+  /** How many players this battle is for: one alone plays the team game with player 1's doll. */
+  private get seatsInPlay(): number {
+    return this.mode === 'solo' ? 1 : DUEL.dolls.length;
+  }
+
+  /** Is there a battle on: does every player it is for have a doll? */
+  private get battling(): boolean {
+    return this.players.slice(0, this.seatsInPlay).every((doll) => doll !== null);
   }
 
   /** Start a battle of this kind: a doll drops in for each player. */
@@ -796,7 +816,7 @@ export class MainScene extends Phaser.Scene {
    * has one more kind of fighter in it than the last.
    */
   private runTeamGame(delta: number): void {
-    const playing = this.mode === 'team' && !this.roundOver && this.players.every((doll) => doll);
+    const playing = this.teamGame && !this.roundOver && this.battling;
     if (!playing || this.cleaning) return;
     const team = this.team;
     team.enemies = team.enemies.filter((enemy) => this.people.includes(enemy));
@@ -832,7 +852,11 @@ export class MainScene extends Phaser.Scene {
     const gone = this.players.filter((doll): doll is Person => !!doll && !inGame(doll));
     if (gone.length > 0) {
       this.forget(gone.filter((doll) => this.people.includes(doll)));
-      this.seat(this.players.map((doll, seat) => (inGame(doll) ? doll : this.dropInDoll(seat))));
+      this.seat(
+        this.players.map((doll, seat) =>
+          doll === null || inGame(doll) ? doll : this.dropInDoll(seat),
+        ),
+      );
     }
     this.buildArena();
     // Every few waves the boss drops in, at one end of the area, with only a few fighters beside it
@@ -861,7 +885,7 @@ export class MainScene extends Phaser.Scene {
     this.showScore();
   }
 
-  /** Both players' dolls are out in a team game: it is over, and starts again in a moment. */
+  /** Every player's doll is out in a team game: it is over, and starts again in a moment. */
   private endTeamGame(): void {
     this.roundOver = { ms: DUEL.resetMs, matchWon: false };
     // A game that is lost is a round that is over, too
@@ -878,8 +902,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   /** Put a new doll in for each player, where a round starts, looking like that player's last one. */
-  private dropInDolls(): Person[] {
-    const dolls = DUEL.dolls.map((_, seat) => this.dropInDoll(seat));
+  private dropInDolls(): (Person | null)[] {
+    const dolls = DUEL.dolls.map((_, seat) =>
+      seat < this.seatsInPlay ? this.dropInDoll(seat) : null,
+    );
     while (this.people.length > PERSON.max) this.forgetOldest(this.people);
     return dolls;
   }
@@ -933,7 +959,7 @@ export class MainScene extends Phaser.Scene {
     const matchWon = this.roundOver?.matchWon ?? false;
     this.roundOver = null;
     if (matchWon) this.match = nextMatch(this.match);
-    if (this.mode === 'team') {
+    if (this.teamGame) {
       // A team game that is over starts again from the first wave, with no enemies left
       this.forget(this.team.enemies.filter((enemy) => this.people.includes(enemy)));
       if (this.boss && this.blocks.includes(this.boss)) this.forget([this.boss]);
@@ -947,7 +973,7 @@ export class MainScene extends Phaser.Scene {
     for (const doll of old) doll.dropItem(this.solidBoxes(doll));
     this.forget(old);
     // Every round of a battle against each other has an arena of its own
-    if (this.mode !== 'team') this.buildArena();
+    if (!this.teamGame) this.buildArena();
     this.seat(this.dropInDolls());
   }
 
@@ -957,7 +983,7 @@ export class MainScene extends Phaser.Scene {
    * power or a golden weapon that has been won. When too many of them lie around, the oldest one goes.
    */
   private dropFromSky(delta: number): void {
-    const battle = this.players.every((doll) => doll !== null) && !this.roundOver;
+    const battle = this.battling && !this.roundOver;
     if (!battle) return;
     this.dropMs -= delta;
     if (this.dropMs > 0) return;
@@ -1139,10 +1165,10 @@ export class MainScene extends Phaser.Scene {
    * and how many rounds win the match. It shows while two players are in a battle.
    */
   private showScore(): void {
-    const battle = this.players.every((doll) => doll !== null) || this.roundOver !== null;
+    const battle = this.battling || this.roundOver !== null;
     this.scoreBoard.setVisible(battle);
     if (!battle) return;
-    if (this.mode === 'team') {
+    if (this.teamGame) {
       // A team game counts the waves and the enemies put out
       const { wave, kills } = TEAM.score;
       const boss = this.boss ? ` ${TEAM.boss.emoji}` : '';
@@ -1172,7 +1198,7 @@ export class MainScene extends Phaser.Scene {
       if (!doll) return;
       doll.steer(steerFrom(false, false, false, false));
       // In a team game the players are on the same side, and can't hurt each other
-      doll.side = this.mode === 'team' ? 'players' : null;
+      doll.side = this.teamGame ? 'players' : null;
       // The next round, this player's doll looks like this one
       this.seatLooks[seat] = doll.look;
     });
@@ -1206,9 +1232,10 @@ export class MainScene extends Phaser.Scene {
   /** Show for a while which keys the players use. */
   private showDuelHint(): void {
     this.duelHint?.destroy();
-    const { text, fontSize, down, ms, fadeMs, depth } = DUEL.hint;
+    const { text, solo, fontSize, down, ms, fadeMs, depth } = DUEL.hint;
+    const keys = this.mode === 'solo' ? solo : text;
     const hint = this.add
-      .text(GAME_WIDTH / 2, AREA.top + down, text, {
+      .text(GAME_WIDTH / 2, AREA.top + down, keys, {
         fontSize,
         color: COLORS.text,
         stroke: DUEL.mark.stroke,
@@ -1251,14 +1278,14 @@ export class MainScene extends Phaser.Scene {
     const keys = this.duelKeys;
     const inGame = (doll: Person | null | undefined): doll is Person =>
       !!doll && !doll.dead && this.people.includes(doll);
-    const battle = this.players.every((doll) => doll !== null);
+    const battle = this.battling;
     this.players.forEach((doll, seat) => {
       if (!doll) return;
       if (!inGame(doll)) {
         // Counted already: it waits for the next round
         if (this.roundOver) return;
-        if (this.mode === 'team') {
-          // In a team game it waits for the next wave. With both out, the game is over
+        if (this.teamGame) {
+          // In a team game it waits for the next wave. With every player out, the game is over
           if (!this.players.some(inGame)) this.endTeamGame();
           return;
         }

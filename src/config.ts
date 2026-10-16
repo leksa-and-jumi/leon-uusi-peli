@@ -741,7 +741,7 @@ export const DUEL = {
     edge: 0xfdd835,
     fontSize: '44px',
     depth: 80,
-    labels: { versus: '⚔️\n1  vs  2', team: '🤝\n1  +  2' },
+    labels: { versus: '⚔️\n1  vs  2', team: '🤝\n1  +  2', solo: '🦸\n1' },
   },
   /** A match goes to this many rounds won. After a round the next one starts this soon. */
   toWin: 5,
@@ -766,6 +766,8 @@ export const DUEL = {
   },
   hint: {
     text: '🎮   1:  A  D  W  +  F   (G ⤓)          2:  ←  →  ↑  +  Enter   (K ⤓)',
+    // The team game alone has only player 1
+    solo: '🎮   1:  A  D  W  +  F   (G ⤓)',
     fontSize: '19px',
     down: 62,
     ms: 9000,
