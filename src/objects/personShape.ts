@@ -1041,6 +1041,19 @@ class Painter {
         g.fillTriangle(4, head.y + 11, 11.5, head.y + 10, 9, head.y + 20);
         break;
       }
+      case 'flatCap': {
+        // An old man's flat cap: low on the head, with a short peak in front
+        const c = EXTRA_COLORS.flatCap;
+        g.fillStyle(c.dark);
+        g.fillRoundedRect(4, top + 3.5, head.radius + 5, 4.2, 2);
+        dome(c.dark, head.radius + 1.2, 6);
+        dome(c.cloth, head.radius - 0.4, 6.5);
+        g.fillStyle(c.light, 0.5);
+        g.fillEllipse(-3, top + 2.5, 13, 4);
+        g.fillStyle(c.dark);
+        g.fillCircle(0, top - 0.5, 1.6);
+        break;
+      }
       case 'apron': {
         // An old lady's round glasses
         g.lineStyle(1.3, EXTRA_COLORS.apron.glasses);

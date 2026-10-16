@@ -386,7 +386,8 @@ export class Person extends Body {
 
   /** Could it put on a piece of gear that goes in this place? Only a living doll, with that place free. */
   canWear(slot: GearSlot): boolean {
-    return !this.dead && !this.gear.has(slot);
+    // The cleaners are at work: they leave what they find alone
+    return !this.dead && !this.safe && !this.gear.has(slot);
   }
 
   /** Put a piece of gear on. From now on it takes the hits, until it breaks. */
@@ -409,7 +410,7 @@ export class Person extends Body {
 
   /** Could it take this superpower? Only a living doll that doesn't have that very power already. */
   canLearn(kind: PowerKind): boolean {
-    return !this.dead && this.canBePicked && this.power?.kind !== kind;
+    return !this.dead && !this.safe && this.canBePicked && this.power?.kind !== kind;
   }
 
   /** Take a superpower, in place of the one it had: it glows in the power's color from now on. */
@@ -747,9 +748,9 @@ export class Person extends Body {
     this.shown = { pose, ms };
   }
 
-  /** Is the other one on its side in a team game? */
+  /** Is the other one on its side in a team game? The cleaners at work are on each other's side too. */
   friendOf(other: Person): boolean {
-    return this.side !== null && other.side === this.side;
+    return (this.side !== null && other.side === this.side) || (this.safe && other.safe);
   }
 
   /** A player steers it from now on, and tells it this right now. With `null` it does as it likes again. */
