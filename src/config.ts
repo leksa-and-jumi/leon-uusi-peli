@@ -931,6 +931,26 @@ export const HORROR = {
     chime: 1320,
   },
   /**
+   * In the dark a zombie climbs out of the ground in front of a gravestone every so
+   * often, in a puff of earth (at most `most` of them at a time from all the graves).
+   * And bats fly out of the attic window of a haunted house now and then.
+   */
+  grave: { everyMs: { min: 9000, max: 16000 }, firstMs: 3500, most: 3, ahead: 38, puffs: 5 },
+  bats: { everyMs: { min: 10000, max: 18000 }, firstMs: 5000, most: 4 },
+  /**
+   * A doll that stays normal runs away from anything scary that comes this close,
+   * waving its arms and screaming, faster than it ever walks.
+   */
+  flee: {
+    near: 230,
+    speed: 250,
+    emoji: '😱',
+    fontSize: '30px',
+    ms: 1000,
+    grow: 1.5,
+    againMs: 4000,
+  },
+  /**
    * The shadow monster comes out of the dark a while after the light goes, and again
    * a while after it has gone. Light hurts it: in a flashlight's beam it loses a life
    * every so often, and shrieks. Out, it melts into the dark.
@@ -1445,7 +1465,15 @@ export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'laserTower' | 'm
 export type ElementKind = 'lava' | 'water' | 'blackHole' | 'cloud';
 /** The pieces of a castle. */
 export type CastleKind =
-  'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner' | 'catapult' | 'cannon' | 'hauntedHouse';
+  | 'tower'
+  | 'rampart'
+  | 'gate'
+  | 'drawbridge'
+  | 'banner'
+  | 'catapult'
+  | 'cannon'
+  | 'hauntedHouse'
+  | 'tombstone';
 export type BlockKind =
   BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind | ElementKind | CastleKind;
 
@@ -2413,6 +2441,13 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 0.28,
     colors: { fill: 0x4b3d35, dark: 0x1e1612, light: 0x76624f, detail: 0xffc857 },
     hollow: { floor: 140, thick: 14 },
+  },
+  // An old gravestone with a cross on it, cracked and mossy, a mound of earth in front
+  tombstone: {
+    halfWidth: 22,
+    height: 54,
+    menuScale: 0.95,
+    colors: { fill: 0x8a8f94, dark: 0x3b4045, light: 0xb7bcc1, detail: 0x4e6b3a },
   },
   gate: {
     halfWidth: 44,
@@ -4091,6 +4126,7 @@ export const CASTLE_KINDS: readonly CastleKind[] = [
   'cannon',
   'banner',
   'hauntedHouse',
+  'tombstone',
 ];
 /** The page of forces of nature, and of things with strange powers. */
 export const ELEMENT_KINDS: readonly (

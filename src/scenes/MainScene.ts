@@ -88,6 +88,7 @@ import { steerFrom, takeSeat } from '../logic/duel';
 import { pickDrop } from '../logic/drops';
 import { waveKinds, waveSize } from '../logic/waves';
 import { inBeam, type Beam } from '../logic/light';
+import { clamp } from '../logic/bounds';
 import { layOutArena } from '../logic/arena';
 import { wreckParts } from '../logic/wreck';
 import {
@@ -222,6 +223,16 @@ export class MainScene extends Phaser.Scene {
     litMs: 0,
     deadMs: 0,
   };
+  /**
+   * What the dark brings out: the time until the next zombie climbs out of each grave
+   * and the next bat flies out of each haunted house, the zombies and bats that came
+   * out that way (they go back into the dark with the light), and when each doll last screamed.
+   */
+  private graveWaits = new Map<Block, number>();
+  private atticWaits = new Map<Block, number>();
+  private risen = new Set<Person>();
+  private flown = new Set<Block>();
+  private screamedAt = new Map<Person, number>();
   /** The light of the flashlights, drawn again every frame. */
   private lightLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
@@ -2731,6 +2742,17 @@ export class MainScene extends Phaser.Scene {
     const out = this.stalker.doll;
     if (out && this.people.includes(out)) this.melt(out);
     this.stalker = { doll: null, waitMs: HORROR.shadow.firstMs, litMs: 0, deadMs: 0 };
+    // What the dark brought out goes back into it
+    for (const zombie of this.risen) if (this.people.includes(zombie)) this.melt(zombie);
+    for (const bat of this.flown) {
+      if (!this.blocks.includes(bat)) continue;
+      this.puff(bat.feet.x, bat.feet.y - bat.def.height / 2);
+      this.forget([bat]);
+    }
+    this.risen.clear();
+    this.flown.clear();
+    this.graveWaits.clear();
+    this.atticWaits.clear();
     if (on) {
       const { emoji, fontSize, ms, grow } = HORROR.popUp;
       this.popUp(
@@ -2766,8 +2788,14 @@ export class MainScene extends Phaser.Scene {
   private haunt(delta: number): void {
     for (const person of this.people) person.haunt(this.horror && !person.staysNormal);
     this.shine(delta);
-    if (!this.horror) return;
+    if (!this.horror) {
+      for (const person of this.people) person.flee(null);
+      return;
+    }
     this.stalk(delta);
+    this.raiseDead(delta);
+    this.releaseBats(delta);
+    this.scare();
     for (const person of this.people) {
       const free = !person.dead && !person.safe && !person.isOn('play') && !person.staysNormal;
       if (!free || person.activity === 'angry') continue;
@@ -2958,6 +2986,123 @@ export class MainScene extends Phaser.Scene {
     this.sfx.spook();
     while (this.people.length > PERSON.max) {
       this.forgetOldest(this.people.filter((person) => person !== monster));
+    }
+  }
+
+  /** How long until the next one, somewhere between these. */
+  private someTime({ min, max }: { min: number; max: number }): number {
+    return min + Math.random() * (max - min);
+  }
+
+  /**
+   * In the dark, every so often a zombie climbs out of the ground in front of a
+   * gravestone, in a puff of earth. Only a few of them at a time, from all the graves.
+   */
+  private raiseDead(delta: number): void {
+    const { everyMs, firstMs, most, ahead, puffs } = HORROR.grave;
+    const graves = this.blocks.filter((block) => block.kind === 'tombstone');
+    for (const grave of this.graveWaits.keys()) {
+      if (!graves.includes(grave)) this.graveWaits.delete(grave);
+    }
+    for (const zombie of this.risen) {
+      if (!this.people.includes(zombie) || zombie.dead) this.risen.delete(zombie);
+    }
+    const look = FIGHTERS.find((fighter) => fighter.extra === 'patches');
+    for (const grave of graves) {
+      const wait = (this.graveWaits.get(grave) ?? firstMs) - delta;
+      this.graveWaits.set(grave, wait);
+      if (wait > 0 || !look) continue;
+      if (this.risen.size >= most) {
+        this.graveWaits.set(grave, firstMs);
+        continue;
+      }
+      this.graveWaits.set(grave, this.someTime(everyMs));
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const edge = PERSON.halfWidth;
+      const x = clamp(grave.feet.x + side * ahead, AREA.left + edge, AREA.right - edge);
+      const zombie = this.addPerson(look, x, grave.feet.y);
+      this.risen.add(zombie);
+      for (let i = 0; i < puffs; i++) {
+        this.puff(x + (Math.random() - 0.5) * 40, grave.feet.y - Math.random() * 20);
+      }
+      this.sfx.thud(0.8);
+      while (this.people.length > PERSON.max) {
+        this.forgetOldest(this.people.filter((person) => person !== zombie));
+      }
+    }
+  }
+
+  /** In the dark, now and then a bat flies out of the round attic window of a haunted house. */
+  private releaseBats(delta: number): void {
+    const { everyMs, firstMs, most } = HORROR.bats;
+    const houses = this.blocks.filter((block) => block.def.hollow !== undefined);
+    for (const house of this.atticWaits.keys()) {
+      if (!houses.includes(house)) this.atticWaits.delete(house);
+    }
+    for (const bat of this.flown) if (!this.blocks.includes(bat)) this.flown.delete(bat);
+    for (const house of houses) {
+      const wait = (this.atticWaits.get(house) ?? firstMs) - delta;
+      this.atticWaits.set(house, wait);
+      const hollow = house.def.hollow;
+      if (wait > 0 || !hollow) continue;
+      this.atticWaits.set(house, this.someTime(everyMs));
+      if (this.flown.size >= most) continue;
+      const window = house.feet.y - hollow.floor - hollow.thick - 12;
+      const bat = new Block(
+        this,
+        'batMonster',
+        house.feet.x,
+        window + BLOCKS.batMonster.height / 2,
+      );
+      this.blocks.push(bat);
+      this.flown.add(bat);
+      this.sfx.spook();
+      if (this.blocks.length + this.items.length > THINGS_MAX) {
+        this.forgetOldest(this.blocks.filter((block) => block !== bat));
+      }
+    }
+  }
+
+  /**
+   * A doll that stays normal runs away from anything scary that comes close: a
+   * monster, a ghost, or a creepy doll that is angry. The moment it starts running it screams.
+   */
+  private scare(): void {
+    const { near, emoji, fontSize, ms, grow, againMs } = HORROR.flee;
+    const scary = [
+      ...this.people
+        .filter((person) => !person.dead && !person.safe && !person.staysNormal)
+        .filter((person) => person.isOn('angry'))
+        .map((person) => person.feet),
+      ...this.blocks.filter((block) => block.def.monster).map((block) => block.feet),
+    ];
+    for (const person of this.people) {
+      const calm =
+        person.dead ||
+        person.safe ||
+        !person.staysNormal ||
+        person.isOn('angry') ||
+        person.isOn('play');
+      const from = calm
+        ? undefined
+        : scary
+            .filter(
+              ({ x, y }) =>
+                Math.abs(x - person.feet.x) <= near && Math.abs(y - person.feet.y) <= near,
+            )
+            .sort(
+              (one, other) => Math.abs(one.x - person.feet.x) - Math.abs(other.x - person.feet.x),
+            )[0];
+      const started = person.flee(from ? from.x : null);
+      if (!started) continue;
+      const last = this.screamedAt.get(person) ?? -Infinity;
+      if (this.time.now - last < againMs) continue;
+      this.screamedAt.set(person, this.time.now);
+      this.popUp(person.feet.x, person.box.top - 18, emoji, fontSize, ms, grow);
+      this.sfx.squeak();
+    }
+    for (const person of this.screamedAt.keys()) {
+      if (!this.people.includes(person)) this.screamedAt.delete(person);
     }
   }
 

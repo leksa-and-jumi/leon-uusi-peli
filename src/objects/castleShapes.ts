@@ -30,6 +30,8 @@ export function drawCastle(g: Graphics, kind: CastleKind, whole: boolean): Graph
       return drawBanner(g, def);
     case 'hauntedHouse':
       return drawHauntedHouse(g, def);
+    case 'tombstone':
+      return drawTombstone(g, def);
     case 'cannon':
       return drawCannon(g, def);
     case 'catapult':
@@ -44,6 +46,47 @@ export function drawCastle(g: Graphics, kind: CastleKind, whole: boolean): Graph
       }
       return g;
   }
+}
+
+/**
+ * An old gravestone, rounded on top, with a cross cut into it, a crack, a patch of
+ * moss, and a mound of dark earth in front of it.
+ */
+function drawTombstone(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const { halfWidth, height } = def;
+  const stone = halfWidth - 5;
+  const round = stone;
+  g.fillStyle(dark);
+  g.fillRect(-stone - 1.5, -height + round, (stone + 1.5) * 2, height - round - 4);
+  g.fillCircle(0, -height + round, stone + 1.5);
+  g.fillStyle(fill);
+  g.fillRect(-stone, -height + round, stone * 2, height - round - 5);
+  g.fillCircle(0, -height + round, stone);
+  g.fillStyle(light, 0.55);
+  g.fillRect(-stone + 2, -height + round, 2.5, height - round - 8);
+  // A cross cut into the stone
+  g.fillStyle(dark, 0.85);
+  g.fillRect(-2, -height + 9, 4, 24);
+  g.fillRect(-8, -height + 15, 16, 4);
+  // A crack, and moss creeping up from the bottom
+  g.lineStyle(1.2, dark);
+  g.beginPath();
+  g.moveTo(stone - 2, -height + 26);
+  g.lineTo(stone - 7, -height + 32);
+  g.lineTo(stone - 4, -height + 37);
+  g.lineTo(stone - 9, -height + 44);
+  g.strokePath();
+  g.fillStyle(detail, 0.9);
+  g.fillEllipse(-stone + 5, -8, 12, 7);
+  g.fillEllipse(-stone + 12, -6, 8, 5);
+  g.fillEllipse(stone - 4, -7, 7, 5);
+  // The mound of earth in front
+  g.fillStyle(0x3e2c1f);
+  g.fillEllipse(0, -2, halfWidth * 2 + 2, 8);
+  g.fillStyle(0x5a4130);
+  g.fillEllipse(-3, -3, halfWidth * 1.4, 4);
+  return g;
 }
 
 /**
