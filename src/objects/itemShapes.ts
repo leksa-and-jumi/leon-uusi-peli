@@ -114,6 +114,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawPan(g);
     case 'broom':
       return drawBroom(g);
+    case 'flashlight':
+      return drawFlashlight(g);
     case 'cane':
       return drawCane(g);
   }
@@ -1251,6 +1253,33 @@ function drawPan(g: Graphics): Graphics {
   g.fillEllipse(28.5, -5.5, 9, 5);
   g.lineStyle(1.2, c.shine, 0.6);
   g.strokeCircle(33, 0, 13.2);
+  return g;
+}
+
+/** A flashlight: a ridged black grip with a red button, a head that widens to a glass that shines. */
+function drawFlashlight(g: Graphics): Graphics {
+  const c = ITEM_COLORS.flashlight;
+  g.fillStyle(c.body);
+  g.fillRoundedRect(-1, -4.5, 23, 9, 3);
+  g.fillStyle(c.grip);
+  for (const x of [2, 6, 10, 14]) g.fillRect(x, -4.5, 2, 9);
+  g.fillStyle(c.shine, 0.6);
+  g.fillRect(0, -3.6, 21, 1.4);
+  g.fillStyle(c.button);
+  g.fillRoundedRect(16, -6, 4.5, 2.2, 1);
+  // The head widens toward the glass
+  g.fillStyle(c.body);
+  g.beginPath();
+  g.moveTo(21, -4.5);
+  g.lineTo(28.5, -6.5);
+  g.lineTo(28.5, 6.5);
+  g.lineTo(21, 4.5);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(c.ring);
+  g.fillRect(28, -6.5, 2.5, 13);
+  g.fillStyle(c.lens);
+  g.fillRoundedRect(30.2, -5.5, 1.6, 11, 0.8);
   return g;
 }
 

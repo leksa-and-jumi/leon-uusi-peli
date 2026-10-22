@@ -30,6 +30,7 @@ import {
   GAME_WIDTH,
   HINT,
   HORROR,
+  SHADOW_MONSTER,
   HIT_FX,
   ITEMS,
   LASER,
@@ -86,6 +87,7 @@ import { flameAt } from '../logic/fire';
 import { steerFrom, takeSeat } from '../logic/duel';
 import { pickDrop } from '../logic/drops';
 import { waveKinds, waveSize } from '../logic/waves';
+import { inBeam, type Beam } from '../logic/light';
 import { layOutArena } from '../logic/arena';
 import { wreckParts } from '../logic/wreck';
 import {
@@ -204,14 +206,22 @@ export class MainScene extends Phaser.Scene {
   /**
    * Horror mode: whether it is on, the dolls it has made angry (they calm down again
    * when it goes off), the dark over the room (behind the area and over the floor in
-   * front), the time until the light flickers next, and the scratches claws have made in the wall.
+   * front), the time until the light flickers next, and the shadow monster: the one
+   * that is out (or `null`), the time until the next one comes out, how long it has
+   * been in the light, and how long it has been out of lives.
    */
   private horror = false;
   private horrorAngered = new Set<Person>();
   private darkness: Phaser.GameObjects.Rectangle[] = [];
   private flicker = { waitMs: 0, ms: 0 };
-  private scratches: { x: number; y: number; direction: Facing }[] = [];
-  private scratchLayer!: Phaser.GameObjects.Graphics;
+  private stalker: { doll: Person | null; waitMs: number; litMs: number; deadMs: number } = {
+    doll: null,
+    waitMs: 0,
+    litMs: 0,
+    deadMs: 0,
+  };
+  /** The light of the flashlights, drawn again every frame. */
+  private lightLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
   /**
    * A two-player battle: the doll of each player (or `null`), the number that hangs
@@ -426,7 +436,7 @@ export class MainScene extends Phaser.Scene {
         this.sfx.screech();
       },
       claw: (x, y, direction) => {
-        this.scratchWall(x, y, direction);
+        this.swipe(x, y, direction);
       },
       spark: (x, y) => {
         const reach = (): number => (Math.random() * 2 - 1) * THUNDER.sparkReach;
@@ -533,7 +543,7 @@ export class MainScene extends Phaser.Scene {
     this.floorShadowLayer = this.add.graphics().setDepth(DEPTH.floorCover + 0.5);
     this.stainLayer = this.add.graphics().setDepth(DEPTH.floorCover + 1);
     // The dark of horror mode: over the wall and the floor behind everything, and over
-    // the floor in front once more. The scratches in the wall show through it
+    // the floor in front once more
     const { dark } = HORROR;
     const room = AREA.floorY - MENU.height;
     this.darkness = [
@@ -552,11 +562,14 @@ export class MainScene extends Phaser.Scene {
         .setDepth(index === 0 ? DEPTH.shadow - 0.5 : DEPTH.floorCover + 0.7)
         .setVisible(false),
     );
-    this.scratchLayer = this.add.graphics().setDepth(DEPTH.shadow - 0.4);
+    this.lightLayer = this.add
+      .graphics()
+      .setDepth(DEPTH.item + 1)
+      .setBlendMode(Phaser.BlendModes.ADD);
     this.horror = false;
     this.sfx.stopMusic();
     this.horrorAngered = new Set();
-    this.scratches = [];
+    this.stalker = { doll: null, waitMs: HORROR.shadow.firstMs, litMs: 0, deadMs: 0 };
     this.menu = new SpawnMenu(this);
     this.bubbles = new ActionBubbles(this);
     this.players = [null, null];
@@ -1119,11 +1132,9 @@ export class MainScene extends Phaser.Scene {
     if (!job.crew.every((cleaner) => cleaner.done) && job.ms <= CLEANER.mostMs) return;
     this.cleaning = null;
     this.forget(job.crew.map(({ doll }) => doll).filter((doll) => this.people.includes(doll)));
-    // The last spots by the walls are done too, and the scratches in the wall
+    // The last spots by the walls are done too
     this.stains = [];
     this.drawStains();
-    this.scratches = [];
-    this.drawScratches();
     // After a round that ended the game (or, against each other, any round) the next one starts now
     if (this.roundOver) this.newRound();
   }
@@ -2701,20 +2712,23 @@ export class MainScene extends Phaser.Scene {
     this.pieces = [];
     this.stains = [];
     this.drawStains();
-    this.scratches = [];
-    this.drawScratches();
   }
 
   /**
    * Horror mode on or off. On, the room goes dark and a big ghost pops up. Off, the
-   * light is back, the scratches in the wall are gone, and the dolls it made angry calm down.
+   * light is back, the shadow monster melts away, and the dolls it made angry calm down.
    */
   private setHorror(on: boolean): void {
     this.horror = on;
     this.world.horror = on;
     this.menu.showHorror(on);
-    this.darkness.forEach((shade) => shade.setVisible(on).setAlpha(1));
+    this.darkness.forEach((shade) =>
+      shade.setVisible(on).setFillStyle(HORROR.dark.color, HORROR.dark.alpha),
+    );
     this.flicker = { waitMs: this.nextFlickerMs(), ms: 0 };
+    const out = this.stalker.doll;
+    if (out && this.people.includes(out)) this.melt(out);
+    this.stalker = { doll: null, waitMs: HORROR.shadow.firstMs, litMs: 0, deadMs: 0 };
     if (on) {
       const { emoji, fontSize, ms, grow } = HORROR.popUp;
       this.popUp(
@@ -2735,8 +2749,6 @@ export class MainScene extends Phaser.Scene {
       if (calm && !person.isOn('play')) person.toggle('angry');
     }
     this.horrorAngered.clear();
-    this.scratches = [];
-    this.drawScratches();
   }
 
   private nextFlickerMs(): number {
@@ -2751,7 +2763,9 @@ export class MainScene extends Phaser.Scene {
    */
   private haunt(delta: number): void {
     for (const person of this.people) person.haunt(this.horror);
+    this.shine(delta);
     if (!this.horror) return;
+    this.stalk(delta);
     for (const person of this.people) {
       const free = !person.dead && !person.safe && !person.isOn('play');
       if (!free || person.activity === 'angry') continue;
@@ -2764,8 +2778,8 @@ export class MainScene extends Phaser.Scene {
       // The light goes out, comes back for a blink, and goes out once more
       flicker.ms -= delta;
       const out = flicker.ms > ms + gapMs || (flicker.ms > 0 && flicker.ms <= ms);
-      const level = out ? alpha / HORROR.dark.alpha : 1;
-      this.darkness.forEach((shade) => shade.setAlpha(Math.min(level, 1 / HORROR.dark.alpha)));
+      const level = out ? alpha : HORROR.dark.alpha;
+      this.darkness.forEach((shade) => shade.setFillStyle(HORROR.dark.color, level));
       return;
     }
     flicker.waitMs -= delta;
@@ -2774,28 +2788,137 @@ export class MainScene extends Phaser.Scene {
     flicker.ms = ms * 2 + gapMs;
   }
 
-  /** Claws have raked a doll here: three deep scratches in the wall behind it. */
-  private scratchWall(x: number, y: number, direction: Facing): void {
-    this.scratches.push({ x, y, direction });
-    if (this.scratches.length > HORROR.scratch.max) this.scratches.shift();
-    this.drawScratches();
+  /** Claws rake through the air here: three quick streaks that are gone at once. */
+  private swipe(x: number, y: number, direction: Facing): void {
+    const { length, gap, lean, light, deep, ms } = HORROR.swipe;
+    const g = this.add.graphics().setDepth(DEPTH.bullet);
+    for (const step of [-1, 0, 1]) {
+      const dx = (length / 2) * direction;
+      const fromX = x - dx + step * gap;
+      const toX = x + dx + step * gap;
+      g.lineStyle(3.4, deep, 0.7);
+      g.lineBetween(fromX, y - length * lean, toX, y + length * lean);
+      g.lineStyle(1.4, light, 0.95);
+      g.lineBetween(fromX, y - length * lean, toX, y + length * lean);
+    }
+    this.tweens.add({
+      targets: g,
+      alpha: 0,
+      duration: ms,
+      onComplete: () => {
+        g.destroy();
+      },
+    });
   }
 
-  private drawScratches(): void {
-    const g = this.scratchLayer.clear();
-    const { length, gap, lean, light, deep } = HORROR.scratch;
-    for (const { x, y, direction } of this.scratches) {
-      for (const step of [-1, 0, 1]) {
-        const dx = (length / 2) * direction;
-        const fromX = x - dx + step * gap;
-        const toX = x + dx + step * gap;
-        const fromY = y - length * lean;
-        const toY = y + length * lean;
-        g.lineStyle(3.4, light, 0.8);
-        g.lineBetween(fromX, fromY, toX, toY);
-        g.lineStyle(1.6, deep, 0.95);
-        g.lineBetween(fromX, fromY, toX, toY);
+  /**
+   * Every flashlight shines a cone of light out of its end, the way it points: held
+   * out in front of a doll, or lying on the floor. In horror mode the light is
+   * brighter, and the shadow monster can't stand it: every so often that it is in a
+   * beam, it shrieks, loses a life and is pushed away from the light.
+   */
+  private shine(delta: number): void {
+    const g = this.lightLayer.clear();
+    const { length, spread, color, alpha, darkAlpha } = HORROR.light;
+    const beams: Beam[] = [];
+    for (const item of this.items) {
+      const shines = item.def.shines;
+      if (!shines) continue;
+      const matrix = item.display.getWorldTransformMatrix();
+      const from = matrix.transformPoint(shines.x, 0);
+      const ahead = matrix.transformPoint(shines.x + 10, 0);
+      const angle = Math.atan2(ahead.y - from.y, ahead.x - from.x);
+      beams.push({ x: from.x, y: from.y, angle, length, spread });
+    }
+    const strength = this.horror ? darkAlpha : alpha;
+    for (const beam of beams) {
+      // A soft cone: three of them, one inside the other, brighter toward the middle
+      for (const [wide, far, part] of [
+        [1, 1, 0.4],
+        [0.65, 0.85, 0.35],
+        [0.3, 0.7, 0.35],
+      ] as const) {
+        const half = beam.spread * wide;
+        const reach = beam.length * far;
+        g.fillStyle(color, strength * part);
+        g.fillTriangle(
+          beam.x,
+          beam.y,
+          beam.x + Math.cos(beam.angle - half) * reach,
+          beam.y + Math.sin(beam.angle - half) * reach,
+          beam.x + Math.cos(beam.angle + half) * reach,
+          beam.y + Math.sin(beam.angle + half) * reach,
+        );
       }
+      g.fillStyle(color, Math.min(1, strength * 2));
+      g.fillCircle(beam.x, beam.y, 3.5);
+    }
+    const doll = this.stalker.doll;
+    if (!this.horror || !doll || doll.dead || !this.people.includes(doll)) return;
+    const body = doll.box;
+    const spots = [
+      { x: doll.feet.x, y: (body.top + body.bottom) / 2 },
+      { x: doll.feet.x, y: body.top + 12 },
+    ];
+    const lit = beams.find((beam) => spots.some(({ x, y }) => inBeam(beam, x, y)));
+    if (!lit) return;
+    this.stalker.litMs += delta;
+    if (this.stalker.litMs < HORROR.shadow.hurtEveryMs) return;
+    this.stalker.litMs = 0;
+    const away: Facing = doll.feet.x >= lit.x ? 1 : -1;
+    doll.hit(away, this.solidBoxes(doll), 1, HORROR.shadow.pushSpeed, 'burn');
+    this.sfx.screech();
+    this.puff(doll.feet.x, body.top + 20);
+  }
+
+  /**
+   * The shadow monster: a while after the light has gone, it comes out of the dark
+   * somewhere in the area, and goes for whoever is closest. Put out, it melts away
+   * into the dark, and after a while another one comes out.
+   */
+  private stalk(delta: number): void {
+    const stalker = this.stalker;
+    const doll = stalker.doll;
+    if (doll && !this.people.includes(doll)) {
+      stalker.doll = null;
+      stalker.waitMs = HORROR.shadow.againMs;
+      return;
+    }
+    if (doll) {
+      if (!doll.dead) return;
+      stalker.deadMs += delta;
+      if (stalker.deadMs < HORROR.shadow.meltMs) return;
+      this.melt(doll);
+      stalker.doll = null;
+      stalker.waitMs = HORROR.shadow.againMs;
+      return;
+    }
+    stalker.waitMs -= delta;
+    if (stalker.waitMs > 0) return;
+    const margin = HORROR.shadow.margin;
+    const x = AREA.left + margin + Math.random() * (AREA.right - AREA.left - margin * 2);
+    const monster = this.addPerson(SHADOW_MONSTER, x, AREA.floorY);
+    this.stalker = { doll: monster, waitMs: 0, litMs: 0, deadMs: 0 };
+    this.smokeAround(monster);
+    this.sfx.spook();
+    while (this.people.length > PERSON.max) {
+      this.forgetOldest(this.people.filter((person) => person !== monster));
+    }
+  }
+
+  /** The shadow monster melts into the dark: a cloud of black smoke, and it is gone. */
+  private melt(doll: Person): void {
+    this.smokeAround(doll);
+    this.forget([doll]);
+  }
+
+  private smokeAround(doll: Person): void {
+    const body = doll.box;
+    for (let i = 0; i < HORROR.shadow.puffs; i++) {
+      this.puff(
+        doll.feet.x + (Math.random() - 0.5) * (body.right - body.left) * 1.6,
+        body.top + Math.random() * (body.bottom - body.top),
+      );
     }
   }
 

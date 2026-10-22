@@ -228,7 +228,8 @@ export interface PersonLook {
     | 'horns'
     | 'bandages'
     | 'apron'
-    | 'flatCap';
+    | 'flatCap'
+    | 'shadow';
   /** How many hits it takes, when not the usual `PERSON.lives`. */
   lives?: number;
   /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
@@ -281,6 +282,8 @@ export interface PersonLook {
   holds?: ItemKind;
   /** It is heavy (a knight in armor): in water it sinks to the bottom, and under water it drowns. */
   heavy?: boolean;
+  /** It is drawn this many times taller and bigger than a usual doll. */
+  tall?: number;
 }
 
 /**
@@ -467,6 +470,24 @@ export const GRANNY = {
  * The old man: a flat cap, a gray beard, a brown cardigan, his back bent, and a
  * walking stick in his hand. Hit him, and he flies into a rage too: his is lightning.
  */
+/**
+ * The shadow monster, which only comes out in the dark of horror mode: tall, thin
+ * and black as the night, with white glowing eyes and wisps of shadow coming off its
+ * head. It is always angry, quick and strong.
+ */
+export const SHADOW_MONSTER = {
+  body: 0x0d0b14,
+  joint: 0x06050a,
+  eye: 0xf4f1ff,
+  extra: 'shadow',
+  lives: 8,
+  speed: 1.25,
+  punch: 2,
+  angry: true,
+  blood: 0x2a1640,
+  tall: 1.4,
+} as const satisfies PersonLook;
+
 export const GRANDPA = {
   body: 0x8d6e63,
   joint: 0x5d4037,
@@ -654,6 +675,7 @@ export const EXTRA_COLORS = {
   bandages: { line: 0xa1937a, dark: 0x3e2f1c },
   apron: { cloth: 0xfafafa, shade: 0xb0bec5, glasses: 0x263238 },
   flatCap: { cloth: 0x6d6f73, dark: 0x3d3f43, light: 0x9a9da3 },
+  shadow: { wisp: 0x0d0b14, glow: 0xd8d0ff },
 } as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */
@@ -829,6 +851,11 @@ export const HORROR = {
     crack: 0x241414,
     claw: 0x1e1616,
     clawTip: 0x5a4c4c,
+    thread: 0xcfc3a8,
+    button: 0x1b1b1f,
+    white: 0xf5f3ea,
+    pupil: 0x111111,
+    pale: 0xe8e6ff,
   },
   /** It runs faster than an ordinary angry doll. */
   speedUp: 1.35,
@@ -856,8 +883,33 @@ export const HORROR = {
     aheadSeconds: 0.4,
     everyMs: 150,
   },
-  /** The scratches its claws leave in the wall. The oldest ones go when there are more. */
-  scratch: { length: 34, gap: 6, lean: 0.55, light: 0xd9d1bf, deep: 0x2a1a1a, max: 40 },
+  /** Its claws flash through the air as they rake: three quick streaks that are gone at once. */
+  swipe: { length: 34, gap: 6, lean: 0.55, light: 0xffffff, deep: 0xb71c1c, ms: 260 },
+  /** Light from a flashlight: a soft cone, brighter in the dark. */
+  light: {
+    length: 320,
+    spread: 0.3,
+    color: 0xfff3b0,
+    alpha: 0.13,
+    darkAlpha: 0.3,
+    /** How far along the beam a doll's middle and head are looked at. */
+    lens: 4,
+  },
+  /**
+   * The shadow monster comes out of the dark a while after the light goes, and again
+   * a while after it has gone. Light hurts it: in a flashlight's beam it loses a life
+   * every so often, and shrieks. Out, it melts into the dark.
+   */
+  shadow: {
+    firstMs: 6000,
+    againMs: 12000,
+    hurtEveryMs: 450,
+    pushSpeed: 260,
+    meltMs: 700,
+    puffs: 6,
+    /** It comes out at least this far from the walls. */
+    margin: 90,
+  },
 } as const;
 
 export const CLEANER = {
@@ -2843,6 +2895,8 @@ export interface ItemDef {
   menuScale: number;
   /** Where its picture goes when it lies around, from the middle of the bottom edge. */
   lie: { x: number; y: number };
+  /** A flashlight: a cone of light shines out of its end (`x` along it), the way it points. */
+  shines?: { x: number };
   /** How it sits in a doll's hand. */
   hand: { rotation: number; along: number };
   gun?: GunDef;
@@ -2914,7 +2968,7 @@ export type WeaponKind =
   | 'laserGun'
   | 'laserSword';
 /** Junk a doll can hold, and hit others with. */
-export type JunkItemKind = 'bottle' | 'pan' | 'broom' | 'cane';
+export type JunkItemKind = 'bottle' | 'pan' | 'broom' | 'cane' | 'flashlight';
 /** Odd weapons, on the traps page. */
 export type OddItemKind =
   | 'glove'
@@ -3324,6 +3378,17 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     lie: { x: -24, y: -5 },
     hand: { rotation: Math.PI / 4, along: 0 },
     melee: { reach: 82, damage: 1, wound: 'bruise', pushSpeed: 420 },
+  },
+  flashlight: {
+    melts: true,
+    metal: true,
+    crumbs: [0x263238, 0x546e7a, 0xfff59d],
+    halfWidth: 17,
+    height: 13,
+    menuScale: 1.6,
+    lie: { x: -14, y: -6.5 },
+    hand: { rotation: Math.PI / 2, along: -4 },
+    shines: { x: 31 },
   },
   // Heavy: it takes 2 lives and sends the doll flying
   hammer: {
@@ -4059,6 +4124,7 @@ export const JUNK_KINDS: readonly (
   { type: 'block', kind: 'tire' },
   { type: 'item', kind: 'broom' },
   { type: 'item', kind: 'cane' },
+  { type: 'item', kind: 'flashlight' },
   { type: 'block', kind: 'piano' },
 ];
 
@@ -4126,6 +4192,14 @@ export const ITEM_COLORS = {
   pan: { metal: 0x3a3f44, dark: 0x1a1d20, shine: 0x8b959c, handle: 0x5d4037, inside: 0x23272b },
   broom: { bristle: 0xd9b44a, bristleDark: 0x9a7a1e, band: 0xc62828, bandDark: 0x7f1d1d },
   cane: { wood: 0x6d4c41, dark: 0x3e2723, light: 0xa1887f, tip: 0x212121 },
+  flashlight: {
+    body: 0x263238,
+    grip: 0x37474f,
+    shine: 0x78909c,
+    ring: 0xb0bec5,
+    lens: 0xfff59d,
+    button: 0xe53935,
+  },
 } as const;
 
 /** Throwing an item: it flies like a thrown doll, and hurts the doll it hits. */
