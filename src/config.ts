@@ -284,6 +284,8 @@ export interface PersonLook {
   heavy?: boolean;
   /** It is drawn this many times taller and bigger than a usual doll. */
   tall?: number;
+  /** A plain test doll: horror mode doesn't change it. It stays just as it is. */
+  dummy?: boolean;
 }
 
 /**
@@ -342,12 +344,12 @@ export const FLAME = {
  * normal people, a king and a queen, and a wizard.
  */
 export const PEOPLE: readonly PersonLook[] = [
-  { body: 0xd9b382, joint: 0x8a6a45 },
-  { body: 0x6fbf4a, joint: 0x2e7d32 },
-  { body: 0x4a90d9, joint: 0x1e4f8a },
-  { body: 0xd9534f, joint: 0x7f1d1d },
-  { body: 0xe8c84a, joint: 0x9a7b12 },
-  { body: 0xa9b1ba, joint: 0x4a5560 },
+  { body: 0xd9b382, joint: 0x8a6a45, dummy: true },
+  { body: 0x6fbf4a, joint: 0x2e7d32, dummy: true },
+  { body: 0x4a90d9, joint: 0x1e4f8a, dummy: true },
+  { body: 0xd9534f, joint: 0x7f1d1d, dummy: true },
+  { body: 0xe8c84a, joint: 0x9a7b12, dummy: true },
+  { body: 0xa9b1ba, joint: 0x4a5560, dummy: true },
   // Normal people: a man in a blue shirt, a woman in a yellow one, and a grandpa
   {
     body: 0x1e88e5,
@@ -892,8 +894,10 @@ export const HORROR = {
     color: 0xfff3b0,
     alpha: 0.13,
     darkAlpha: 0.3,
-    /** How far along the beam a doll's middle and head are looked at. */
-    lens: 4,
+    /** A creepy doll that is in a beam this long turns back to normal, with a sparkle and a chime. */
+    cureMs: 500,
+    sparkle: 0xfff59d,
+    chime: 1320,
   },
   /**
    * The shadow monster comes out of the dark a while after the light goes, and again

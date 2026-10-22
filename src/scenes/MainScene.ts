@@ -214,6 +214,8 @@ export class MainScene extends Phaser.Scene {
   private horrorAngered = new Set<Person>();
   private darkness: Phaser.GameObjects.Rectangle[] = [];
   private flicker = { waitMs: 0, ms: 0 };
+  /** How long each creepy doll has been in the light: long enough, and it is normal again. */
+  private litDolls = new Map<Person, number>();
   private stalker: { doll: Person | null; waitMs: number; litMs: number; deadMs: number } = {
     doll: null,
     waitMs: 0,
@@ -2762,12 +2764,12 @@ export class MainScene extends Phaser.Scene {
    * And now and then the light goes out for a moment, twice in a row.
    */
   private haunt(delta: number): void {
-    for (const person of this.people) person.haunt(this.horror);
+    for (const person of this.people) person.haunt(this.horror && !person.staysNormal);
     this.shine(delta);
     if (!this.horror) return;
     this.stalk(delta);
     for (const person of this.people) {
-      const free = !person.dead && !person.safe && !person.isOn('play');
+      const free = !person.dead && !person.safe && !person.isOn('play') && !person.staysNormal;
       if (!free || person.activity === 'angry') continue;
       person.toggle('angry');
       if (person.isOn('angry')) this.horrorAngered.add(person);
@@ -2853,14 +2855,20 @@ export class MainScene extends Phaser.Scene {
       g.fillStyle(color, Math.min(1, strength * 2));
       g.fillCircle(beam.x, beam.y, 3.5);
     }
+    if (!this.horror) return;
+    const litBy = (person: Person): Beam | undefined => {
+      const body = person.box;
+      const spots = [
+        { x: person.feet.x, y: (body.top + body.bottom) / 2 },
+        { x: person.feet.x, y: body.top + 12 },
+      ];
+      return beams.find((beam) => spots.some(({ x, y }) => inBeam(beam, x, y)));
+    };
+    this.cureInLight(delta, litBy);
     const doll = this.stalker.doll;
-    if (!this.horror || !doll || doll.dead || !this.people.includes(doll)) return;
+    if (!doll || doll.dead || !this.people.includes(doll)) return;
     const body = doll.box;
-    const spots = [
-      { x: doll.feet.x, y: (body.top + body.bottom) / 2 },
-      { x: doll.feet.x, y: body.top + 12 },
-    ];
-    const lit = beams.find((beam) => spots.some(({ x, y }) => inBeam(beam, x, y)));
+    const lit = litBy(doll);
     if (!lit) return;
     this.stalker.litMs += delta;
     if (this.stalker.litMs < HORROR.shadow.hurtEveryMs) return;
@@ -2869,6 +2877,37 @@ export class MainScene extends Phaser.Scene {
     doll.hit(away, this.solidBoxes(doll), 1, HORROR.shadow.pushSpeed, 'burn');
     this.sfx.screech();
     this.puff(doll.feet.x, body.top + 20);
+  }
+
+  /**
+   * A creepy doll that stays in the light of a flashlight for a moment turns back to
+   * normal, with a sparkle and a chime, and stays normal: it isn't creepy and isn't
+   * angry any more (unless somebody makes it angry). Not the shadow monster: light only hurts that.
+   */
+  private cureInLight(delta: number, litBy: (person: Person) => Beam | undefined): void {
+    const { cureMs, sparkle, chime } = HORROR.light;
+    for (const person of this.people) {
+      if (person === this.stalker.doll || person.dead || person.staysNormal) continue;
+      if (!litBy(person)) {
+        this.litDolls.delete(person);
+        continue;
+      }
+      const ms = (this.litDolls.get(person) ?? 0) + delta;
+      this.litDolls.set(person, ms);
+      if (ms < cureMs) continue;
+      this.litDolls.delete(person);
+      person.cure();
+      person.haunt(false);
+      if (this.horrorAngered.has(person) && person.isOn('angry') && !person.isOn('play')) {
+        person.toggle('angry');
+      }
+      this.horrorAngered.delete(person);
+      this.world.sparkle(person.feet.x, person.box.top + 20, sparkle);
+      this.sfx.note(chime);
+    }
+    for (const person of this.litDolls.keys()) {
+      if (!this.people.includes(person)) this.litDolls.delete(person);
+    }
   }
 
   /**

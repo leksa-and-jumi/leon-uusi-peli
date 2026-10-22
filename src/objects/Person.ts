@@ -190,6 +190,7 @@ export class Person extends Body {
   private inReach = false;
   /** Horror mode: it has the creepy face and claws. And in the middle of a leap at somebody, and the rest before the next one. */
   private haunted = false;
+  private cured = false;
   private lunging = false;
   private lungeMs = 0;
   /** Keeps counting, so the moves keep going. */
@@ -780,6 +781,19 @@ export class Person extends Body {
     this.figure.burnToBones();
     this.spray = 0;
     this.bleedMs = 0;
+  }
+
+  /**
+   * Horror mode doesn't change this one: it is a plain test doll, or light has turned
+   * it back to normal, for good.
+   */
+  get staysNormal(): boolean {
+    return this.look.dummy === true || this.cured;
+  }
+
+  /** Light has turned it back to normal: horror mode won't change it again. */
+  cure(): void {
+    this.cured = true;
   }
 
   /** Horror mode on or off for this doll: the creepy face and claws, or its own look again. */
@@ -1791,10 +1805,10 @@ export class Person extends Body {
     const girth = target instanceof Person ? 0 : target.def.halfWidth;
     const reach = canShoot ? gun.range : (weapon?.melee?.reach ?? ANGRY.reach) + girth;
     // In horror mode it leaps at a doll that isn't too close, rather than run up to it
-    if (world.horror && !canShoot && target instanceof Person && this.lunge(target, world)) {
+    if (this.haunted && !canShoot && target instanceof Person && this.lunge(target, world)) {
       return 'push';
     }
-    const speedUp = world.horror ? HORROR.speedUp : 1;
+    const speedUp = this.haunted ? HORROR.speedUp : 1;
     const chase = chaseStep(
       this.x,
       this.facing,
@@ -1898,7 +1912,7 @@ export class Person extends Body {
       // The cleaning lady remembers who hit her
       target.provoke(this);
       // In horror mode bare hands are claws: they leave scratches, on the doll and in the wall behind it
-      const clawed = world.horror && !weapon;
+      const clawed = this.haunted && !weapon;
       if (clawed) world.claw(target.feet.x, target.feet.y - PERSON.height * 0.6, this.facing);
       const deadly = target.hit(
         this.facing,
