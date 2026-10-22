@@ -191,6 +191,8 @@ export class Person extends Body {
   /** Horror mode: it has the creepy face and claws. And in the middle of a leap at somebody, and the rest before the next one. */
   private haunted = false;
   private cured = false;
+  /** Running away from something scary at this x, or `null`. */
+  private fleeFrom: number | null = null;
   private lunging = false;
   private lungeMs = 0;
   /** Keeps counting, so the moves keep going. */
@@ -794,6 +796,16 @@ export class Person extends Body {
   /** Light has turned it back to normal: horror mode won't change it again. */
   cure(): void {
     this.cured = true;
+  }
+
+  /**
+   * Run away from something scary at `from`, or stop running with `null`. Says
+   * whether it has only just started to run (and screams).
+   */
+  flee(from: number | null): boolean {
+    const started = this.fleeFrom === null && from !== null;
+    this.fleeFrom = from;
+    return started;
   }
 
   /** Horror mode on or off for this doll: the creepy face and claws, or its own look again. */
@@ -1727,6 +1739,9 @@ export class Person extends Body {
     if (this.submerged && this.look.heavy) return 'stand';
     // A doll that a player steers does what the player says, and nothing by itself
     if (this.pilot) return this.drive(this.pilot, deltaMs, world);
+    if (this.fleeFrom !== null && this.activity !== 'angry') {
+      return this.runAway(this.fleeFrom, deltaMs, world);
+    }
     if (this.activity === 'walk') {
       const edge = PERSON.halfWidth;
       const walker = walkStep(
@@ -1745,6 +1760,22 @@ export class Person extends Body {
     if (this.activity === 'dance') return 'dance';
     if (this.activity === 'angry') return this.rage(deltaMs, world);
     return 'stand';
+  }
+
+  /**
+   * Run as fast as it can away from something scary at `from`, hopping onto what is
+   * low in the way. Cornered against a wall it keeps running on the spot.
+   */
+  private runAway(from: number, deltaMs: number, world: World): PoseKind {
+    const away: Facing = this.x >= from ? 1 : -1;
+    this.facing = away;
+    const edge = PERSON.halfWidth;
+    const { left, right } = world.area;
+    const step = HORROR.flee.speed * this.pace * (deltaMs / 1000);
+    const x = clamp(this.x + away * step, left + edge, right - edge);
+    const blocked = this.walkTo(x, world);
+    if (blocked) this.jumpOnto(away, world);
+    return 'run';
   }
 
   /**
@@ -2210,6 +2241,17 @@ export class Person extends Body {
     // With a flashlight it holds it out in front of it, to light the way
     if (this.item?.def.shines && (moving || kind === 'stand')) {
       return { ...pose, frontArm: -1.5, frontElbow: 0 };
+    }
+    if (this.fleeFrom !== null && moving) {
+      // Running away screaming, both arms waving in the air
+      const wave = Math.sin(this.clockMs / 90) * 0.35;
+      return {
+        ...pose,
+        frontArm: -2.7 + wave,
+        backArm: -2.5 - wave,
+        frontElbow: -0.4,
+        backElbow: -0.4,
+      };
     }
     if (!this.look.armsForward || !moving) return pose;
     // A zombie shuffles along with both arms stretched out in front
