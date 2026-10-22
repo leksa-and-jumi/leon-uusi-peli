@@ -2855,6 +2855,22 @@ export class MainScene extends Phaser.Scene {
       g.fillStyle(color, Math.min(1, strength * 2));
       g.fillCircle(beam.x, beam.y, 3.5);
     }
+    // Candles glow all round, flickering a little. Their light keeps the shadow monster away too
+    const glows: Beam[] = [];
+    const { candle } = HORROR.light;
+    for (const block of this.blocks) {
+      const glow = block.def.glows;
+      if (!glow) continue;
+      const x = block.feet.x;
+      const y = block.feet.y - glow.up;
+      const flicker =
+        1 + candle.flicker * Math.sin(this.time.now / candle.flickerMs + x) * Math.random();
+      for (const [wide, part] of candle.rings) {
+        g.fillStyle(candle.color, strength * part);
+        g.fillCircle(x, y, glow.radius * wide * flicker);
+      }
+      glows.push({ x, y, angle: 0, length: glow.radius * candle.reach, spread: Math.PI });
+    }
     if (!this.horror) return;
     const litBy = (person: Person): Beam | undefined => {
       const body = person.box;
@@ -2868,7 +2884,7 @@ export class MainScene extends Phaser.Scene {
     const doll = this.stalker.doll;
     if (!doll || doll.dead || !this.people.includes(doll)) return;
     const body = doll.box;
-    const lit = litBy(doll);
+    const lit = litBy(doll) ?? glows.find((glow) => inBeam(glow, doll.feet.x, body.top + 30));
     if (!lit) return;
     this.stalker.litMs += delta;
     if (this.stalker.litMs < HORROR.shadow.hurtEveryMs) return;

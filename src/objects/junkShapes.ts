@@ -54,6 +54,10 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
     }
     case 'ghost':
       return drawGhost(g, def);
+    case 'wraith':
+      return drawWraith(g, def);
+    case 'candle':
+      return drawCandle(g, def);
     case 'batMonster':
       return drawBatMonster(g, def);
     case 'ufo':
@@ -840,6 +844,99 @@ function drawGhost(g: Graphics, def: BlockDef): Graphics {
   g.fillStyle(0xffffff);
   g.fillCircle(-2, top + 20, 1.4);
   g.fillCircle(12, top + 20, 1.4);
+  return g;
+}
+
+/**
+ * A scary ghost, looking right: a long, ragged shroud with a hood, a pale face deep in
+ * the hood with long black eyes and a mouth stretched open in a scream, black tears,
+ * and two thin arms reaching out with long bony fingers.
+ */
+function drawWraith(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const { halfWidth, height } = def;
+  const top = -height;
+  const hood = halfWidth - 6;
+  const outline: Point[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const angle = Math.PI + (i / 12) * Math.PI;
+    outline.push([4 + Math.cos(angle) * hood, top + hood + Math.sin(angle) * hood]);
+  }
+  // Down the front, flaring out, and back along a hem torn into long rags
+  outline.push([halfWidth, -30]);
+  const rags: Point[] = [
+    [halfWidth - 2, -2],
+    [halfWidth - 10, -20],
+    [halfWidth - 17, -6],
+    [halfWidth - 26, -24],
+    [-4, 0],
+    [-12, -22],
+    [-22, -8],
+    [-halfWidth + 6, -26],
+    [-halfWidth - 6, -4],
+  ];
+  outline.push(...rags);
+  outline.push([-halfWidth + 2, -40]);
+  // An arm reaching out behind, and one in front, each with long thin fingers
+  const arm = (fromY: number, color: number): void => {
+    box(g, color, dark, 8, fromY - 4, halfWidth + 6, 8, 4);
+    g.lineStyle(1.6, dark);
+    for (const spread of [-5, 0, 5]) {
+      g.lineBetween(halfWidth + 13, fromY, halfWidth + 26, fromY + spread * 1.4);
+    }
+  };
+  arm(top + hood + 16, shade(fill, -0.2));
+  shape(g, fill, dark, outline);
+  g.fillStyle(light, 0.6);
+  g.fillEllipse(-8, top + 12, hood, 10);
+  g.fillStyle(dark, 0.25);
+  g.fillRect(-halfWidth + 6, top + hood + 8, 6, height - hood - 30);
+  // Deep in the hood: a pale face that screams
+  g.fillStyle(detail, 0.85);
+  g.fillEllipse(8, top + hood + 2, hood * 1.3, hood * 1.5);
+  g.fillStyle(0xc9ced3);
+  g.fillEllipse(9, top + hood + 3, hood * 0.95, hood * 1.25);
+  g.fillStyle(detail);
+  g.fillEllipse(3, top + hood - 3, 6, 12);
+  g.fillEllipse(15, top + hood - 3, 6, 12);
+  g.fillEllipse(9, top + hood + 13, 7, 15);
+  g.fillStyle(0xffffff);
+  g.fillCircle(3.4, top + hood - 1, 1);
+  g.fillCircle(15.4, top + hood - 1, 1);
+  g.lineStyle(1.4, detail, 0.85);
+  g.lineBetween(2, top + hood + 3, 1, top + hood + 12);
+  g.lineBetween(16, top + hood + 3, 17.5, top + hood + 10);
+  arm(top + hood + 26, fill);
+  return g;
+}
+
+/**
+ * A candle in a little brass dish: a pillar of wax with drips running down it, a
+ * black wick, and a flame, orange outside and yellow and white inside.
+ */
+function drawCandle(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const { halfWidth, height } = def;
+  const wax = { top: -height + 12, bottom: -4, half: halfWidth - 4 };
+  g.fillStyle(shade(detail, -0.35));
+  g.fillEllipse(0, -2.5, halfWidth * 2 + 4, 6);
+  g.fillStyle(detail);
+  g.fillEllipse(0, -3.5, halfWidth * 2, 4.5);
+  box(g, fill, dark, -wax.half, wax.top, wax.half * 2, wax.bottom - wax.top, 2);
+  g.fillStyle(light, 0.7);
+  g.fillRect(-wax.half + 1.5, wax.top + 2, 1.5, wax.bottom - wax.top - 4);
+  g.fillStyle(fill);
+  g.fillRoundedRect(-wax.half - 1, wax.top, 3, 9, 1.5);
+  g.fillRoundedRect(wax.half - 2, wax.top, 3, 6, 1.5);
+  g.fillRoundedRect(1, wax.top, 2.5, 12, 1.2);
+  g.lineStyle(1.4, 0x212121);
+  g.lineBetween(0, wax.top, 0.5, wax.top - 3.5);
+  g.fillStyle(0xff8f00, 0.9);
+  g.fillEllipse(0.5, wax.top - 8, 6, 11);
+  g.fillStyle(0xffd54f);
+  g.fillEllipse(0.5, wax.top - 7, 3.6, 7);
+  g.fillStyle(0xffffff);
+  g.fillEllipse(0.5, wax.top - 5.5, 1.6, 3);
   return g;
 }
 

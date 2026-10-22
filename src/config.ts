@@ -908,6 +908,25 @@ export const HORROR = {
     darkAlpha: 0.3,
     /** A creepy doll that is in a beam this long turns back to normal, with a sparkle and a chime. */
     cureMs: 500,
+    /**
+     * The glow of a candle: warm rings, one inside the other, brighter in the middle,
+     * that flicker a little. The shadow monster is hurt this far into the glow.
+     */
+    candle: {
+      color: 0xffa94d,
+      rings: [
+        [1, 0.08],
+        [0.86, 0.09],
+        [0.72, 0.1],
+        [0.58, 0.12],
+        [0.44, 0.15],
+        [0.3, 0.2],
+        [0.16, 0.4],
+      ],
+      flicker: 0.06,
+      flickerMs: 90,
+      reach: 0.75,
+    },
     sparkle: 0xfff59d,
     chime: 1320,
   },
@@ -1330,6 +1349,13 @@ export interface BlockDef {
    * through under it; closed, all of it is. Its grille goes up and down in `ms`.
    */
   gate?: { opening: { halfWidth: number; height: number }; ms: number };
+  /**
+   * It is a house with no front wall: dolls walk right in. Only its upper floor is
+   * solid, `floor` up from the ground and `thick` thick; the rest is to look at.
+   */
+  hollow?: { floor: number; thick: number };
+  /** It gives off light: a warm glow this wide around its flame, `up` from the ground. */
+  glows?: { up: number; radius: number };
   /** It is a drawbridge: from its bubble it is let down the way it points, and pulled up again. */
   bridge?: boolean;
   /** It is a flight of stairs with this many steps: dolls walk up it, the way it points. */
@@ -1385,7 +1411,16 @@ export type BuildKind =
   | 'trampoline';
 /** Junk that is solid like a building piece: you can stack it and stand on it. */
 export type JunkBlockKind =
-  'toilet' | 'tv' | 'trashcan' | 'armchair' | 'table' | 'fridge' | 'cone' | 'tire' | 'piano';
+  | 'toilet'
+  | 'tv'
+  | 'trashcan'
+  | 'armchair'
+  | 'table'
+  | 'fridge'
+  | 'cone'
+  | 'tire'
+  | 'piano'
+  | 'candle';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind =
   'car' | 'truck' | 'tank' | 'bike' | 'skateboard' | 'helicopter' | 'plane' | 'saucer' | 'ship';
@@ -1402,14 +1437,15 @@ export type MonsterKind =
   | 'boss'
   | 'dragon'
   | 'wisp'
-  | 'shark';
+  | 'shark'
+  | 'wraith';
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
 export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'laserTower' | 'mine' | 'cactus';
 /** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
 export type ElementKind = 'lava' | 'water' | 'blackHole' | 'cloud';
 /** The pieces of a castle. */
 export type CastleKind =
-  'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner' | 'catapult' | 'cannon';
+  'tower' | 'rampart' | 'gate' | 'drawbridge' | 'banner' | 'catapult' | 'cannon' | 'hauntedHouse';
 export type BlockKind =
   BuildKind | JunkBlockKind | VehicleKind | MonsterKind | TrapKind | ElementKind | CastleKind;
 
@@ -2179,6 +2215,15 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 1,
     colors: { fill: 0xe6c04a, dark: 0x9a7a1e, light: 0xf7e08a, detail: 0x8d6e63 },
   },
+  // A candle in a little dish: its flame lights up the dark around it
+  candle: {
+    burns: true,
+    halfWidth: 9,
+    height: 40,
+    menuScale: 1.3,
+    colors: { fill: 0xf3ead2, dark: 0x8d7f63, light: 0xffffff, detail: 0xb08d57 },
+    glows: { up: 36, radius: 150 },
+  },
   piano: {
     keys: [262, 294, 330, 349, 392, 440, 494, 523],
     burns: true,
@@ -2358,6 +2403,16 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     height: 90,
     menuScale: 0.6,
     colors: { fill: 0x9e9e9e, dark: 0x4a4a4a, light: 0xd0d0d0, detail: 0x757575 },
+  },
+  // An old house falling apart, with no front wall, so you see right in: dolls walk
+  // in under its upper floor, and a ghost floats through its walls
+  hauntedHouse: {
+    burns: true,
+    halfWidth: 130,
+    height: 214,
+    menuScale: 0.28,
+    colors: { fill: 0x4b3d35, dark: 0x1e1612, light: 0x76624f, detail: 0xffc857 },
+    hollow: { floor: 140, thick: 14 },
   },
   gate: {
     halfWidth: 44,
@@ -2643,6 +2698,23 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       body: 'trashcan',
       head: { radius: 14, x: 0, inUp: 22, outUp: 58, popMs: 120 },
       blast: { radius: 110, damage: 3, pushSpeed: 560 },
+    },
+  },
+  // A scary ghost: a long, ragged shroud with a face that screams, and long bony
+  // fingers. It floats through walls like the ghost, but faster, and scares more often
+  wraith: {
+    halfWidth: 30,
+    height: 92,
+    menuScale: 0.7,
+    colors: { fill: 0xdfe4e8, dark: 0x4f5961, light: 0xffffff, detail: 0x050505 },
+    monster: {
+      attack: 'scare',
+      range: 2000,
+      everyMs: 750,
+      damage: 1,
+      pushSpeed: 340,
+      speed: 150,
+      ghost: { alpha: 0.78, bob: 10, bobMs: 330 },
     },
   },
   ghost: {
@@ -4018,6 +4090,7 @@ export const CASTLE_KINDS: readonly CastleKind[] = [
   'catapult',
   'cannon',
   'banner',
+  'hauntedHouse',
 ];
 /** The page of forces of nature, and of things with strange powers. */
 export const ELEMENT_KINDS: readonly (
@@ -4061,6 +4134,7 @@ export const MONSTER_KINDS: readonly MonsterKind[] = [
   'dragon',
   'wisp',
   'shark',
+  'wraith',
   'boss',
 ];
 export const VEHICLE_KINDS: readonly VehicleKind[] = [
@@ -4142,6 +4216,7 @@ export const JUNK_KINDS: readonly (
   { type: 'item', kind: 'cane' },
   { type: 'item', kind: 'flashlight' },
   { type: 'block', kind: 'piano' },
+  { type: 'block', kind: 'candle' },
 ];
 
 /** The colors of the items. */
