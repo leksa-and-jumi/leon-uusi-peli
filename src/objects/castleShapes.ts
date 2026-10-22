@@ -28,6 +28,8 @@ export function drawCastle(g: Graphics, kind: CastleKind, whole: boolean): Graph
       return drawBridge(g, def);
     case 'banner':
       return drawBanner(g, def);
+    case 'hauntedHouse':
+      return drawHauntedHouse(g, def);
     case 'cannon':
       return drawCannon(g, def);
     case 'catapult':
@@ -42,6 +44,176 @@ export function drawCastle(g: Graphics, kind: CastleKind, whole: boolean): Graph
       }
       return g;
   }
+}
+
+/**
+ * An old haunted house with no front wall, so you look right in: striped wallpaper,
+ * a crooked portrait whose eyes glow, a cobweb in the corner and a moonlit window
+ * with a torn curtain. Over it the boards of the upper floor, a round attic window
+ * with a light in it, and a sagging roof with a hole and a crooked chimney.
+ */
+function drawHauntedHouse(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const { halfWidth, height } = def;
+  const hollow = def.hollow ?? { floor: 140, thick: 14 };
+  const inner = halfWidth - 8;
+  const ceiling = -hollow.floor;
+  const upper = ceiling - hollow.thick;
+  const polygon = (color: number, points: readonly (readonly [number, number])[]): void => {
+    g.fillStyle(color);
+    g.beginPath();
+    points.forEach(([x, y], index) => {
+      if (index === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    });
+    g.closePath();
+    g.fillPath();
+  };
+  // The room inside: dark striped wallpaper and an old wooden floor
+  g.fillStyle(0x2b2233);
+  g.fillRect(-inner, ceiling, inner * 2, hollow.floor);
+  g.fillStyle(0x3a2f45);
+  for (let x = -inner + 6; x < inner - 4; x += 16) g.fillRect(x, ceiling, 5, hollow.floor);
+  g.fillStyle(dark);
+  g.fillRect(-inner, -7, inner * 2, 7);
+  g.fillStyle(fill, 0.6);
+  for (let x = -inner; x < inner; x += 26) g.fillRect(x + 1, -6, 24, 1.5);
+  // A window at the back, with the moon shining in, and a torn red curtain
+  const windowX = 52;
+  g.fillStyle(0x0d1420);
+  g.fillRect(windowX - 22, -112, 44, 56);
+  g.fillStyle(0x9fb4d0, 0.55);
+  g.fillRect(windowX - 19, -109, 38, 50);
+  g.fillStyle(0xe8eef8, 0.85);
+  g.fillCircle(windowX + 8, -97, 6);
+  g.lineStyle(3, dark);
+  g.lineBetween(windowX, -112, windowX, -56);
+  g.lineBetween(windowX - 22, -84, windowX + 22, -84);
+  g.lineStyle(1, 0xe8eef8, 0.7);
+  g.lineBetween(windowX - 15, -104, windowX - 6, -92);
+  g.lineBetween(windowX - 6, -92, windowX - 11, -86);
+  polygon(0x5a1f2b, [
+    [windowX - 26, -116],
+    [windowX - 12, -116],
+    [windowX - 16, -80],
+    [windowX - 11, -62],
+    [windowX - 19, -66],
+    [windowX - 24, -52],
+    [windowX - 27, -70],
+  ]);
+  // A crooked portrait, its eyes glowing
+  polygon(0x6d4c22, [
+    [-82, -118],
+    [-44, -112],
+    [-49, -70],
+    [-87, -76],
+  ]);
+  polygon(0x1a1414, [
+    [-78, -113],
+    [-49, -108],
+    [-53, -75],
+    [-82, -80],
+  ]);
+  g.fillStyle(0x3b302c);
+  g.fillEllipse(-65, -95, 16, 22);
+  g.fillStyle(detail);
+  g.fillCircle(-69, -98, 1.6);
+  g.fillCircle(-61, -97, 1.6);
+  // A cobweb in the top corner
+  g.lineStyle(1, 0xd9d9d9, 0.55);
+  const corner = { x: -inner, y: ceiling };
+  for (const angle of [0.1, 0.5, 0.9, 1.3]) {
+    g.lineBetween(
+      corner.x,
+      corner.y,
+      corner.x + Math.cos(angle) * 38,
+      corner.y + Math.sin(angle) * 38,
+    );
+  }
+  for (const reach of [12, 22, 32]) {
+    g.beginPath();
+    g.arc(corner.x, corner.y, reach, 0.1, 1.3);
+    g.strokePath();
+  }
+  // The side walls: old boards, one of them hanging loose
+  for (const side of [-1, 1]) {
+    const x = side === -1 ? -halfWidth : inner;
+    g.fillStyle(dark);
+    g.fillRect(x, upper, 8, -upper);
+    g.fillStyle(fill);
+    g.fillRect(x + 1.5, upper + 2, 5, -upper - 2);
+    g.fillStyle(light, 0.5);
+    g.fillRect(x + 2, upper + 2, 1.2, -upper - 2);
+  }
+  polygon(fill, [
+    [-halfWidth - 6, -96],
+    [-halfWidth + 2, -100],
+    [-halfWidth + 22, -40],
+    [-halfWidth + 15, -37],
+  ]);
+  // The upper floor, of planks
+  g.fillStyle(dark);
+  g.fillRect(-halfWidth, upper, halfWidth * 2, hollow.thick);
+  g.fillStyle(fill);
+  g.fillRect(-halfWidth + 1.5, upper + 1.5, halfWidth * 2 - 3, hollow.thick - 3);
+  g.fillStyle(light, 0.45);
+  g.fillRect(-halfWidth + 1.5, upper + 1.5, halfWidth * 2 - 3, 1.5);
+  g.fillStyle(dark);
+  for (let x = -halfWidth + 30; x < halfWidth; x += 34)
+    g.fillRect(x, upper + 1.5, 1.4, hollow.thick - 3);
+  // The attic wall, with a round window that has a light in it
+  const atticTop = upper - 24;
+  g.fillStyle(dark);
+  g.fillRect(-inner + 10, atticTop, (inner - 10) * 2, 24);
+  g.fillStyle(fill);
+  for (let x = -inner + 12; x < inner - 12; x += 13) g.fillRect(x, atticTop + 1, 11, 23);
+  g.fillStyle(dark);
+  g.fillCircle(0, atticTop + 12, 10);
+  g.fillStyle(detail, 0.9);
+  g.fillCircle(0, atticTop + 12, 7.5);
+  g.lineStyle(1.5, dark);
+  g.lineBetween(-7.5, atticTop + 12, 7.5, atticTop + 12);
+  g.lineBetween(0, atticTop + 4.5, 0, atticTop + 19.5);
+  // A crooked chimney, and the sagging roof with a hole in it
+  polygon(dark, [
+    [62, -height + 4],
+    [80, -height + 1],
+    [82, atticTop - 8],
+    [64, atticTop - 6],
+  ]);
+  polygon(0x5d4037, [
+    [64, -height + 6],
+    [78, -height + 3],
+    [80, atticTop - 9],
+    [66, atticTop - 7],
+  ]);
+  const peak = -height + 12;
+  polygon(dark, [
+    [-halfWidth - 14, atticTop + 4],
+    [-60, atticTop - 26],
+    [-6, peak],
+    [70, atticTop - 22],
+    [halfWidth + 12, atticTop + 4],
+  ]);
+  polygon(0x3a2a24, [
+    [-halfWidth - 9, atticTop + 1],
+    [-59, atticTop - 23],
+    [-6, peak + 4],
+    [68, atticTop - 19],
+    [halfWidth + 7, atticTop + 1],
+  ]);
+  g.lineStyle(1, dark, 0.8);
+  for (let row = 1; row <= 3; row++) {
+    const y = atticTop + 1 - row * 9;
+    g.lineBetween(-halfWidth + row * 22, y, halfWidth - row * 20, y);
+  }
+  polygon(0x0b0809, [
+    [28, atticTop - 20],
+    [44, atticTop - 24],
+    [40, atticTop - 10],
+    [30, atticTop - 8],
+  ]);
+  return g;
 }
 
 /** A wall of gray stone blocks, every other row shifted, with a dark line around it. */

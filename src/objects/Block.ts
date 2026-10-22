@@ -326,6 +326,17 @@ export class Block extends Body {
   }
 
   /**
+   * A house with no front wall is grabbed by its upper floor and roof: a click in the
+   * room under them goes through to what is inside, or puts a new thing in there.
+   */
+  override get pickBox(): Box {
+    const box = super.pickBox;
+    const hollow = this.def.hollow;
+    if (!hollow || this.fallen !== 0) return box;
+    return { ...box, bottom: this.box.bottom - hollow.floor };
+  }
+
+  /**
    * The boxes others stand on and bump into: the one around it, or a flight of steps
    * up its slope when it leans on something.
    */
@@ -335,6 +346,13 @@ export class Block extends Body {
       // An open gate: only the stone above the opening is solid. Dolls walk through under it.
       const box = this.box;
       return [{ ...box, bottom: box.bottom - gate.opening.height }];
+    }
+    const hollow = this.def.hollow;
+    if (hollow && this.fallen === 0) {
+      // A house with no front wall: only its upper floor is solid. Dolls walk in under it
+      const box = this.box;
+      const floor = box.bottom - hollow.floor;
+      return [{ ...box, top: floor - hollow.thick, bottom: floor }];
     }
     if (this.def.stairs && this.fallen === 0) {
       // Stairs are steps to walk up, the way they point

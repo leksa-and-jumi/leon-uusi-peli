@@ -809,7 +809,8 @@ export class PersonFigure {
     const own = !this.faceless && !spooky;
     this.eyes.setVisible(own && !this.lifeless);
     this.deadEyes.setVisible(own && this.lifeless);
-    this.brows.setVisible(own && this.angry && !this.lifeless);
+    // The shadow monster has no angry brows: it is creepy enough without
+    this.brows.setVisible(own && this.angry && !this.lifeless && !this.ghastly);
     if (!this.eyes.visible) this.lids.setVisible(false);
   }
 
