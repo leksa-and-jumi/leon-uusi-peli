@@ -3,6 +3,7 @@ import {
   ALIVE,
   ASHEN,
   ANGRY,
+  HORROR,
   BLOOD,
   CLING,
   DUEL,
@@ -187,6 +188,10 @@ export class Person extends Body {
   /** Time left before the next punch or shot. */
   private waitMs = 0;
   private inReach = false;
+  /** Horror mode: it has the creepy face and claws. And in the middle of a leap at somebody, and the rest before the next one. */
+  private haunted = false;
+  private lunging = false;
+  private lungeMs = 0;
   /** Keeps counting, so the moves keep going. */
   private clockMs = 0;
   private lives: number;
@@ -775,6 +780,13 @@ export class Person extends Body {
     this.figure.burnToBones();
     this.spray = 0;
     this.bleedMs = 0;
+  }
+
+  /** Horror mode on or off for this doll: the creepy face and claws, or its own look again. */
+  haunt(on: boolean): void {
+    if (this.haunted === on) return;
+    this.haunted = on;
+    this.figure.setHorror(on);
   }
 
   /** Switch walking, dancing or angry mode on, or off if it's already on. */
@@ -1728,6 +1740,12 @@ export class Person extends Body {
   private rage(deltaMs: number, world: World): PoseKind {
     this.waitMs = Math.max(0, this.waitMs - deltaMs);
     this.castMs = Math.max(0, this.castMs - deltaMs);
+    this.lungeMs = Math.max(0, this.lungeMs - deltaMs);
+    if (this.lunging) {
+      // Flying at somebody with its claws out, until it lands
+      if (this.state !== 'resting') return 'push';
+      this.lunging = false;
+    }
     if (this.punchMs > 0) {
       this.punchMs -= deltaMs;
       return 'punch';
@@ -1772,12 +1790,17 @@ export class Person extends Body {
     // A monster is big: it is hit on its side, which is that much closer than its middle
     const girth = target instanceof Person ? 0 : target.def.halfWidth;
     const reach = canShoot ? gun.range : (weapon?.melee?.reach ?? ANGRY.reach) + girth;
+    // In horror mode it leaps at a doll that isn't too close, rather than run up to it
+    if (world.horror && !canShoot && target instanceof Person && this.lunge(target, world)) {
+      return 'push';
+    }
+    const speedUp = world.horror ? HORROR.speedUp : 1;
     const chase = chaseStep(
       this.x,
       this.facing,
       target.feet.x,
       reach,
-      ANGRY.speed * this.pace,
+      ANGRY.speed * this.pace * speedUp,
       deltaMs,
     );
     const blocked = this.walkTo(chase.x, world);
@@ -1831,6 +1854,30 @@ export class Person extends Body {
     return 'punch';
   }
 
+  /**
+   * Horror mode: leap at the doll with a shriek, high and far enough to come down
+   * right in front of it. Only from the ground, at a doll on the same level that is
+   * not too close and not too far, and not again until it has rested. Says whether it leapt.
+   */
+  private lunge(target: Person, world: World): boolean {
+    const { from, to, up, short, restMs } = HORROR.lunge;
+    if (this.lungeMs > 0 || this.state !== 'resting' || this.hovering || this.jumpVx !== 0) {
+      return false;
+    }
+    const gap = target.feet.x - this.x;
+    const far = Math.abs(gap);
+    if (far < from || far > to || Math.abs(target.feet.y - this.y) > ANGRY.levelSlack) return false;
+    this.facing = gap < 0 ? -1 : 1;
+    const flight = (2 * up) / PHYSICS.gravity;
+    this.jumpVx = (this.facing * (far - short)) / flight;
+    this.jumpFromX = this.x;
+    this.hop(up);
+    this.lunging = true;
+    this.lungeMs = restMs;
+    world.screech(this.x, this.y - PERSON.height / 2);
+    return true;
+  }
+
   /** Hit a doll or a monster with a fist, or with what is in the hand. */
   private punchAt(target: Person | Block, world: World): void {
     const weapon = this.item?.def;
@@ -1850,12 +1897,15 @@ export class Person extends Body {
     if (target instanceof Person) {
       // The cleaning lady remembers who hit her
       target.provoke(this);
+      // In horror mode bare hands are claws: they leave scratches, on the doll and in the wall behind it
+      const clawed = world.horror && !weapon;
+      if (clawed) world.claw(target.feet.x, target.feet.y - PERSON.height * 0.6, this.facing);
       const deadly = target.hit(
         this.facing,
         world.solidBoxes(target),
         damage,
         weapon?.melee?.pushSpeed ?? strong?.pushSpeed,
-        weapon?.melee?.wound,
+        clawed ? 'claw' : weapon?.melee?.wound,
       );
       world.hitEffect(target.feet.x, target.feet.y - PERSON.height * 0.75, deadly, sound);
       return;

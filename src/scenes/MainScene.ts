@@ -29,6 +29,7 @@ import {
   GAME_HEIGHT,
   GAME_WIDTH,
   HINT,
+  HORROR,
   HIT_FX,
   ITEMS,
   LASER,
@@ -200,6 +201,17 @@ export class MainScene extends Phaser.Scene {
   /** Blood on the floor. It stays until it is wiped away with the broom. */
   private stains: Stain[] = [];
   private stainLayer!: Phaser.GameObjects.Graphics;
+  /**
+   * Horror mode: whether it is on, the dolls it has made angry (they calm down again
+   * when it goes off), the dark over the room (behind the area and over the floor in
+   * front), the time until the light flickers next, and the scratches claws have made in the wall.
+   */
+  private horror = false;
+  private horrorAngered = new Set<Person>();
+  private darkness: Phaser.GameObjects.Rectangle[] = [];
+  private flicker = { waitMs: 0, ms: 0 };
+  private scratches: { x: number; y: number; direction: Facing }[] = [];
+  private scratchLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
   /**
    * A two-player battle: the doll of each player (or `null`), the number that hangs
@@ -409,6 +421,13 @@ export class MainScene extends Phaser.Scene {
       smoke: (x, y) => {
         this.puff(x, y);
       },
+      horror: false,
+      screech: () => {
+        this.sfx.screech();
+      },
+      claw: (x, y, direction) => {
+        this.scratchWall(x, y, direction);
+      },
       spark: (x, y) => {
         const reach = (): number => (Math.random() * 2 - 1) * THUNDER.sparkReach;
         this.bolt(x, y, x + reach(), y + reach(), SPARK);
@@ -513,6 +532,31 @@ export class MainScene extends Phaser.Scene {
     drawFloor(this.add.graphics(), 0, AREA.floorY, GAME_WIDTH).setDepth(DEPTH.floorCover);
     this.floorShadowLayer = this.add.graphics().setDepth(DEPTH.floorCover + 0.5);
     this.stainLayer = this.add.graphics().setDepth(DEPTH.floorCover + 1);
+    // The dark of horror mode: over the wall and the floor behind everything, and over
+    // the floor in front once more. The scratches in the wall show through it
+    const { dark } = HORROR;
+    const room = AREA.floorY - MENU.height;
+    this.darkness = [
+      this.add.rectangle(0, MENU.height, GAME_WIDTH, room, dark.color, dark.alpha),
+      this.add.rectangle(
+        0,
+        AREA.floorY,
+        GAME_WIDTH,
+        GAME_HEIGHT - AREA.floorY,
+        dark.color,
+        dark.alpha,
+      ),
+    ].map((shade, index) =>
+      shade
+        .setOrigin(0)
+        .setDepth(index === 0 ? DEPTH.shadow - 0.5 : DEPTH.floorCover + 0.7)
+        .setVisible(false),
+    );
+    this.scratchLayer = this.add.graphics().setDepth(DEPTH.shadow - 0.4);
+    this.horror = false;
+    this.sfx.stopMusic();
+    this.horrorAngered = new Set();
+    this.scratches = [];
     this.menu = new SpawnMenu(this);
     this.bubbles = new ActionBubbles(this);
     this.players = [null, null];
@@ -590,6 +634,7 @@ export class MainScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.world.people = this.people;
+    this.haunt(delta);
     this.steerPlayers(delta);
     // A piece that leans on something is a flight of steps: several boxes for one body
     this.solids = this.blocks
@@ -1074,9 +1119,11 @@ export class MainScene extends Phaser.Scene {
     if (!job.crew.every((cleaner) => cleaner.done) && job.ms <= CLEANER.mostMs) return;
     this.cleaning = null;
     this.forget(job.crew.map(({ doll }) => doll).filter((doll) => this.people.includes(doll)));
-    // The last spots by the walls are done too
+    // The last spots by the walls are done too, and the scratches in the wall
     this.stains = [];
     this.drawStains();
+    this.scratches = [];
+    this.drawScratches();
     // After a round that ended the game (or, against each other, any round) the next one starts now
     if (this.roundOver) this.newRound();
   }
@@ -1486,6 +1533,7 @@ export class MainScene extends Phaser.Scene {
         this.menu.showSound(!this.sfx.muted);
       }
       if (pressed === 'duel') this.toggleDuel();
+      if (pressed === 'horror') this.setHorror(!this.horror);
       if (pressed === 'clear') {
         this.forget(this.everything());
         this.clearBullets();
@@ -2653,6 +2701,102 @@ export class MainScene extends Phaser.Scene {
     this.pieces = [];
     this.stains = [];
     this.drawStains();
+    this.scratches = [];
+    this.drawScratches();
+  }
+
+  /**
+   * Horror mode on or off. On, the room goes dark and a big ghost pops up. Off, the
+   * light is back, the scratches in the wall are gone, and the dolls it made angry calm down.
+   */
+  private setHorror(on: boolean): void {
+    this.horror = on;
+    this.world.horror = on;
+    this.menu.showHorror(on);
+    this.darkness.forEach((shade) => shade.setVisible(on).setAlpha(1));
+    this.flicker = { waitMs: this.nextFlickerMs(), ms: 0 };
+    if (on) {
+      const { emoji, fontSize, ms, grow } = HORROR.popUp;
+      this.popUp(
+        (AREA.left + AREA.right) / 2,
+        (AREA.top + AREA.floorY) / 2,
+        emoji,
+        fontSize,
+        ms,
+        grow,
+      );
+      this.sfx.spook();
+      this.sfx.startMusic();
+      return;
+    }
+    this.sfx.stopMusic();
+    for (const person of this.horrorAngered) {
+      const calm = this.people.includes(person) && !person.dead && person.activity === 'angry';
+      if (calm && !person.isOn('play')) person.toggle('angry');
+    }
+    this.horrorAngered.clear();
+    this.scratches = [];
+    this.drawScratches();
+  }
+
+  private nextFlickerMs(): number {
+    const { min, max } = HORROR.flicker.everyMs;
+    return min + Math.random() * (max - min);
+  }
+
+  /**
+   * Every doll has the look of the mode it is in. In horror mode every doll that does
+   * as it likes is angry, all the time: one that calms down is angry again at once.
+   * And now and then the light goes out for a moment, twice in a row.
+   */
+  private haunt(delta: number): void {
+    for (const person of this.people) person.haunt(this.horror);
+    if (!this.horror) return;
+    for (const person of this.people) {
+      const free = !person.dead && !person.safe && !person.isOn('play');
+      if (!free || person.activity === 'angry') continue;
+      person.toggle('angry');
+      if (person.isOn('angry')) this.horrorAngered.add(person);
+    }
+    const { ms, gapMs, alpha } = HORROR.flicker;
+    const flicker = this.flicker;
+    if (flicker.ms > 0) {
+      // The light goes out, comes back for a blink, and goes out once more
+      flicker.ms -= delta;
+      const out = flicker.ms > ms + gapMs || (flicker.ms > 0 && flicker.ms <= ms);
+      const level = out ? alpha / HORROR.dark.alpha : 1;
+      this.darkness.forEach((shade) => shade.setAlpha(Math.min(level, 1 / HORROR.dark.alpha)));
+      return;
+    }
+    flicker.waitMs -= delta;
+    if (flicker.waitMs > 0) return;
+    flicker.waitMs = this.nextFlickerMs();
+    flicker.ms = ms * 2 + gapMs;
+  }
+
+  /** Claws have raked a doll here: three deep scratches in the wall behind it. */
+  private scratchWall(x: number, y: number, direction: Facing): void {
+    this.scratches.push({ x, y, direction });
+    if (this.scratches.length > HORROR.scratch.max) this.scratches.shift();
+    this.drawScratches();
+  }
+
+  private drawScratches(): void {
+    const g = this.scratchLayer.clear();
+    const { length, gap, lean, light, deep } = HORROR.scratch;
+    for (const { x, y, direction } of this.scratches) {
+      for (const step of [-1, 0, 1]) {
+        const dx = (length / 2) * direction;
+        const fromX = x - dx + step * gap;
+        const toX = x + dx + step * gap;
+        const fromY = y - length * lean;
+        const toY = y + length * lean;
+        g.lineStyle(3.4, light, 0.8);
+        g.lineBetween(fromX, fromY, toX, toY);
+        g.lineStyle(1.6, deep, 0.95);
+        g.lineBetween(fromX, fromY, toX, toY);
+      }
+    }
   }
 
   private showHit(x: number, y: number, deadly: boolean, sound: HitSound): void {

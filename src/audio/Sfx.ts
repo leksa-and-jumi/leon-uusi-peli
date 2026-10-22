@@ -1,4 +1,5 @@
-import { SOUND } from '../config';
+import { HORROR, SOUND } from '../config';
+import { horrorBeat } from '../logic/music';
 
 type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
@@ -7,11 +8,190 @@ type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
  * shots and explosions built from tones that slide down and bursts of hiss.
  */
 export class Sfx {
-  muted = false;
+  private quiet = false;
+  /**
+   * The creepy music of horror mode while it plays: its volume knob, the hum that goes
+   * on and on, what puts the next notes in, and the next beat and when it is.
+   */
+  private music: {
+    volume: GainNode;
+    hum: OscillatorNode[];
+    timer: number;
+    beat: number;
+    nextAt: number;
+  } | null = null;
   private context: AudioContext | null = null;
   private hiss: AudioBuffer | null = null;
   /** When each sound was last played, so the same one isn't piled up many times at once. */
   private readonly lastPlayed = new Map<string, number>();
+
+  /** Are the sounds off? The music goes quiet too, and comes back when they are on again. */
+  get muted(): boolean {
+    return this.quiet;
+  }
+
+  set muted(quiet: boolean) {
+    this.quiet = quiet;
+    const music = this.music;
+    if (music && this.context) {
+      music.volume.gain.setTargetAtTime(quiet ? 0 : 1, this.context.currentTime, 0.05);
+    }
+  }
+
+  /**
+   * Start the creepy music of horror mode: a low hum that swells and fades all the
+   * time, and the beats of the tune put in a little ahead, one after the other.
+   */
+  startMusic(): void {
+    const context = this.context;
+    if (this.music || !context) return;
+    const { drone, everyMs } = HORROR.music;
+    const now = context.currentTime;
+    const volume = context.createGain();
+    volume.gain.setValueAtTime(0, now);
+    volume.gain.setTargetAtTime(this.quiet ? 0 : 1, now, 0.3);
+    volume.connect(context.destination);
+    // Two deep notes, a little apart, rub against each other into a dark hum
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = drone.filter;
+    const loudness = context.createGain();
+    loudness.gain.value = drone.volume * SOUND.volume;
+    filter.connect(loudness);
+    loudness.connect(volume);
+    const hum = [drone.low, drone.high].map((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = index === 0 ? 'sine' : 'sawtooth';
+      oscillator.frequency.value = frequency;
+      oscillator.connect(filter);
+      return oscillator;
+    });
+    // And it swells up and dies down, slowly
+    const swell = context.createOscillator();
+    swell.frequency.value = drone.swellHz;
+    const depth = context.createGain();
+    depth.gain.value = drone.volume * SOUND.volume * 0.6;
+    swell.connect(depth);
+    depth.connect(loudness.gain);
+    hum.push(swell);
+    hum.forEach((oscillator) => {
+      oscillator.start(now);
+    });
+    const timer = window.setInterval(() => {
+      this.putInBeats();
+    }, everyMs);
+    this.music = { volume, hum, timer, beat: 0, nextAt: now + 0.1 };
+    this.putInBeats();
+  }
+
+  /** Stop the music: it fades out. */
+  stopMusic(): void {
+    const music = this.music;
+    const context = this.context;
+    if (!music || !context) return;
+    this.music = null;
+    window.clearInterval(music.timer);
+    const { fadeSeconds } = HORROR.music;
+    const now = context.currentTime;
+    music.volume.gain.cancelScheduledValues(now);
+    music.volume.gain.setTargetAtTime(0, now, fadeSeconds / 4);
+    music.hum.forEach((oscillator) => {
+      oscillator.stop(now + fadeSeconds);
+    });
+    window.setTimeout(
+      () => {
+        music.volume.disconnect();
+      },
+      fadeSeconds * 1000 + 200,
+    );
+  }
+
+  /** Put in the beats of the tune that come in the next moment. */
+  private putInBeats(): void {
+    const music = this.music;
+    const context = this.context;
+    if (!music || !context) return;
+    const { beatSeconds, tune, aheadSeconds } = HORROR.music;
+    // After a long pause (a hidden tab), it doesn't try to catch up
+    music.nextAt = Math.max(music.nextAt, context.currentTime);
+    while (music.nextAt < context.currentTime + aheadSeconds) {
+      const beat = horrorBeat(music.beat, tune);
+      if (beat.heart) this.heartbeat(music.nextAt, music.volume);
+      if (beat.note !== null) this.musicBox(beat.note, music.nextAt, music.volume);
+      if (beat.whisper) this.whisper(music.nextAt, music.volume);
+      music.beat += 1;
+      music.nextAt += beatSeconds;
+    }
+  }
+
+  /** Two low thumps, one right after the other. */
+  private heartbeat(at: number, out: AudioNode): void {
+    const { heart } = HORROR.music;
+    for (const [delay, strength] of [
+      [0, 1],
+      [heart.second, 0.7],
+    ] as const) {
+      const start = at + delay;
+      const oscillator = this.oscillator('sine', heart.from, start);
+      oscillator.frequency.exponentialRampToValueAtTime(heart.to, start + heart.seconds);
+      oscillator.connect(this.fadingAt(heart.volume * strength, start, heart.seconds, out));
+      oscillator.stop(start + heart.seconds);
+    }
+  }
+
+  /** One note of a music box, a little out of tune: two tones that ring and fade. */
+  private musicBox(frequency: number, at: number, out: AudioNode): void {
+    const { box } = HORROR.music;
+    for (const tuning of [1, box.detune]) {
+      const oscillator = this.oscillator(box.wave, frequency * tuning, at);
+      oscillator.connect(this.fadingAt(box.volume, at, box.seconds, out));
+      oscillator.stop(at + box.seconds);
+    }
+  }
+
+  /** A breath of wind: hiss through a narrow filter that sweeps up and back, swelling and dying away. */
+  private whisper(at: number, out: AudioNode): void {
+    const context = this.context;
+    if (!context) return;
+    const { whisper } = HORROR.music;
+    const source = context.createBufferSource();
+    source.buffer = this.hissBuffer(context);
+    source.loop = true;
+    const filter = context.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 8;
+    filter.frequency.setValueAtTime(whisper.low, at);
+    filter.frequency.exponentialRampToValueAtTime(whisper.high, at + whisper.seconds / 2);
+    filter.frequency.exponentialRampToValueAtTime(whisper.low, at + whisper.seconds);
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(whisper.volume * SOUND.volume, at + whisper.seconds / 2);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + whisper.seconds);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(out);
+    source.start(at);
+    source.stop(at + whisper.seconds);
+  }
+
+  private oscillator(wave: OscillatorType, frequency: number, at: number): OscillatorNode {
+    const context = this.context as AudioContext;
+    const oscillator = context.createOscillator();
+    oscillator.type = wave;
+    oscillator.frequency.setValueAtTime(frequency, at);
+    oscillator.start(at);
+    return oscillator;
+  }
+
+  /** A volume knob that starts at `volume` at the time `at` and fades to silence, into `out`. */
+  private fadingAt(volume: number, at: number, seconds: number, out: AudioNode): GainNode {
+    const context = this.context as AudioContext;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(volume * SOUND.volume, at);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + seconds);
+    gain.connect(out);
+    return gain;
+  }
 
   /** Browsers only let a page make sound after the first click or tap. Call this then. */
   unlock(): void {
@@ -74,6 +254,13 @@ export class Sfx {
     if (!this.ready('gulp')) return;
     this.tone(SOUND.gulp.tone);
     this.burst(SOUND.gulp.hiss);
+  }
+
+  /** A doll leaping at somebody in horror mode. */
+  screech(): void {
+    if (!this.ready('screech')) return;
+    this.tone(SOUND.screech.tone);
+    this.burst(SOUND.screech.hiss);
   }
 
   /** A ghost scaring a doll. */

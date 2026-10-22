@@ -804,6 +804,62 @@ export const ALIVE = {
  * part she gets to, she throws out, stopping for `pauseMs` to do it. Nothing can hurt
  * her. If she hasn't got across after `mostMs`, she gives up and goes.
  */
+/**
+ * Horror mode: the room goes dark and the light flickers now and then. Every doll has
+ * a creepy face (deep dark eyes with a red glow in them, a wide grin full of sharp
+ * teeth, a crack in the head) and claws. They are all angry, all the time. An angry
+ * one leaps at whoever it is after with a shriek, and claws at it: three scratches on
+ * the doll, and three deep scratches in the wall behind it.
+ */
+export const HORROR = {
+  dark: { color: 0x07040c, alpha: 0.6 },
+  /** Now and then the light goes out for a moment, twice in a row. */
+  flicker: { everyMs: { min: 4000, max: 10000 }, ms: 110, gapMs: 120, alpha: 0.9 },
+  /** A big ghost pops up when it is switched on. */
+  popUp: { emoji: '👻', fontSize: '96px', ms: 1300, grow: 1.6 },
+  face: {
+    socket: 0x0d0606,
+    streak: 0x1a0606,
+    eye: 0xff2020,
+    glow: 0xff4040,
+    glowAlpha: 0.38,
+    slit: 0x200000,
+    mouth: 0x120404,
+    teeth: 0xf1ead2,
+    crack: 0x241414,
+    claw: 0x1e1616,
+    clawTip: 0x5a4c4c,
+  },
+  /** It runs faster than an ordinary angry doll. */
+  speedUp: 1.35,
+  /** It leaps at a doll this far away, as high as this, and leaps again after a rest. */
+  lunge: { from: 80, to: 230, up: 430, short: 20, restMs: 1500 },
+  /**
+   * Its creepy music, all made with code: a low, dark hum that swells and fades, a
+   * slow heartbeat, a music box tune in a sad, strange key, and whispers of wind.
+   */
+  music: {
+    beatSeconds: 0.62,
+    tune: {
+      notes: [0, 7, 6, 3, 2, 3, 0, null, -4, 0, -1, null, 0, 3, 6, null, 7, 6, 3, -1, 0, null],
+      base: 880,
+      quietBeats: 14,
+      heartEvery: 2,
+      whisperEvery: 11,
+    },
+    drone: { low: 55, high: 58.3, filter: 260, volume: 0.07, swellHz: 0.13 },
+    heart: { from: 75, to: 38, seconds: 0.16, volume: 0.5, second: 0.24 },
+    box: { wave: 'triangle', seconds: 1.5, volume: 0.07, detune: 1.006 },
+    whisper: { low: 500, high: 2600, seconds: 1.8, volume: 0.07 },
+    fadeSeconds: 0.5,
+    /** The notes are put in this much ahead of time, every this often. */
+    aheadSeconds: 0.4,
+    everyMs: 150,
+  },
+  /** The scratches its claws leave in the wall. The oldest ones go when there are more. */
+  scratch: { length: 34, gap: 6, lean: 0.55, light: 0xd9d1bf, deep: 0x2a1a1a, max: 40 },
+} as const;
+
 export const CLEANER = {
   everyRounds: 5,
   reach: 48,
@@ -1096,9 +1152,14 @@ export const MENU = {
   /** The slots of a page end before this. A page with many things gets narrower slots. */
   slotsEnd: GAME_WIDTH - 202,
   /** The button that starts and ends a two-player battle. It is lit while one is on. */
-  duel: { x: GAME_WIDTH - 194, y: 10, width: 50, height: 80, gap: 0 },
+  duel: { x: GAME_WIDTH - 194, y: 10, width: 50, height: 38, gap: 0 },
   duelEmoji: '🎮',
-  duelFontSize: '28px',
+  duelFontSize: '24px',
+  /** The button under it that switches horror mode on and off. It glows red while it is on. */
+  horror: { x: GAME_WIDTH - 194, y: 52, width: 50, height: 38, gap: 0 },
+  horrorEmoji: '👻',
+  horrorColor: 0x4a2a3a,
+  horrorOnColor: 0xd50000,
   duelColor: 0x3949ab,
   duelOnColor: 0xfdd835,
   /** A picture in a slot is made small enough to leave this much room around it. */
@@ -2756,7 +2817,8 @@ export type WoundKind =
   | 'blast'
   | 'cut'
   | 'saw'
-  | 'prongs';
+  | 'prongs'
+  | 'claw';
 
 /** Something to hit with: reaches further and hurts more than a fist. */
 export interface MeleeDef {
@@ -4258,6 +4320,7 @@ export const BLOOD = {
     cut: { burst: 70, bleedMs: 14000 },
     saw: { burst: 70, bleedMs: 14000 },
     prongs: { burst: 40, bleedMs: 9000 },
+    claw: { burst: 24, bleedMs: 6000 },
   },
   /** Where a part is cut off, this many more drops spray out, and the cut end looks like this. */
   cutSpray: 60,
@@ -4431,6 +4494,11 @@ export const SOUND = {
     hiss: { from: 900, to: 150, seconds: 0.12, volume: 0.3 },
   },
   /** A ghost scaring a doll: an eerie rising howl. */
+  /** A doll in horror mode leaps at somebody: a thin, high shriek sliding down, with a hiss. */
+  screech: {
+    tone: { wave: 'sawtooth', from: 1400, to: 420, seconds: 0.4, volume: 0.09 },
+    hiss: { from: 2400, to: 900, seconds: 0.3, volume: 0.18 },
+  },
   spook: {
     tone: { wave: 'sine', from: 260, to: 720, seconds: 0.35, volume: 0.3 },
   },
