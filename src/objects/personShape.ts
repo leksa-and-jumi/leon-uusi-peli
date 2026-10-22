@@ -105,6 +105,10 @@ interface Limb {
  * A jointed doll drawn with code (no image files), shaded to look round. Arms and
  * legs are separate parts with elbows and knees, so the doll can move and flop.
  */
+/** The creepy faces of horror mode. */
+type HorrorFace = 'grin' | 'stitched' | 'scream' | 'hollow' | 'smile';
+const HORROR_FACES: readonly HorrorFace[] = ['grin', 'stitched', 'scream', 'hollow', 'smile'];
+
 export class PersonFigure {
   readonly container: Container;
   private readonly frontArm: Limb;
@@ -130,6 +134,8 @@ export class PersonFigure {
   private readonly horrorEyes: Graphics;
   private readonly claws: Graphics[];
   private horror = false;
+  /** The shadow monster is creepy as it is: it keeps its own face, and always has claws. */
+  private readonly ghastly: boolean;
   private angry = false;
   private lifeless = false;
   /** The wound marks on its chest: one more for every time it is hurt. */
@@ -201,8 +207,11 @@ export class PersonFigure {
     this.ashEyes = paint.deadEyes(ASHEN.eye).setVisible(false);
     this.lids = paint.lids(this.skin).setVisible(false);
     this.brows = paint.angryBrows().setVisible(false);
-    this.horrorFace = paint.horrorFace().setVisible(false);
-    this.horrorEyes = paint.horrorEyes().setVisible(false);
+    // Each doll has its own creepy face in horror mode
+    const creepy = HORROR_FACES[Math.floor(Math.random() * HORROR_FACES.length)] ?? 'grin';
+    this.ghastly = look.extra === 'shadow';
+    this.horrorFace = paint.horrorFace(creepy).setVisible(false);
+    this.horrorEyes = paint.horrorEyes(creepy).setVisible(false);
 
     // The parts are drawn where they are on a standing doll, so each bending part
     // is moved back by the spot it bends around
@@ -792,12 +801,12 @@ export class PersonFigure {
    */
   private showFace(): void {
     const spoilt = this.charred || this.ashen || this.singed;
-    const spooky = this.horror && !spoilt;
+    const spooky = this.horror && !spoilt && !this.ghastly;
     this.horrorFace.setVisible(spooky && !this.faceless);
     this.horrorEyes.setVisible(spooky && !this.lifeless);
-    this.claws.forEach((claw) => claw.setVisible(spooky));
+    this.claws.forEach((claw) => claw.setVisible(spooky || (this.ghastly && !spoilt)));
     if (spoilt) return;
-    const own = !this.faceless && !this.horror;
+    const own = !this.faceless && !spooky;
     this.eyes.setVisible(own && !this.lifeless);
     this.deadEyes.setVisible(own && this.lifeless);
     this.brows.setVisible(own && this.angry && !this.lifeless);
@@ -1322,6 +1331,19 @@ class Painter {
     }
 
     this.headgear(g, top, back);
+    if (this.look.extra === 'shadow') {
+      // Wisps of shadow rise off its head and drift back, like black smoke
+      const { wisp } = EXTRA_COLORS.shadow;
+      for (const [x, up, lean, alpha] of [
+        [-9, 10, -7, 0.85],
+        [-3, 14, -5, 0.75],
+        [3, 11, -6, 0.65],
+        [-12, 7, -9, 0.5],
+      ] as const) {
+        g.fillStyle(wisp, alpha);
+        g.fillTriangle(x - 3.5, top + 4, x + 3.5, top + 4, x + lean, top - up);
+      }
+    }
     if (this.look.extra === 'headband') {
       const c = EXTRA_COLORS.headband;
       g.fillStyle(c.dark);
@@ -1364,6 +1386,17 @@ class Painter {
   eyes(): Graphics {
     const g = this.blank();
     const { eye } = SHAPE;
+    if (this.look.extra === 'shadow') {
+      // The shadow monster's eyes glow white, narrow and slanted
+      const c = EXTRA_COLORS.shadow;
+      for (const x of [eye.back, eye.front]) {
+        g.fillStyle(c.glow, 0.3);
+        g.fillEllipse(x, eye.y, 8, 5);
+        g.fillStyle(this.look.eye ?? c.glow);
+        g.fillEllipse(x, eye.y, 4.6, 2.2);
+      }
+      return g;
+    }
     g.fillStyle(this.look.eye ?? PERSON.face.eye);
     if (this.look.extra === 'antenna') {
       // A robot has square eyes
@@ -1414,50 +1447,128 @@ class Painter {
   }
 
   /**
-   * The face it has in horror mode, drawn over its own: deep dark rings for eyes with
-   * dark streaks running down from them, a wide crooked grin full of sharp teeth from
-   * cheek to cheek, and a crack running down the top of its head.
+   * The face it has in horror mode, drawn over its own. Every doll gets one of a few:
+   * a wide crooked grin full of sharp teeth with dark streaks under the eyes; a mouth
+   * sewn shut and a button for one eye; a long open scream; empty eye holes dripping
+   * dark with no mouth at all; or a thin smile far too wide for its face.
    */
-  horrorFace(): Graphics {
+  horrorFace(kind: HorrorFace): Graphics {
     const g = this.blank();
     const { head, eye } = SHAPE;
     const c = HORROR.face;
     const top = head.y - head.radius;
-    g.fillStyle(c.socket, 0.92);
-    g.fillEllipse(eye.back, eye.y + 0.5, 7.5, 9);
-    g.fillEllipse(eye.front, eye.y + 0.5, 7.5, 9);
-    g.fillStyle(c.streak, 0.85);
-    g.fillRoundedRect(eye.back - 0.8, eye.y + 3.5, 1.6, 8, 0.8);
-    g.fillRoundedRect(eye.front - 0.7, eye.y + 3.5, 1.4, 5.5, 0.7);
-    // The grin: its corners pulled up high, wider at the front of the face
     const y = head.y + 8;
-    const grin = [
-      { x: -3, y: y - 3 },
-      { x: 4, y: y - 0.5 },
-      { x: 13.5, y: y - 4 },
-      { x: 11.5, y: y + 2 },
-      { x: 4.5, y: y + 4 },
-      { x: -1.5, y: y + 1 },
-    ];
-    g.fillStyle(c.mouth);
-    g.beginPath();
-    grin.forEach(({ x: px, y: py }, index) => {
-      if (index === 0) g.moveTo(px, py);
-      else g.lineTo(px, py);
-    });
-    g.closePath();
-    g.fillPath();
-    // Sharp teeth hanging from above and sticking up from below
-    g.fillStyle(c.teeth);
-    for (const x of [-1, 2, 5, 8, 11]) {
-      const upper = x < 4 ? y - 2.2 + (x + 1) * 0.35 : y - 0.5 - (x - 4) * 0.35;
-      g.fillTriangle(x - 1.1, upper, x + 1.1, upper, x, upper + 2.6);
+    const path = (points: readonly { x: number; y: number }[]): void => {
+      g.beginPath();
+      points.forEach(({ x: px, y: py }, index) => {
+        if (index === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      });
+      g.closePath();
+      g.fillPath();
+    };
+    switch (kind) {
+      case 'grin': {
+        g.fillStyle(c.socket, 0.92);
+        g.fillEllipse(eye.back, eye.y + 0.5, 7.5, 9);
+        g.fillEllipse(eye.front, eye.y + 0.5, 7.5, 9);
+        g.fillStyle(c.streak, 0.85);
+        g.fillRoundedRect(eye.back - 0.8, eye.y + 3.5, 1.6, 8, 0.8);
+        g.fillRoundedRect(eye.front - 0.7, eye.y + 3.5, 1.4, 5.5, 0.7);
+        // The grin: its corners pulled up high, wider at the front of the face
+        g.fillStyle(c.mouth);
+        path([
+          { x: -3, y: y - 3 },
+          { x: 4, y: y - 0.5 },
+          { x: 13.5, y: y - 4 },
+          { x: 11.5, y: y + 2 },
+          { x: 4.5, y: y + 4 },
+          { x: -1.5, y: y + 1 },
+        ]);
+        // Sharp teeth hanging from above and sticking up from below
+        g.fillStyle(c.teeth);
+        for (const x of [-1, 2, 5, 8, 11]) {
+          const upper = x < 4 ? y - 2.2 + (x + 1) * 0.35 : y - 0.5 - (x - 4) * 0.35;
+          g.fillTriangle(x - 1.1, upper, x + 1.1, upper, x, upper + 2.6);
+        }
+        for (const x of [0.5, 3.5, 6.5, 9.5]) {
+          const lower = x < 4.5 ? y + 1.3 + x * 0.6 : y + 4 - (x - 4.5) * 0.4;
+          g.fillTriangle(x - 1, lower, x + 1, lower, x, lower - 2.4);
+        }
+        break;
+      }
+      case 'stitched': {
+        // A big black button sewn on for the back eye, a dark ring round the other one
+        g.fillStyle(c.button);
+        g.fillCircle(eye.back - 0.5, eye.y, 4);
+        g.lineStyle(1, c.thread);
+        g.lineBetween(eye.back - 2, eye.y - 1.5, eye.back + 1, eye.y + 1.5);
+        g.lineBetween(eye.back - 2, eye.y + 1.5, eye.back + 1, eye.y - 1.5);
+        g.fillStyle(c.socket, 0.9);
+        g.fillEllipse(eye.front, eye.y + 0.5, 6.5, 8);
+        // The mouth is sewn shut: a dark line with stitches across it
+        g.lineStyle(1.6, c.mouth);
+        g.lineBetween(-1, y, 12, y - 1);
+        g.lineStyle(1, c.thread);
+        for (const x of [0.5, 3.5, 6.5, 9.5]) g.lineBetween(x, y - 2.5, x + 0.8, y + 2);
+        // And a long scar of stitches up the side of the head
+        g.lineStyle(1.3, c.crack);
+        g.lineBetween(-10, head.y + 4, -3, top + 3);
+        g.lineStyle(1, c.thread);
+        for (const step of [0, 1, 2, 3]) {
+          const sx = -9.5 + step * 1.9;
+          const sy = head.y + 2 - step * 4.6;
+          g.lineBetween(sx - 1.6, sy - 0.8, sx + 1.6, sy + 0.8);
+        }
+        break;
+      }
+      case 'scream': {
+        // Hollow eyes pulled down at the sides, and a long open mouth screaming
+        g.fillStyle(c.socket, 0.95);
+        g.fillEllipse(eye.back - 0.3, eye.y + 1, 6, 9.5);
+        g.fillEllipse(eye.front + 0.3, eye.y + 1, 6, 9.5);
+        g.fillStyle(c.mouth);
+        g.fillEllipse(6, y + 1, 7.5, 12);
+        g.fillStyle(c.streak, 0.9);
+        g.fillEllipse(6, y + 3.5, 4, 5);
+        g.lineStyle(1, c.crack, 0.9);
+        g.lineBetween(-2, head.y + 1, -5, head.y + 7);
+        g.lineBetween(12.5, head.y + 2, 14, head.y + 6);
+        break;
+      }
+      case 'hollow': {
+        // Big empty holes for eyes, dark running down from them all the way to the chin
+        g.fillStyle(c.socket);
+        g.fillEllipse(eye.back - 0.4, eye.y + 0.5, 8, 10);
+        g.fillEllipse(eye.front + 0.4, eye.y + 0.5, 8, 10);
+        g.fillStyle(c.streak, 0.95);
+        for (const [x, length] of [
+          [eye.back - 1.5, 14],
+          [eye.back + 1, 9],
+          [eye.front - 1, 12],
+          [eye.front + 1.5, 16],
+        ] as const) {
+          g.fillRoundedRect(x - 0.8, eye.y + 4, 1.6, length, 0.8);
+          g.fillCircle(x, eye.y + 4 + length, 1.2);
+        }
+        break;
+      }
+      case 'smile': {
+        // A thin smile that goes on far too far, nearly round to the back of the head
+        g.lineStyle(1.6, c.mouth);
+        g.beginPath();
+        g.moveTo(-8, y - 6);
+        g.lineTo(-4, y - 1);
+        g.lineTo(3, y + 1.5);
+        g.lineTo(10, y + 0.5);
+        g.lineTo(14, y - 4);
+        g.strokePath();
+        g.lineStyle(0.8, c.mouth);
+        for (const x of [-2, 1, 4, 7, 10]) g.lineBetween(x, y - 1, x, y + 2.5);
+        break;
+      }
     }
-    for (const x of [0.5, 3.5, 6.5, 9.5]) {
-      const lower = x < 4.5 ? y + 1.3 + x * 0.6 : y + 4 - (x - 4.5) * 0.4;
-      g.fillTriangle(x - 1, lower, x + 1, lower, x, lower - 2.4);
-    }
-    // A crack down the top of the head
+    // Every one of them has a crack down the top of its head
     g.lineStyle(1.3, c.crack);
     g.beginPath();
     g.moveTo(-5, top + 1);
@@ -1468,18 +1579,48 @@ class Painter {
     return g;
   }
 
-  /** The red glow deep in its eyes, with a thin dark slit in the middle of each. */
-  horrorEyes(): Graphics {
+  /**
+   * What is alive in its eyes, which is gone once it is dead: a red glow with a dark
+   * slit, or tiny white or red points deep in the dark, or big white staring eyes.
+   */
+  horrorEyes(kind: HorrorFace): Graphics {
     const g = this.blank();
     const { eye } = SHAPE;
     const c = HORROR.face;
-    for (const x of [eye.back, eye.front]) {
+    const glowing = (x: number): void => {
       g.fillStyle(c.glow, c.glowAlpha);
       g.fillCircle(x, eye.y, 4);
       g.fillStyle(c.eye);
       g.fillCircle(x, eye.y, 1.9);
       g.fillStyle(c.slit);
       g.fillRect(x - 0.35, eye.y - 1.6, 0.7, 3.2);
+    };
+    switch (kind) {
+      case 'grin':
+        glowing(eye.back);
+        glowing(eye.front);
+        break;
+      case 'stitched':
+        glowing(eye.front);
+        break;
+      case 'scream':
+        g.fillStyle(c.pale);
+        g.fillCircle(eye.back - 0.3, eye.y + 1, 1);
+        g.fillCircle(eye.front + 0.3, eye.y + 1, 1);
+        break;
+      case 'hollow':
+        g.fillStyle(c.eye);
+        g.fillCircle(eye.back - 0.4, eye.y + 1, 0.9);
+        g.fillCircle(eye.front + 0.4, eye.y + 1, 0.9);
+        break;
+      case 'smile':
+        for (const x of [eye.back - 0.5, eye.front + 0.5]) {
+          g.fillStyle(c.white);
+          g.fillCircle(x, eye.y, 3.6);
+          g.fillStyle(c.pupil);
+          g.fillCircle(x + 0.8, eye.y + 0.2, 0.9);
+        }
+        break;
     }
     return g;
   }

@@ -1430,7 +1430,7 @@ export class Person extends Body {
     // Head down: turned right around its feet, which are on the ceiling
     this.place(this.x, top, Math.PI);
     // Turned around like that it would look the other way: flip it back
-    const big = this.figure.bulk;
+    const big = this.figure.bulk * (this.look.tall ?? 1);
     this.figure.container.setScale(-this.facing * this.figure.thinness * big, big);
     this.measureSpeed(deltaMs);
     this.bleed(deltaMs, world);
@@ -2192,6 +2192,10 @@ export class Person extends Body {
     const alive = kind === 'stand' && !this.machine ? breathing(plain, this.clockMs) : plain;
     const pose = this.look.stoop ? stooping(alive, this.look.stoop) : alive;
     const moving = kind === 'walk' || kind === 'run';
+    // With a flashlight it holds it out in front of it, to light the way
+    if (this.item?.def.shines && (moving || kind === 'stand')) {
+      return { ...pose, frontArm: -1.5, frontElbow: 0 };
+    }
     if (!this.look.armsForward || !moving) return pose;
     // A zombie shuffles along with both arms stretched out in front
     return { ...pose, frontArm: -1.5, backArm: -1.3, frontElbow: 0, backElbow: -0.1 };
@@ -2201,7 +2205,7 @@ export class Person extends Body {
     const { container } = this.figure;
     container.setPosition(x, y);
     // The mega power makes it bigger all over
-    const big = this.figure.bulk;
+    const big = this.figure.bulk * (this.look.tall ?? 1);
     container.setScale(this.facing * this.figure.thinness * big, big);
     container.rotation = rotation;
     // Lying flat on the ground, it is drawn behind the building pieces: it lies under them
