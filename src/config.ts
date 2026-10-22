@@ -284,6 +284,8 @@ export interface PersonLook {
   heavy?: boolean;
   /** It is drawn this many times taller and bigger than a usual doll. */
   tall?: number;
+  /** It is drawn this much narrower (below 1) than a usual doll: thin as a rake. */
+  slim?: number;
   /** A plain test doll: horror mode doesn't change it. It stays just as it is. */
   dummy?: boolean;
 }
@@ -473,9 +475,11 @@ export const GRANNY = {
  * walking stick in his hand. Hit him, and he flies into a rage too: his is lightning.
  */
 /**
- * The shadow monster, which only comes out in the dark of horror mode: tall, thin
- * and black as the night, with white glowing eyes and wisps of shadow coming off its
- * head. It is always angry, quick and strong.
+ * The shadow monster, which only comes out in the dark of horror mode: very tall and
+ * very thin, bent over, black as the night, its bones showing through (ribs, spine,
+ * the bones of its long limbs), a skull for a face with tiny white lights deep in the
+ * eye holes and a jaw of long teeth, long bony claws, and wisps of shadow coming off
+ * its head. It is always angry, quick and strong.
  */
 export const SHADOW_MONSTER = {
   body: 0x0d0b14,
@@ -487,7 +491,9 @@ export const SHADOW_MONSTER = {
   punch: 2,
   angry: true,
   blood: 0x2a1640,
-  tall: 1.4,
+  tall: 1.75,
+  slim: 0.6,
+  stoop: 0.22,
 } as const satisfies PersonLook;
 
 export const GRANDPA = {
@@ -677,7 +683,13 @@ export const EXTRA_COLORS = {
   bandages: { line: 0xa1937a, dark: 0x3e2f1c },
   apron: { cloth: 0xfafafa, shade: 0xb0bec5, glasses: 0x263238 },
   flatCap: { cloth: 0x6d6f73, dark: 0x3d3f43, light: 0x9a9da3 },
-  shadow: { wisp: 0x0d0b14, glow: 0xd8d0ff },
+  shadow: {
+    wisp: 0x0d0b14,
+    glow: 0xd8d0ff,
+    bone: 0x6e6680,
+    socket: 0x000000,
+    teeth: 0xbdb5c9,
+  },
 } as const;
 
 /** How the dolls are shaded to look round, like 3D toys. */

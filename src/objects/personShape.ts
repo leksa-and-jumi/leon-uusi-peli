@@ -1195,6 +1195,20 @@ class Painter {
         g.lineBetween(chest.x + 1.5, chest.y + from, chest.x + chest.width - 1.5, chest.y + to);
       }
     }
+    if (this.look.extra === 'shadow') {
+      // Ribs bending round the chest, a spine down the middle, and a hollow under them
+      const { bone, socket } = EXTRA_COLORS.shadow;
+      const middle = chest.x + chest.width / 2;
+      g.fillStyle(socket, 0.6);
+      g.fillEllipse(middle, chest.y + chest.height - 2, chest.width - 10, 7);
+      g.lineStyle(1.5, bone, 0.9);
+      g.lineBetween(middle, chest.y + 1, middle, chest.y + chest.height - 1);
+      for (const down of [4, 9, 14, 19]) {
+        const y = chest.y + down;
+        g.lineBetween(middle, y, chest.x + 3, y + 3);
+        g.lineBetween(middle, y, chest.x + chest.width - 3, y + 3);
+      }
+    }
     if (this.look.extra === 'apron') {
       // A white apron with a pocket, tied on with two straps
       const c = EXTRA_COLORS.apron;
@@ -1332,8 +1346,21 @@ class Painter {
 
     this.headgear(g, top, back);
     if (this.look.extra === 'shadow') {
+      // A skull for a face: a hole for a nose, hollow cheeks, and a long jaw of teeth
+      const { wisp, bone, socket, teeth } = EXTRA_COLORS.shadow;
+      g.fillStyle(socket);
+      g.fillTriangle(6.5, head.y + 2, 8.5, head.y + 2, 7.5, head.y - 1.5);
+      g.lineStyle(1.2, bone, 0.8);
+      g.lineBetween(-2, head.y + 3, 2, head.y + 6);
+      g.lineBetween(14, head.y + 2, 12, head.y + 6);
+      g.fillStyle(socket);
+      g.fillRoundedRect(-1, head.y + 6, 15, 8, 2.5);
+      g.fillStyle(teeth);
+      for (const x of [0, 2.5, 5, 7.5, 10, 12.5]) {
+        g.fillRect(x, head.y + 6.5, 1.5, 3.4);
+        g.fillRect(x + 0.3, head.y + 10, 1.3, 3.4);
+      }
       // Wisps of shadow rise off its head and drift back, like black smoke
-      const { wisp } = EXTRA_COLORS.shadow;
       for (const [x, up, lean, alpha] of [
         [-9, 10, -7, 0.85],
         [-3, 14, -5, 0.75],
@@ -1387,13 +1414,15 @@ class Painter {
     const g = this.blank();
     const { eye } = SHAPE;
     if (this.look.extra === 'shadow') {
-      // The shadow monster's eyes glow white, narrow and slanted
+      // The shadow monster's eyes are deep black holes, with a tiny white light far inside each
       const c = EXTRA_COLORS.shadow;
-      for (const x of [eye.back, eye.front]) {
-        g.fillStyle(c.glow, 0.3);
-        g.fillEllipse(x, eye.y, 8, 5);
+      for (const x of [eye.back - 0.5, eye.front + 0.5]) {
+        g.fillStyle(c.socket);
+        g.fillEllipse(x, eye.y + 0.5, 7.5, 9.5);
+        g.fillStyle(c.glow, 0.35);
+        g.fillCircle(x, eye.y + 1, 2.4);
         g.fillStyle(this.look.eye ?? c.glow);
-        g.fillEllipse(x, eye.y, 4.6, 2.2);
+        g.fillCircle(x, eye.y + 1, 1.1);
       }
       return g;
     }
@@ -1625,16 +1654,18 @@ class Painter {
     return g;
   }
 
-  /** Three long, curved claws growing out of a hand. */
+  /** Three long, curved claws growing out of a hand. The shadow monster's are long bony fingers. */
   claws(): Graphics {
     const g = this.blank();
     const c = HORROR.face;
     const handY = SHAPE.forearm.length + 2;
+    const long = this.look.extra === 'shadow' ? 2 : 1;
     for (const dx of [-3.5, 0, 3.5]) {
+      const tip = handY + 3 + 9 * long;
       g.fillStyle(c.claw);
-      g.fillTriangle(dx - 1.3, handY + 3, dx + 1.3, handY + 3, dx + 2.5, handY + 12);
-      g.fillStyle(c.clawTip);
-      g.fillTriangle(dx + 0.9, handY + 9, dx + 2, handY + 9, dx + 2.5, handY + 12);
+      g.fillTriangle(dx - 1.3, handY + 3, dx + 1.3, handY + 3, dx + 2.5 * long, tip);
+      g.fillStyle(long > 1 ? EXTRA_COLORS.shadow.bone : c.clawTip);
+      g.fillTriangle(dx + 0.9 * long, tip - 3, dx + 2 * long, tip - 3, dx + 2.5 * long, tip);
     }
     return g;
   }
@@ -1682,6 +1713,17 @@ class Painter {
   /** A round tube hanging down from (0, 0): dark rim, body color, bright stripe. */
   private tube(g: Graphics, width: number, length: number, color?: number): void {
     this.block(g, -width / 2, -2, width, length + 4, width / 2, color);
+    if (this.look.extra === 'shadow') {
+      // The shadow monster's bones show through: a long bone down the middle, knobbly at the ends
+      const { bone } = EXTRA_COLORS.shadow;
+      g.lineStyle(1.6, bone, 0.85);
+      g.lineBetween(0, 1, 0, length);
+      g.fillStyle(bone, 0.85);
+      g.fillCircle(-1, 1.5, 1.6);
+      g.fillCircle(1, 1.5, 1.6);
+      g.fillCircle(-1, length - 0.5, 1.6);
+      g.fillCircle(1, length - 0.5, 1.6);
+    }
   }
 
   /** A color with the dark rim and the bright stripe that go with it. */

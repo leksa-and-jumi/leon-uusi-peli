@@ -1445,7 +1445,8 @@ export class Person extends Body {
     this.place(this.x, top, Math.PI);
     // Turned around like that it would look the other way: flip it back
     const big = this.figure.bulk * (this.look.tall ?? 1);
-    this.figure.container.setScale(-this.facing * this.figure.thinness * big, big);
+    const slim = this.look.slim ?? 1;
+    this.figure.container.setScale(-this.facing * this.figure.thinness * big * slim, big);
     this.measureSpeed(deltaMs);
     this.bleed(deltaMs, world);
     return true;
@@ -2220,7 +2221,8 @@ export class Person extends Body {
     container.setPosition(x, y);
     // The mega power makes it bigger all over
     const big = this.figure.bulk * (this.look.tall ?? 1);
-    container.setScale(this.facing * this.figure.thinness * big, big);
+    const slim = this.look.slim ?? 1;
+    container.setScale(this.facing * this.figure.thinness * big * slim, big);
     container.rotation = rotation;
     // Lying flat on the ground, it is drawn behind the building pieces: it lies under them
     const flat = this.isDown && Math.abs(Math.sin(rotation)) > 0.7;
