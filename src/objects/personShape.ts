@@ -11,6 +11,7 @@ import {
   CHARRED,
   DOLL,
   EXTRA_COLORS,
+  HORROR,
   ICE,
   PERSON,
   SOOT,
@@ -121,6 +122,16 @@ export class PersonFigure {
   /** The pale crosses it has for eyes once a laser has turned it to ash. */
   private readonly ashEyes: Graphics;
   private readonly brows: Graphics;
+  /**
+   * Horror mode: a creepy face over its own (dark eyes, a grin full of teeth, a crack),
+   * a red glow in the eyes while it is alive, and claws on both hands.
+   */
+  private readonly horrorFace: Graphics;
+  private readonly horrorEyes: Graphics;
+  private readonly claws: Graphics[];
+  private horror = false;
+  private angry = false;
+  private lifeless = false;
   /** The wound marks on its chest: one more for every time it is hurt. */
   private readonly wounds: Graphics;
   /**
@@ -190,10 +201,21 @@ export class PersonFigure {
     this.ashEyes = paint.deadEyes(ASHEN.eye).setVisible(false);
     this.lids = paint.lids(this.skin).setVisible(false);
     this.brows = paint.angryBrows().setVisible(false);
+    this.horrorFace = paint.horrorFace().setVisible(false);
+    this.horrorEyes = paint.horrorEyes().setVisible(false);
 
     // The parts are drawn where they are on a standing doll, so each bending part
     // is moved back by the spot it bends around
-    const face = [paint.head(), this.eyes, this.lids, this.deadEyes, this.ashEyes, this.brows];
+    const face = [
+      paint.head(),
+      this.eyes,
+      this.lids,
+      this.deadEyes,
+      this.ashEyes,
+      this.brows,
+      this.horrorFace,
+      this.horrorEyes,
+    ];
     face.forEach((part) => part.setPosition(0, -neck.y));
     this.headPart = scene.make.container({ x: 0, y: neck.y - waist.y }, false).add(face);
     this.upperBody = scene.make
@@ -212,6 +234,11 @@ export class PersonFigure {
       paint.hips(),
       this.upperBody,
     ]);
+    this.claws = [this.frontArm, this.backArm].map(({ lower }) => {
+      const claw = paint.claws().setVisible(false);
+      lower.add(claw);
+      return claw;
+    });
     this.toBones = paint.toBones;
     this.toSoot = paint.toSoot;
     this.solidShapes = paint.solidShapes;
@@ -233,6 +260,7 @@ export class PersonFigure {
     this.eyes.setVisible(false);
     this.deadEyes.setVisible(false);
     this.brows.setVisible(false);
+    this.showFace();
   }
 
   /**
@@ -247,6 +275,7 @@ export class PersonFigure {
     });
     this.eyes.setVisible(false);
     this.brows.setVisible(false);
+    this.showFace();
   }
 
   /**
@@ -265,6 +294,7 @@ export class PersonFigure {
     this.deadEyes.setVisible(false);
     this.brows.setVisible(false);
     this.ashEyes.setVisible(!this.faceless);
+    this.showFace();
   }
 
   /**
@@ -737,15 +767,41 @@ export class PersonFigure {
 
   /** Angry eyebrows on or off. */
   setAngry(angry: boolean): void {
-    this.brows.setVisible(angry && !this.faceless && !this.charred && !this.ashen);
+    this.angry = angry;
+    this.showFace();
   }
 
   /** A doll with no lives left gets crosses for eyes. */
   setDead(dead: boolean): void {
     if (this.charred || this.ashen) return;
-    this.eyes.setVisible(!dead && !this.faceless);
-    this.deadEyes.setVisible(dead && !this.faceless);
-    if (dead) this.brows.setVisible(false);
+    this.lifeless = dead;
+    this.showFace();
+  }
+
+  /** Horror mode on or off: the creepy face and the claws, or its own face again. */
+  setHorror(on: boolean): void {
+    if (this.horror === on) return;
+    this.horror = on;
+    this.showFace();
+  }
+
+  /**
+   * Show the face it has now: its own eyes (crosses once it is dead, angry brows while
+   * it is angry), or in horror mode the creepy face, with the red glow in its eyes
+   * only while it is alive. Burnt, singed or ash, it keeps the face that gave it.
+   */
+  private showFace(): void {
+    const spoilt = this.charred || this.ashen || this.singed;
+    const spooky = this.horror && !spoilt;
+    this.horrorFace.setVisible(spooky && !this.faceless);
+    this.horrorEyes.setVisible(spooky && !this.lifeless);
+    this.claws.forEach((claw) => claw.setVisible(spooky));
+    if (spoilt) return;
+    const own = !this.faceless && !this.horror;
+    this.eyes.setVisible(own && !this.lifeless);
+    this.deadEyes.setVisible(own && this.lifeless);
+    this.brows.setVisible(own && this.angry && !this.lifeless);
+    if (!this.eyes.visible) this.lids.setVisible(false);
   }
 
   /**
@@ -770,6 +826,16 @@ export class PersonFigure {
     };
 
     switch (kind) {
+      case 'claw':
+        // Three long scratches side by side, raked across the chest
+        for (const dy of [-5, 0, 5]) {
+          g.lineStyle(2.6, dark);
+          g.lineBetween(x - 7, y + dy - 4, x + 7, y + dy + 3);
+          g.lineStyle(1.2, blood);
+          g.lineBetween(x - 6, y + dy - 3.5, x + 6, y + dy + 2.5);
+        }
+        trickle(x - 2, y + 3, 4 + random() * 6);
+        break;
       case 'bruise':
         // A blotch that is dark in the middle and sickly at the edge
         g.fillStyle(marks.bruiseEdge, 0.45);
@@ -1344,6 +1410,91 @@ class Painter {
     g.lineStyle(2.5, PERSON.face.angryBrow);
     g.lineBetween(eye.back - 4, eye.y - 7, eye.back + 3, eye.y - 3);
     g.lineBetween(eye.front + 4, eye.y - 7, eye.front - 3, eye.y - 3);
+    return g;
+  }
+
+  /**
+   * The face it has in horror mode, drawn over its own: deep dark rings for eyes with
+   * dark streaks running down from them, a wide crooked grin full of sharp teeth from
+   * cheek to cheek, and a crack running down the top of its head.
+   */
+  horrorFace(): Graphics {
+    const g = this.blank();
+    const { head, eye } = SHAPE;
+    const c = HORROR.face;
+    const top = head.y - head.radius;
+    g.fillStyle(c.socket, 0.92);
+    g.fillEllipse(eye.back, eye.y + 0.5, 7.5, 9);
+    g.fillEllipse(eye.front, eye.y + 0.5, 7.5, 9);
+    g.fillStyle(c.streak, 0.85);
+    g.fillRoundedRect(eye.back - 0.8, eye.y + 3.5, 1.6, 8, 0.8);
+    g.fillRoundedRect(eye.front - 0.7, eye.y + 3.5, 1.4, 5.5, 0.7);
+    // The grin: its corners pulled up high, wider at the front of the face
+    const y = head.y + 8;
+    const grin = [
+      { x: -3, y: y - 3 },
+      { x: 4, y: y - 0.5 },
+      { x: 13.5, y: y - 4 },
+      { x: 11.5, y: y + 2 },
+      { x: 4.5, y: y + 4 },
+      { x: -1.5, y: y + 1 },
+    ];
+    g.fillStyle(c.mouth);
+    g.beginPath();
+    grin.forEach(({ x: px, y: py }, index) => {
+      if (index === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    });
+    g.closePath();
+    g.fillPath();
+    // Sharp teeth hanging from above and sticking up from below
+    g.fillStyle(c.teeth);
+    for (const x of [-1, 2, 5, 8, 11]) {
+      const upper = x < 4 ? y - 2.2 + (x + 1) * 0.35 : y - 0.5 - (x - 4) * 0.35;
+      g.fillTriangle(x - 1.1, upper, x + 1.1, upper, x, upper + 2.6);
+    }
+    for (const x of [0.5, 3.5, 6.5, 9.5]) {
+      const lower = x < 4.5 ? y + 1.3 + x * 0.6 : y + 4 - (x - 4.5) * 0.4;
+      g.fillTriangle(x - 1, lower, x + 1, lower, x, lower - 2.4);
+    }
+    // A crack down the top of the head
+    g.lineStyle(1.3, c.crack);
+    g.beginPath();
+    g.moveTo(-5, top + 1);
+    g.lineTo(-2, top + 5);
+    g.lineTo(-4.5, top + 8);
+    g.lineTo(-1, top + 12);
+    g.strokePath();
+    return g;
+  }
+
+  /** The red glow deep in its eyes, with a thin dark slit in the middle of each. */
+  horrorEyes(): Graphics {
+    const g = this.blank();
+    const { eye } = SHAPE;
+    const c = HORROR.face;
+    for (const x of [eye.back, eye.front]) {
+      g.fillStyle(c.glow, c.glowAlpha);
+      g.fillCircle(x, eye.y, 4);
+      g.fillStyle(c.eye);
+      g.fillCircle(x, eye.y, 1.9);
+      g.fillStyle(c.slit);
+      g.fillRect(x - 0.35, eye.y - 1.6, 0.7, 3.2);
+    }
+    return g;
+  }
+
+  /** Three long, curved claws growing out of a hand. */
+  claws(): Graphics {
+    const g = this.blank();
+    const c = HORROR.face;
+    const handY = SHAPE.forearm.length + 2;
+    for (const dx of [-3.5, 0, 3.5]) {
+      g.fillStyle(c.claw);
+      g.fillTriangle(dx - 1.3, handY + 3, dx + 1.3, handY + 3, dx + 2.5, handY + 12);
+      g.fillStyle(c.clawTip);
+      g.fillTriangle(dx + 0.9, handY + 9, dx + 2, handY + 9, dx + 2.5, handY + 12);
+    }
     return g;
   }
 

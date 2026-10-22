@@ -113,6 +113,12 @@ export interface World {
   note: (pitch: number) => void;
   /** A puff of smoke rises from this spot. */
   smoke: (x: number, y: number) => void;
+  /** Horror mode is on: the dolls look creepy, are always angry, leap and claw. */
+  horror: boolean;
+  /** A doll leaps at somebody in horror mode: it shrieks. */
+  screech: (x: number, y: number) => void;
+  /** Claws hit a doll here, going this way: three deep scratches in the wall behind it. */
+  claw: (x: number, y: number, direction: Facing) => void;
   /** A little spark flies off something at this spot. */
   spark: (x: number, y: number) => void;
   /** Lightning (`spark`) or a laser flashes from one spot to another, with its sound. It hurts nobody. */

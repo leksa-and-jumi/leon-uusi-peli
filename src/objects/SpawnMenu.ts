@@ -77,6 +77,7 @@ export class SpawnMenu {
   private tab: TabId = 'people';
   private selectedIndex = FIRST_THING;
   private duelOn = false;
+  private horrorOn = false;
   private unlocked = 0;
 
   constructor(scene: Phaser.Scene) {
@@ -107,6 +108,15 @@ export class SpawnMenu {
     const duel = slotRect(MENU.duel, 0);
     scene.add
       .text(duel.x + duel.width / 2, duel.y + duel.height / 2, MENU.duelEmoji, {
+        fontSize: MENU.duelFontSize,
+      })
+      .setOrigin(0.5)
+      .setResolution(SHARP)
+      .setDepth(MENU.depth + 1);
+
+    const horror = slotRect(MENU.horror, 0);
+    scene.add
+      .text(horror.x + horror.width / 2, horror.y + horror.height / 2, MENU.horrorEmoji, {
         fontSize: MENU.duelFontSize,
       })
       .setOrigin(0.5)
@@ -159,9 +169,10 @@ export class SpawnMenu {
    * A click on the menu: switch the page, or pick the thing in the slot under it.
    * Says `'clear'`, `'sound'` or `'full'` when one of those buttons was pressed.
    */
-  click(px: number, py: number): 'clear' | 'sound' | 'full' | 'duel' | null {
+  click(px: number, py: number): 'clear' | 'sound' | 'full' | 'duel' | 'horror' | null {
     if (slotAt(MENU.clear, 1, px, py) !== null) return 'clear';
     if (slotAt(MENU.duel, 1, px, py) !== null) return 'duel';
+    if (slotAt(MENU.horror, 1, px, py) !== null) return 'horror';
     if (slotAt(MENU.sound, 1, px, py) !== null) return 'sound';
     if (this.canGoFull && slotAt(MENU.full, 1, px, py) !== null) return 'full';
 
@@ -208,6 +219,13 @@ export class SpawnMenu {
     this.showPage();
   }
 
+  /** Light the horror button red while horror mode is on. */
+  showHorror(on: boolean): void {
+    if (this.horrorOn === on) return;
+    this.horrorOn = on;
+    this.showPage();
+  }
+
   /** The slots of the open page: narrower than usual when the page holds many things. */
   private row(): SlotRow {
     return fitRow(MENU.slots, this.choices().length, MENU.slotsEnd);
@@ -237,6 +255,9 @@ export class SpawnMenu {
     const duel = slotRect(MENU.duel, 0);
     panel.fillStyle(this.duelOn ? MENU.duelOnColor : MENU.duelColor);
     panel.fillRoundedRect(duel.x, duel.y, duel.width, duel.height, MENU.slotRadius);
+    const horror = slotRect(MENU.horror, 0);
+    panel.fillStyle(this.horrorOn ? MENU.horrorOnColor : MENU.horrorColor);
+    panel.fillRoundedRect(horror.x, horror.y, horror.width, horror.height, MENU.slotRadius);
     const buttons = this.canGoFull ? [MENU.sound, MENU.full] : [MENU.sound];
     for (const button of buttons.map((row) => slotRect(row, 0))) {
       panel.fillStyle(MENU.soundColor);
