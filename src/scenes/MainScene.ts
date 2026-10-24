@@ -31,6 +31,7 @@ import {
   HINT,
   HORROR,
   SHADOW_MONSTER,
+  UNICORN,
   HIT_FX,
   ITEMS,
   LASER,
@@ -233,6 +234,15 @@ export class MainScene extends Phaser.Scene {
   private risen = new Set<Person>();
   private flown = new Set<Block>();
   private screamedAt = new Map<Person, number>();
+  /**
+   * Every unicorn: the rainbow behind it (spots it has flown through, and how long
+   * ago), and the time until it throws up next. The rainbows are drawn on their own layer.
+   */
+  private rides = new Map<
+    Block,
+    { trail: { x: number; y: number; ms: number }[]; pukeMs: number }
+  >();
+  private rainbowLayer!: Phaser.GameObjects.Graphics;
   /** The light of the flashlights, drawn again every frame. */
   private lightLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
@@ -575,6 +585,8 @@ export class MainScene extends Phaser.Scene {
         .setDepth(index === 0 ? DEPTH.shadow - 0.5 : DEPTH.floorCover + 0.7)
         .setVisible(false),
     );
+    this.rainbowLayer = this.add.graphics().setDepth(DEPTH.block - 0.5);
+    this.rides = new Map();
     this.lightLayer = this.add
       .graphics()
       .setDepth(DEPTH.item + 1)
@@ -693,6 +705,7 @@ export class MainScene extends Phaser.Scene {
     this.pound(delta);
     this.trackDrag();
     this.forget(this.everything().filter((body) => body.gone));
+    this.rideUnicorns(delta);
     this.drawShadows();
     this.markPlayers();
     this.bubbles.update(delta, AREA);
@@ -1960,6 +1973,12 @@ export class MainScene extends Phaser.Scene {
       bullet.y += bullet.aim.y * step;
       bullet.flown += step;
       bullet.picture.setPosition(bullet.x, bullet.y);
+      if (bullet.gun.look?.rainbow) {
+        // A rainbow laser goes through every color of the rainbow as it flies
+        const { rainbow, laserColorMs } = UNICORN;
+        const turn = Math.floor(this.time.now / laserColorMs + bullet.flown / 40);
+        bullet.picture.setFillStyle(rainbow[turn % rainbow.length] ?? bullet.gun.look.color);
+      }
       const { flame } = bullet.gun;
       if (flame) {
         // Fire: the puff swells, goes from nearly white to yellow, orange, red and dark,
@@ -2987,6 +3006,62 @@ export class MainScene extends Phaser.Scene {
     while (this.people.length > PERSON.max) {
       this.forgetOldest(this.people.filter((person) => person !== monster));
     }
+  }
+
+  /**
+   * A unicorn with a doll on its back leaves a rainbow behind it as it flies, a stripe
+   * of each color that fades away, and every so often it throws up a rainbow.
+   */
+  private rideUnicorns(delta: number): void {
+    const g = this.rainbowLayer.clear();
+    const { trail, rainbow } = UNICORN;
+    for (const unicorn of this.rides.keys()) {
+      if (!this.blocks.includes(unicorn)) this.rides.delete(unicorn);
+    }
+    for (const unicorn of this.blocks) {
+      const drive = unicorn.def.drive;
+      const magic = drive?.rainbow;
+      if (!drive || !magic) continue;
+      const ride = this.rides.get(unicorn) ?? {
+        trail: [],
+        pukeMs: this.someTime(magic.pukeEveryMs),
+      };
+      this.rides.set(unicorn, ride);
+      for (const spot of ride.trail) spot.ms += delta;
+      ride.trail = ride.trail.filter((spot) => spot.ms < trail.ms);
+      if (unicorn.isOn('drive')) {
+        const way = unicorn.pointing;
+        ride.trail.push({
+          x: unicorn.feet.x + way * trail.from.x * drive.scale,
+          y: unicorn.feet.y - trail.from.up * drive.scale,
+          ms: 0,
+        });
+        ride.pukeMs -= delta;
+        if (ride.pukeMs <= 0) {
+          ride.pukeMs = this.someTime(magic.pukeEveryMs);
+          this.puke(
+            unicorn.feet.x + way * magic.mouth.x * drive.scale,
+            unicorn.feet.y - magic.mouth.up * drive.scale,
+          );
+        }
+      }
+      ride.trail.forEach((spot, index) => {
+        const before = ride.trail[index - 1];
+        if (!before) return;
+        const alpha = trail.alpha * (1 - spot.ms / trail.ms);
+        rainbow.forEach((color, stripe) => {
+          const down = (stripe - (rainbow.length - 1) / 2) * trail.stripe;
+          g.lineStyle(trail.stripe + 0.6, color, alpha);
+          g.lineBetween(before.x, before.y + down, spot.x, spot.y + down);
+        });
+      });
+    }
+  }
+
+  /** A unicorn throws up a rainbow: drops of every color spray out of its mouth and land as puddles. */
+  private puke(x: number, y: number): void {
+    for (const color of UNICORN.rainbow) this.world.bleed(x, y, UNICORN.puke.drops, color, true);
+    this.sfx.gulp();
   }
 
   /** How long until the next one, somewhere between these. */
