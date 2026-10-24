@@ -1443,7 +1443,16 @@ export type JunkBlockKind =
   | 'candle';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind =
-  'car' | 'truck' | 'tank' | 'bike' | 'skateboard' | 'helicopter' | 'plane' | 'saucer' | 'ship';
+  | 'car'
+  | 'truck'
+  | 'tank'
+  | 'bike'
+  | 'skateboard'
+  | 'helicopter'
+  | 'plane'
+  | 'saucer'
+  | 'ship'
+  | 'unicorn';
 /** Things that are alive in their own way and go after the dolls. */
 export type MonsterKind =
   | 'skibidi'
@@ -1620,11 +1629,31 @@ export interface DriveDef {
   /** A ship: it only moves while it floats in water. */
   sails?: boolean;
   /**
+   * A unicorn: while it is ridden it leaves a rainbow behind it, and every so often
+   * it throws up a rainbow out of its `mouth` (a spot on the drawing).
+   */
+  rainbow?: { mouth: { x: number; up: number }; pukeEveryMs: { min: number; max: number } };
+  /**
    * A cannon: while the vehicle is switched on it fires at the closest doll in front
    * of it, from this spot on the drawing. It doesn't fire at anything closer than `tooClose`.
    */
   cannon?: { x: number; up: number; tooClose: number; gun: GunDef };
 }
+
+/** A unicorn's colors: its mane and tail, and the rainbow it leaves, shoots and throws up. */
+export const UNICORN = {
+  mane: [0xff80ab, 0xce93d8, 0x81d4fa, 0xa5d6a7, 0xfff59d],
+  eye: 0x3b2a4d,
+  blush: 0xffb3c8,
+  hoof: 0xffd54f,
+  rainbow: [0xff5252, 0xffab40, 0xffeb3b, 0x69f0ae, 0x40c4ff, 0xb388ff],
+  /** The rainbow behind it: stripes this thick, fading away in `ms`. */
+  trail: { stripe: 3.2, ms: 900, alpha: 0.85, from: { x: -26, up: 34 } },
+  /** A rainbow laser changes color this often as it flies. */
+  laserColorMs: 50,
+  /** What comes up: this many drops of each color, sprayed out of its mouth. */
+  puke: { drops: 7 },
+} as const;
 
 /** The head of a skibidi fridge. */
 export const SKIBIDI = {
@@ -2371,6 +2400,40 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
       },
     },
   },
+  // A unicorn to ride: with a doll on its back it flies, leaves a rainbow behind it,
+  // shoots rainbow lasers out of its horn and now and then throws up a rainbow
+  unicorn: {
+    halfWidth: 70,
+    height: 116,
+    menuScale: 0.85,
+    colors: { fill: 0xffffff, dark: 0x8e7fa6, light: 0xfff6ff, detail: 0xffd54f },
+    drive: {
+      speed: 300,
+      damage: 0,
+      pushSpeed: 320,
+      scale: 2,
+      wheels: { xs: [], up: 0, radius: 0 },
+      seat: { x: -3, up: 38, inFront: true },
+      flies: { below: 70, climb: 200, sink: 0.3 },
+      cannon: {
+        x: 34,
+        up: 57,
+        tooClose: 20,
+        gun: {
+          range: 620,
+          damage: 1,
+          everyMs: 1100,
+          autoMs: 1100,
+          bulletSpeed: 1300,
+          muzzle: { x: 0, y: 0 },
+          barrelUp: 0,
+          look: { width: 46, height: 6, color: 0xff5252, rainbow: true },
+          wound: 'bruise',
+        },
+      },
+      rainbow: { mouth: { x: 37, up: 40 }, pukeEveryMs: { min: 4000, max: 8000 } },
+    },
+  },
   // A flying saucer to ride in: it takes off with a pilot in it, like the helicopter
   saucer: {
     melts: true,
@@ -2965,7 +3028,7 @@ export interface GunDef {
     burst?: { ms: number; restMs: number };
   };
   /** Its bullets look different from the usual ones: an arrow, a red ray of light... */
-  look?: { width: number; height: number; color: number };
+  look?: { width: number; height: number; color: number; rainbow?: boolean };
   /** The mark its bullets leave, when not a bullet hole. */
   wound?: WoundKind;
   /** A freeze ray: its bullets are puffs of frost that freeze a doll solid for `ms`. */
@@ -4183,6 +4246,7 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'plane',
   'saucer',
   'ship',
+  'unicorn',
 ];
 /** The gear page. */
 /** The weapons that can fall from the sky in a two-player battle. */

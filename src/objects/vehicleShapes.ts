@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLOCKS, ROTOR, WHEEL, type BlockDef, type VehicleKind } from '../config';
+import { BLOCKS, ROTOR, UNICORN, WHEEL, type BlockDef, type VehicleKind } from '../config';
 import { shade } from '../logic/color';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -32,6 +32,8 @@ export function drawVehicle(g: Graphics, kind: VehicleKind): Graphics {
       return drawSaucer(g, def);
     case 'ship':
       return drawShip(g, def);
+    case 'unicorn':
+      return drawUnicorn(g, def);
   }
 }
 
@@ -560,6 +562,93 @@ function drawSaucer(g: Graphics, def: BlockDef): Graphics {
   for (const x of [-34, -17, 0, 17, 34]) {
     g.fillCircle(x, -9.5 - Math.abs(x) / 17, 2.5);
   }
+  return g;
+}
+
+/**
+ * A unicorn galloping to the right: a white body, legs stretched out with golden
+ * hooves, a mane and a tail in soft rainbow colors, a long lashed eye, a pink cheek,
+ * and a golden horn with a spiral on it.
+ */
+function drawUnicorn(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const u = UNICORN;
+  const leg = (fromX: number, toX: number, color: number): void => {
+    g.lineStyle(6.4, dark);
+    g.lineBetween(fromX, -24, toX, -2);
+    g.lineStyle(4.4, color);
+    g.lineBetween(fromX, -24, toX, -2);
+    g.fillStyle(u.hoof);
+    g.fillRoundedRect(toX - 3, -3.5, 6, 3.5, 1);
+  };
+  // The tail, flowing out behind
+  u.mane.forEach((color, index) => {
+    g.fillStyle(color);
+    g.fillEllipse(-26 - index * 1.6, -30 + index * 3.4, 9, 7);
+  });
+  // The far legs, a little darker
+  leg(-14, -24, shade(fill, -0.1));
+  leg(14, 24, shade(fill, -0.1));
+  // The body
+  g.fillStyle(dark);
+  g.fillEllipse(0, -30, 51, 23);
+  g.fillStyle(fill);
+  g.fillEllipse(0, -30, 48, 20);
+  g.fillStyle(light, 0.9);
+  g.fillEllipse(-4, -35, 30, 6);
+  // The near legs
+  leg(-18, -12, fill);
+  leg(17, 12, fill);
+  // The neck and the head
+  shape(g, fill, dark, [
+    [11, -37],
+    [18, -47],
+    [26, -48],
+    [24, -30],
+  ]);
+  g.fillStyle(dark);
+  g.fillEllipse(28, -44, 18, 12);
+  g.fillStyle(fill);
+  g.fillEllipse(28, -44, 16, 10);
+  g.fillStyle(dark);
+  g.fillEllipse(34, -41, 10, 8);
+  g.fillStyle(fill);
+  g.fillEllipse(34, -41, 8.5, 6.5);
+  g.fillStyle(dark);
+  g.fillCircle(36.5, -41.5, 0.9);
+  // The ear
+  shape(g, fill, dark, [
+    [21, -48],
+    [24, -49],
+    [21.5, -54],
+  ]);
+  // The horn, golden with a spiral
+  shape(g, detail, shade(detail, -0.35), [
+    [24.5, -48.5],
+    [29, -48],
+    [34, -57.5],
+  ]);
+  g.lineStyle(1, shade(detail, -0.3));
+  for (const step of [0, 1, 2]) {
+    const y = -49.5 - step * 2.6;
+    const x = 26 + step * 1.5;
+    g.lineBetween(x, y, x + 3.2 - step * 0.6, y - 1.4);
+  }
+  // A big eye with lashes, and a pink cheek
+  g.fillStyle(u.eye);
+  g.fillEllipse(28, -45, 3.2, 4);
+  g.fillStyle(0xffffff);
+  g.fillCircle(28.6, -46, 0.8);
+  g.lineStyle(0.9, u.eye);
+  g.lineBetween(27, -47, 26, -48.5);
+  g.lineBetween(28.5, -47.2, 28.3, -49);
+  g.fillStyle(u.blush, 0.8);
+  g.fillEllipse(31, -41.5, 4, 2.4);
+  // The mane, down the back of the neck
+  u.mane.forEach((color, index) => {
+    g.fillStyle(color);
+    g.fillCircle(19 - index * 1.4, -50 + index * 3.6, 3.6);
+  });
   return g;
 }
 
