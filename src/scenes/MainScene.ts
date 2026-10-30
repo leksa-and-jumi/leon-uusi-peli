@@ -254,6 +254,8 @@ export class MainScene extends Phaser.Scene {
    */
   private players: (Person | null)[] = [null, null];
   private playerMarks: Phaser.GameObjects.Text[] = [];
+  /** The hearts over every enemy: the fighters of a team game's waves, and the shadow monster. */
+  private enemyMarks = new Map<Person, Phaser.GameObjects.Text>();
   private duelKeys: Record<DuelKey, Phaser.Input.Keyboard.Key> | null = null;
   private duelHint: Phaser.GameObjects.Text | null = null;
   /**
@@ -633,6 +635,7 @@ export class MainScene extends Phaser.Scene {
     // The golden weapons won before on this device are in the menu from the start
     this.unlocked = loadGolden(GOLDEN_KINDS.length);
     this.menu.setUnlocked(this.unlocked);
+    this.enemyMarks = new Map();
     this.playerMarks = DUEL.colors.map((color, seat) =>
       this.add
         .text(0, 0, `${String(seat + 1)}\n▼`, {
@@ -710,6 +713,7 @@ export class MainScene extends Phaser.Scene {
     this.rideUnicorns(delta);
     this.drawShadows();
     this.markPlayers();
+    this.markEnemies();
     this.bubbles.update(delta, AREA);
   }
 
@@ -1438,6 +1442,41 @@ export class MainScene extends Phaser.Scene {
       const text = `${hearts}\n${String(seat + 1)}\n▼`;
       if (mark.text !== text) mark.setText(text);
     });
+  }
+
+  /**
+   * Over every enemy hang its lives as hearts, like over the players' dolls: the
+   * fighters of a team game's waves, and the shadow monster. Once it is out, they go.
+   */
+  private markEnemies(): void {
+    const { heart, mostHearts, enemy } = DUEL.mark;
+    const stalker = this.stalker.doll;
+    const enemies = this.people.filter(
+      (person) => !person.dead && (person.side === 'enemies' || person === stalker),
+    );
+    for (const [person, mark] of this.enemyMarks) {
+      if (enemies.includes(person)) continue;
+      mark.destroy();
+      this.enemyMarks.delete(person);
+    }
+    for (const person of enemies) {
+      let mark = this.enemyMarks.get(person);
+      if (!mark) {
+        mark = this.add
+          .text(0, 0, '', {
+            fontSize: enemy.fontSize,
+            stroke: DUEL.mark.stroke,
+            strokeThickness: DUEL.mark.strokeWidth,
+          })
+          .setOrigin(0.5, 1)
+          .setResolution(SHARP)
+          .setDepth(DUEL.hint.depth);
+        this.enemyMarks.set(person, mark);
+      }
+      mark.setPosition(person.feet.x, person.box.top - enemy.up);
+      const hearts = heartsFor(person.livesLeft, heart, mostHearts);
+      if (mark.text !== hearts) mark.setText(hearts);
+    }
   }
 
   /** Everything in the area, from the back to the front. */

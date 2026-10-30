@@ -763,6 +763,8 @@ export const DUEL = {
     strokeWidth: 4,
     heart: '❤️',
     mostHearts: 6,
+    /** Over an enemy only its hearts hang, a little smaller and lower. */
+    enemy: { fontSize: '14px', up: 8 },
   },
   /**
    * The two kinds of battle to pick from when the battle button is pressed: two big
