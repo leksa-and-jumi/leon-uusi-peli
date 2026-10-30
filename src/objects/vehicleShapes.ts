@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLOCKS, ROTOR, UNICORN, WHEEL, type BlockDef, type VehicleKind } from '../config';
+import { BLOCKS, CRAZY, ROTOR, UNICORN, WHEEL, type BlockDef, type VehicleKind } from '../config';
 import { shade } from '../logic/color';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -11,7 +11,7 @@ const OUTLINE = 1.6;
  * Draws a vehicle without its wheels, facing right. The middle of its bottom edge is
  * at (0, 0). The wheels are drawn separately, so that they can turn.
  */
-export function drawVehicle(g: Graphics, kind: VehicleKind): Graphics {
+export function drawVehicle(g: Graphics, kind: VehicleKind, crazy = false): Graphics {
   const def = BLOCKS[kind];
   switch (kind) {
     case 'car':
@@ -33,7 +33,7 @@ export function drawVehicle(g: Graphics, kind: VehicleKind): Graphics {
     case 'ship':
       return drawShip(g, def);
     case 'unicorn':
-      return drawUnicorn(g, def);
+      return crazy ? drawCrazyUnicorn(g, def) : drawUnicorn(g, def);
   }
 }
 
@@ -648,6 +648,87 @@ function drawUnicorn(g: Graphics, def: BlockDef): Graphics {
   u.mane.forEach((color, index) => {
     g.fillStyle(color);
     g.fillCircle(19 - index * 1.4, -50 + index * 3.6, 3.6);
+  });
+  return g;
+}
+
+/**
+ * A unicorn gone crazy: round as a ball on tiny stubby legs, its head right on its
+ * body, one huge eye and one little one looking different ways, a crooked horn, and
+ * its tongue hanging out of a big grin.
+ */
+function drawCrazyUnicorn(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const u = UNICORN;
+  const c = CRAZY.face;
+  const leg = (x: number, color: number): void => {
+    g.fillStyle(dark);
+    g.fillRoundedRect(x - 3.2, -11, 6.4, 9, 2);
+    g.fillStyle(color);
+    g.fillRoundedRect(x - 2.2, -10.5, 4.4, 8, 1.5);
+    g.fillStyle(u.hoof);
+    g.fillRoundedRect(x - 3.2, -3.5, 6.4, 3.5, 1);
+  };
+  // A big messy tuft of a tail
+  u.mane.forEach((color, index) => {
+    g.fillStyle(color);
+    g.fillEllipse(-32 - index * 1.8, -38 + index * 4.2, 12, 9);
+  });
+  leg(-18, shade(fill, -0.1));
+  leg(8, shade(fill, -0.1));
+  // A fat round body
+  g.fillStyle(dark);
+  g.fillEllipse(0, -32, 68, 46);
+  g.fillStyle(fill);
+  g.fillEllipse(0, -32, 65, 43);
+  g.fillStyle(light, 0.9);
+  g.fillEllipse(-8, -45, 34, 9);
+  leg(-10, fill);
+  leg(16, fill);
+  // The head, right on the body: no neck to speak of
+  g.fillStyle(dark);
+  g.fillEllipse(30, -52, 27, 23);
+  g.fillStyle(fill);
+  g.fillEllipse(30, -52, 25, 21);
+  g.fillStyle(dark);
+  g.fillEllipse(40, -45, 14, 12);
+  g.fillStyle(fill);
+  g.fillEllipse(40, -45, 12.5, 10.5);
+  shape(g, fill, dark, [
+    [21, -60],
+    [25, -61],
+    [20, -67],
+  ]);
+  // A crooked horn
+  shape(g, detail, shade(detail, -0.35), [
+    [26, -61],
+    [31.5, -61],
+    [37, -66],
+    [33, -73],
+  ]);
+  // A big grin with the tongue hanging out
+  g.fillStyle(c.mouth);
+  g.fillEllipse(39, -41, 13, 6);
+  g.fillStyle(c.white);
+  g.fillRect(34, -43.8, 9, 1.6);
+  g.fillStyle(c.tongue);
+  g.fillEllipse(42, -37, 5, 8);
+  // One huge eye and one little one, looking different ways
+  g.lineStyle(1, u.eye);
+  g.fillStyle(c.white);
+  g.fillCircle(27, -55, 6.2);
+  g.strokeCircle(27, -55, 6.2);
+  g.fillCircle(36, -57, 3.4);
+  g.strokeCircle(36, -57, 3.4);
+  g.fillStyle(u.eye);
+  g.fillCircle(24.8, -53, 2.5);
+  g.fillCircle(37.2, -58.4, 1.4);
+  g.fillStyle(u.blush, 0.8);
+  g.fillEllipse(33, -47.5, 5, 3);
+  // The mane, sticking out all over
+  u.mane.forEach((color, index) => {
+    g.fillStyle(color);
+    g.fillCircle(19 - index * 2.4, -60 + index * 4, 4.4);
   });
   return g;
 }

@@ -83,6 +83,9 @@ import type { World } from './World';
 export class Block extends Body {
   override readonly solid: boolean;
   readonly def: BlockDef;
+  /** Its own picture, which crazy mode draws again. */
+  private readonly drawing: Phaser.GameObjects.Graphics;
+  private crazy = false;
   private readonly usualActions: readonly ActionId[];
   readonly crumbs: readonly number[];
   private readonly display: Phaser.GameObjects.Container;
@@ -200,7 +203,8 @@ export class Block extends Body {
     this.crumbs = [fill, dark, light];
     const blank = (): Phaser.GameObjects.Graphics => scene.make.graphics({}, false);
     const { monster } = this.def;
-    const parts = [isVehicle(kind) ? drawVehicle(blank(), kind) : drawJunkOrPiece(blank(), kind)];
+    this.drawing = isVehicle(kind) ? drawVehicle(blank(), kind) : drawJunkOrPiece(blank(), kind);
+    const parts = [this.drawing];
     const { hazard } = this.def;
     if (hazard?.blade) {
       // The blade goes behind its box, so that only the top of it sticks out
@@ -319,6 +323,13 @@ export class Block extends Body {
     const { liquid, height } = this.def;
     if (!liquid || this.poolTarget === 0) return;
     this.poolTarget = deeper(this.poolTarget, height * POOL.more, POOL.most[liquid]);
+  }
+
+  /** Crazy mode on or off: a unicorn goes round and chubby, with tiny legs and a crazy face. */
+  goCrazy(on: boolean): void {
+    if (this.crazy === on || this.kind !== 'unicorn') return;
+    this.crazy = on;
+    drawVehicle(this.drawing.clear(), this.kind, on);
   }
 
   /** Does it go off with a blast when it is hit? */

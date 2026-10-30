@@ -10,6 +10,7 @@ import {
   BULLET,
   CEILING,
   CLEANER,
+  CRAZY,
   CHOMPER,
   COLORS,
   CRUSH,
@@ -253,6 +254,14 @@ export class MainScene extends Phaser.Scene {
   private perches = new Map<Block, { rainbow: Block; from: Spot; ms: number; poopMs: number }>();
   private poops: { x: number; y: number; vx: number; vy: number; colors: number[] }[] = [];
   private poopLayer!: Phaser.GameObjects.Graphics;
+  /**
+   * Crazy mode: whether it is on, the colored light over the room, how far round the
+   * rainbow that light has gone, and the dolls it has set dancing.
+   */
+  private crazy = false;
+  private crazyTint!: Phaser.GameObjects.Rectangle;
+  private crazyMs = 0;
+  private crazyDancers = new Set<Person>();
   /** The light of the flashlights, drawn again every frame. */
   private lightLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
@@ -599,6 +608,11 @@ export class MainScene extends Phaser.Scene {
     );
     this.rainbowLayer = this.add.graphics().setDepth(DEPTH.block - 0.5);
     this.poopLayer = this.add.graphics().setDepth(DEPTH.bullet);
+    this.crazyTint = this.add
+      .rectangle(0, MENU.height, GAME_WIDTH, AREA.floorY - MENU.height, 0xffffff, CRAZY.tint.alpha)
+      .setOrigin(0)
+      .setDepth(DEPTH.shadow - 0.4)
+      .setVisible(false);
     this.rides = new Map();
     this.lightLayer = this.add
       .graphics()
@@ -689,6 +703,7 @@ export class MainScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.world.people = this.people;
     this.haunt(delta);
+    this.craze(delta);
     this.steerPlayers(delta);
     // A piece that leans on something is a flight of steps: several boxes for one body
     this.solids = this.blocks
@@ -1633,6 +1648,7 @@ export class MainScene extends Phaser.Scene {
       }
       if (pressed === 'duel') this.toggleDuel();
       if (pressed === 'horror') this.setHorror(!this.horror);
+      if (pressed === 'crazy') this.setCrazy(!this.crazy);
       if (pressed === 'clear') {
         this.forget(this.everything());
         this.clearBullets();
@@ -3157,7 +3173,8 @@ export class MainScene extends Phaser.Scene {
         unicorn.tug(at.x - unicorn.feet.x, at.y - unicorn.feet.y, AREA);
         perch.poopMs -= delta;
         if (perch.poopMs > 0) return;
-        perch.poopMs = this.someTime(poop.everyMs);
+        // Gone crazy, it poops like a machine gun
+        perch.poopMs = this.someTime(this.crazy ? CRAZY.poopEveryMs : poop.everyMs);
         this.poop(unicorn);
       });
     }
@@ -3203,6 +3220,12 @@ export class MainScene extends Phaser.Scene {
         return inside && !person.dead;
       });
       const landed = poop.y >= AREA.floorY || poop.x < AREA.left || poop.x > AREA.right;
+      // In crazy mode, a poop on the head blows the doll up into glitter
+      const onHead = doll !== undefined && middle <= doll.hitBox.top + CRAZY.head;
+      if (doll && this.crazy && onHead && !doll.safe) {
+        this.glitter(doll);
+        return false;
+      }
       if (doll || landed) {
         if (doll?.shot(poop.vx < 0 ? -1 : 1, this.solidBoxes(doll), damage, 'laser')) {
           this.sfx.zap();
@@ -3228,6 +3251,81 @@ export class MainScene extends Phaser.Scene {
       g.fillStyle(shine, 0.8).fillCircle(x - size * 0.45, y - size * 1.1, size * 0.18);
       return true;
     });
+  }
+
+  /** A doll blows up into a cloud of poop glitter, and is gone. */
+  private glitter(doll: Person): void {
+    const box = doll.hitBox;
+    const { count, colors } = CRAZY.glitter;
+    const burst = { ...FIREWORK.burst, pushX: 0, pushY: FIREWORK.lift };
+    for (const crumb of scatter(box, count, burst)) {
+      const color = colors[Math.floor(Math.random() * colors.length)] ?? 0;
+      const picture = this.add
+        .rectangle(crumb.x, crumb.y, crumb.size, crumb.size, color)
+        .setAngle(45);
+      picture.setDepth(HIT_FX.depth);
+      const { lieMs, fadeMs } = FIREWORK;
+      this.pieces.push({ crumb, picture, blood: null, lieMs, fadeMs });
+    }
+    this.trimPieces();
+    const middleX = (box.left + box.right) / 2;
+    for (const color of colors) this.world.sparkle(middleX, (box.top + box.bottom) / 2, color);
+    this.sfx.blast();
+    this.forget([doll]);
+  }
+
+  /**
+   * Crazy mode on or off: the room starts changing color, every doll gets a crazy face
+   * and the unicorns go chubby. Or all back to normal.
+   */
+  private setCrazy(on: boolean): void {
+    this.crazy = on;
+    this.menu.showCrazy(on);
+    this.crazyTint.setVisible(on);
+    this.crazyMs = 0;
+    if (on) {
+      const { emoji, fontSize, ms, grow } = CRAZY.popUp;
+      this.popUp(
+        (AREA.left + AREA.right) / 2,
+        (AREA.top + AREA.floorY) / 2,
+        emoji,
+        fontSize,
+        ms,
+        grow,
+      );
+      this.sfx.boing();
+    }
+  }
+
+  /**
+   * Keep crazy mode going: the light over the room goes round the rainbow, and every
+   * doll and unicorn that isn't crazy yet (or still is, once it is off) changes. A doll
+   * just standing about starts to dance, and stops again when crazy mode is over.
+   */
+  private craze(delta: number): void {
+    if (this.crazy) {
+      this.crazyMs = (this.crazyMs + delta) % CRAZY.tint.ms;
+      const hue = this.crazyMs / CRAZY.tint.ms;
+      this.crazyTint.setFillStyle(
+        Phaser.Display.Color.HSVToRGB(hue, 0.8, 1).color,
+        CRAZY.tint.alpha,
+      );
+    }
+    for (const person of this.people) {
+      if (!person.goCrazy(this.crazy)) continue;
+      const player = this.players.includes(person);
+      if (this.crazy && !player && !person.safe && !person.dead && person.activity === 'idle') {
+        person.toggle('dance');
+        this.crazyDancers.add(person);
+      }
+    }
+    if (!this.crazy) {
+      for (const dancer of this.crazyDancers) {
+        if (this.people.includes(dancer) && dancer.activity === 'dance') dancer.toggle('dance');
+      }
+      this.crazyDancers.clear();
+    }
+    for (const block of this.blocks) block.goCrazy(this.crazy);
   }
 
   /** A unicorn throws up a rainbow: drops of every color spray out of its mouth and land as puddles. */
