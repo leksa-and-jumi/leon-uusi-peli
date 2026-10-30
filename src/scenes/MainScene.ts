@@ -124,7 +124,7 @@ const AREA: PlaceArea = {
 };
 
 /** The keys of a two-player battle: left, right, jump and hit for each player. */
-const DUEL_KEYS = ['A', 'D', 'W', 'F', 'G', 'LEFT', 'RIGHT', 'UP', 'ENTER', 'K'] as const;
+const DUEL_KEYS = ['A', 'D', 'W', 'F', 'G', 'SPACE', 'LEFT', 'RIGHT', 'UP', 'ENTER', 'K'] as const;
 
 /** The two kinds of battle: against each other, or together against enemies. */
 type BattleMode = 'versus' | 'team' | 'solo';
@@ -216,8 +216,6 @@ export class MainScene extends Phaser.Scene {
   private horrorAngered = new Set<Person>();
   private darkness: Phaser.GameObjects.Rectangle[] = [];
   private flicker = { waitMs: 0, ms: 0 };
-  /** Playing the team game alone, the mouse button is held down in the area: the doll attacks. */
-  private mouseHit = false;
   /** How long each creepy doll has been in the light: long enough, and it is normal again. */
   private litDolls = new Map<Person, number>();
   private stalker: { doll: Person | null; waitMs: number; litMs: number; deadMs: number } = {
@@ -654,13 +652,13 @@ export class MainScene extends Phaser.Scene {
     const keys = this.input.keyboard?.addKeys(DUEL_KEYS.join(','));
     this.duelKeys = keys ? (keys as Record<DuelKey, Phaser.Input.Keyboard.Key>) : null;
 
-    // The right mouse button is for the game, not for the browser's menu
+    // The right mouse button is for the game too, not for the browser's menu
     this.input.mouse?.disableContextMenu();
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.sfx.unlock();
       // A finger is thicker than a mouse pointer: things are easier to grab with it
       Body.pickPadding = pointer.wasTouch ? PICK_PADDING_TOUCH : PICK_PADDING;
-      this.press(pointer.x / SHARP, pointer.y / SHARP, pointer.rightButtonDown());
+      this.press(pointer.x / SHARP, pointer.y / SHARP);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.dragged?.dragTo(pointer.x / SHARP, pointer.y / SHARP, AREA);
@@ -1421,8 +1419,8 @@ export class MainScene extends Phaser.Scene {
         seat === 0
           ? [keys.A, keys.D, keys.W, keys.F]
           : [keys.LEFT, keys.RIGHT, keys.UP, keys.ENTER];
-      // Playing alone, the mouse button attacks too
-      const attack = hit.isDown || (seat === 0 && this.mode === 'solo' && this.mouseHit);
+      // Playing alone, the space bar attacks too
+      const attack = hit.isDown || (seat === 0 && this.mode === 'solo' && keys.SPACE.isDown);
       doll.steer(
         steerFrom(left.isDown, right.isDown, Phaser.Input.Keyboard.JustDown(jump), attack),
       );
@@ -1605,8 +1603,8 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  /** A click or a tap at this point. `right` when it is the right mouse button. */
-  private press(px: number, py: number, right = false): void {
+  /** A click or a tap at this point. */
+  private press(px: number, py: number): void {
     if (this.menu.covers(py)) {
       const pressed = this.menu.click(px, py);
       // A browser only goes full screen when a finger or the mouse button lets go
@@ -1639,16 +1637,6 @@ export class MainScene extends Phaser.Scene {
       const picked = this.modeButtons.find(({ box }) => inside(box));
       this.closeModeMenu();
       if (picked) this.startBattle(picked.mode);
-      return;
-    }
-
-    // Playing alone, a left click in the area is an attack: the doll turns that way and
-    // shoots or hits, for as long as the button is held down. The right button picks,
-    // puts in and moves things, as a click always does
-    const alone = this.mode === 'solo' && !right ? this.players[0] : null;
-    if (alone && !alone.dead && this.people.includes(alone)) {
-      alone.faceToward(px);
-      this.mouseHit = true;
       return;
     }
 
@@ -1767,7 +1755,6 @@ export class MainScene extends Phaser.Scene {
   }
 
   private letGo(): void {
-    this.mouseHit = false;
     const body = this.dragged;
     if (!body) return;
     this.dragged = null;
