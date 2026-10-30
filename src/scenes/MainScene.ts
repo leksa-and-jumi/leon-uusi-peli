@@ -216,6 +216,8 @@ export class MainScene extends Phaser.Scene {
   private horrorAngered = new Set<Person>();
   private darkness: Phaser.GameObjects.Rectangle[] = [];
   private flicker = { waitMs: 0, ms: 0 };
+  /** Playing the team game alone, the mouse button is held down in the area: the doll attacks. */
+  private mouseHit = false;
   /** How long each creepy doll has been in the light: long enough, and it is normal again. */
   private litDolls = new Map<Person, number>();
   private stalker: { doll: Person | null; waitMs: number; litMs: number; deadMs: number } = {
@@ -1413,8 +1415,10 @@ export class MainScene extends Phaser.Scene {
         seat === 0
           ? [keys.A, keys.D, keys.W, keys.F]
           : [keys.LEFT, keys.RIGHT, keys.UP, keys.ENTER];
+      // Playing alone, the mouse button attacks too
+      const attack = hit.isDown || (seat === 0 && this.mode === 'solo' && this.mouseHit);
       doll.steer(
-        steerFrom(left.isDown, right.isDown, Phaser.Input.Keyboard.JustDown(jump), hit.isDown),
+        steerFrom(left.isDown, right.isDown, Phaser.Input.Keyboard.JustDown(jump), attack),
       );
       // And one more key lets go of what it holds
       const drop = seat === 0 ? keys.G : keys.K;
@@ -1596,6 +1600,15 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
+    // Playing alone, a click in the area is an attack: the doll turns that way and
+    // shoots or hits, for as long as the button is held down
+    const alone = this.mode === 'solo' ? this.players[0] : null;
+    if (alone && !alone.dead && this.people.includes(alone)) {
+      alone.faceToward(px);
+      this.mouseHit = true;
+      return;
+    }
+
     const action = this.bubbles.actionAt(px, py);
     const target = this.bubbles.target;
     if (action && target) {
@@ -1711,6 +1724,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private letGo(): void {
+    this.mouseHit = false;
     const body = this.dragged;
     if (!body) return;
     this.dragged = null;

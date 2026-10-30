@@ -824,6 +824,11 @@ export class Person extends Body {
     this.slamMs = 0;
   }
 
+  /** Turn to look toward this spot in the area, left or right. */
+  faceToward(x: number): void {
+    if (x !== this.x) this.facing = x < this.x ? -1 : 1;
+  }
+
   turn(): void {
     this.facing = this.facing === 1 ? -1 : 1;
   }
