@@ -813,8 +813,8 @@ export const DUEL = {
   },
   hint: {
     text: '🎮   1:  A  D  W  +  F   (G ⤓)          2:  ←  →  ↑  +  Enter   (K ⤓)',
-    // The team game alone has only player 1, who can attack with the mouse too
-    solo: '🎮   1:  A  D  W  +  F / 🖱️   (G ⤓)',
+    // The team game alone has only player 1, who attacks with the left mouse button too; the right one puts things in and moves them
+    solo: '🎮   1:  A  D  W  +  F / 🖱️ ⬅   (G ⤓)        🖱️ ➡  =  🧍 🧱 ✋',
     fontSize: '19px',
     down: 62,
     ms: 9000,
