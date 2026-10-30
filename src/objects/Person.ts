@@ -39,6 +39,7 @@ import {
   WATER,
   DROWN,
   MELT,
+  CRAZY,
   type ActionId,
   type GunDef,
   type PersonLook,
@@ -269,6 +270,11 @@ export class Person extends Body {
   private meltMs: number | null = null;
   /** How far it has to sink to be under altogether. */
   private meltDrop = 0;
+  /** What it melted in was green puke, not lava: its skeleton is in rainbow colors. */
+  private meltedInPuke = false;
+  /** Crazy and angry, it drinks: the time until it throws up next, and how long it still bends over. */
+  private pukeMs = Math.random() * CRAZY.drink.pukeEveryMs;
+  private bendMs = 0;
   /** How long a heavy doll has had its head under water since it last lost a life, and in all. */
   private drownMs = 0;
   private underMs = 0;
@@ -346,12 +352,14 @@ export class Person extends Body {
 
   /**
    * Lava has got it: it is out at once and sinks in, feet first. Once it is under,
-   * all that is left of it is a thin burnt skeleton on the bottom. Says whether it
-   * has only just started to sink.
+   * all that is left of it is a thin burnt skeleton on the bottom. Green puke does the
+   * same, but leaves a whole skeleton in rainbow colors. Says whether it has only
+   * just started to sink.
    */
-  melt(solids: readonly Box[]): boolean {
+  melt(solids: readonly Box[], puke = false): boolean {
     if (this.meltMs !== null) return false;
     this.meltMs = MELT.ms;
+    this.meltedInPuke = puke;
     const body = this.hitBox;
     this.meltDrop = body.bottom - body.top + MELT.extra;
     this.leaveSeat();
@@ -817,6 +825,7 @@ export class Person extends Body {
     if (this.crazy === on) return false;
     this.crazy = on;
     this.figure.setCrazy(on);
+    if (!on) this.figure.holdBottle(false);
     return true;
   }
 
@@ -1524,7 +1533,7 @@ export class Person extends Body {
    */
   private leaveBones(world: World): void {
     if (this.machine) return;
-    this.figure.burnToBones(true);
+    this.figure.burnToBones(!this.meltedInPuke, this.meltedInPuke);
     this.knockOver(this.facing, 0);
     const frameMs = 16;
     for (let ms = 0; ms < MELT.settleMs; ms += frameMs) {
@@ -1769,9 +1778,30 @@ export class Person extends Body {
       this.facing = blocked ? (this.facing === 1 ? -1 : 1) : walker.facing;
       return 'walk';
     }
-    if (this.activity === 'dance') return 'dance';
+    // In crazy mode an angry doll drinks instead of fighting, and a dancing one flosses
+    const drinking = this.crazy && this.activity === 'angry';
+    this.figure.holdBottle(drinking);
+    if (drinking) return this.drink(deltaMs, world);
+    if (this.activity === 'dance') return this.crazy ? 'floss' : 'dance';
     if (this.activity === 'angry') return this.rage(deltaMs, world);
     return 'stand';
+  }
+
+  /**
+   * Crazy and angry: it stands drinking from its green bottle, and every so often it
+   * bends over and throws up on the floor in front of it.
+   */
+  private drink(deltaMs: number, world: World): PoseKind {
+    const { pukeEveryMs, bendMs } = CRAZY.drink;
+    this.pukeMs -= deltaMs;
+    if (this.pukeMs <= 0) {
+      this.pukeMs = pukeEveryMs;
+      this.bendMs = bendMs;
+      world.puke({ x: this.x + this.facing * 16, y: this.y - PERSON.height * 0.7 }, this.facing);
+    }
+    if (this.bendMs <= 0) return 'drink';
+    this.bendMs -= deltaMs;
+    return 'puke';
   }
 
   /**

@@ -3,6 +3,7 @@ import {
   ASHEN,
   BLOOD,
   CRAZY,
+  UNICORN,
   GEAR,
   JET,
   MUSCLE,
@@ -141,6 +142,10 @@ export class PersonFigure {
   /** Crazy mode: a crazy face over its own while it is alive. */
   private readonly crazyFace: Graphics;
   private crazy = false;
+  /** The green bottle an angry doll drinks from in crazy mode. */
+  private readonly bottle: Graphics;
+  private drinking = false;
+  private readonly paint: Painter;
   /** The shadow monster is creepy as it is: it keeps its own face, and always has claws. */
   private readonly ghastly: boolean;
   private angry = false;
@@ -259,6 +264,9 @@ export class PersonFigure {
       return claw;
     });
     this.toBones = paint.toBones;
+    this.paint = paint;
+    this.bottle = paint.bottle().setVisible(false);
+    this.frontArm.lower.add(this.bottle);
     this.toSoot = paint.toSoot;
     this.solidShapes = paint.solidShapes;
   }
@@ -267,10 +275,11 @@ export class PersonFigure {
    * Fire has finished the doll off: all that is left is a black skeleton. Every part
    * is drawn again as charred bone, the head as a skull, and the wounds are gone.
    */
-  burnToBones(thin = false): void {
+  burnToBones(thin = false, rainbow = false): void {
     this.wasted ||= thin;
     if (this.charred || this.ashen) return;
     this.charred = true;
+    this.paint.rainbowBones = rainbow;
     this.loseGear();
     this.toBones.forEach(({ redraw }) => {
       redraw();
@@ -804,6 +813,13 @@ export class PersonFigure {
     this.showFace();
   }
 
+  /** A green bottle in its front hand, or not. */
+  holdBottle(on: boolean): void {
+    if (this.drinking === on) return;
+    this.drinking = on;
+    this.showFace();
+  }
+
   /** Crazy mode on or off: a crazy face, or its own face again. */
   setCrazy(on: boolean): void {
     if (this.crazy === on) return;
@@ -825,6 +841,7 @@ export class PersonFigure {
     // Crazy mode gives a living doll a crazy face, unless horror mode has made it creepy
     const silly = this.crazy && !spoilt && !spooky && !this.lifeless && !this.faceless;
     this.crazyFace.setVisible(silly && !this.ghastly);
+    this.bottle.setVisible(this.drinking && !spoilt && !this.lifeless);
     if (spoilt) return;
     const own = !this.faceless && !spooky && !(silly && !this.ghastly);
     this.eyes.setVisible(own && !this.lifeless);
@@ -982,6 +999,9 @@ class Painter {
   readonly solidShapes: SolidShape[] = [];
   /** The part it is drawing right now: the figure says which, before it asks for one. */
   part: BodyPart | 'trunk' = 'trunk';
+  /** Bones in the colors of the rainbow, one after another, instead of charred black. */
+  rainbowBones = false;
+  private bonesDrawn = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -1003,7 +1023,7 @@ class Painter {
       this.bone(upperShape, thigh.length);
       this.bone(lowerShape, shin.length);
       // The bones of the foot
-      lowerShape.fillStyle(CHARRED.bone);
+      lowerShape.fillStyle(this.boneColor());
       lowerShape.fillRoundedRect(-foot.back + 3, shin.length, foot.length - 5, 3.5, 1.7);
     });
     return this.limb(hipX, hipY, upperShape, thigh.length, lowerShape, trousers);
@@ -1024,7 +1044,7 @@ class Painter {
     this.addBones(() => {
       this.bone(upperShape, upperArm.length);
       this.bone(lowerShape, forearm.length);
-      lowerShape.fillStyle(CHARRED.bone);
+      lowerShape.fillStyle(this.boneColor());
       lowerShape.fillCircle(0, forearm.length + 2, hand.radius - 1.5);
     });
     return this.limb(shoulderX, shoulderY, upperShape, upperArm.length, lowerShape, fore);
@@ -1188,7 +1208,7 @@ class Painter {
     this.addBones(() => {
       // The pelvis: a narrow bar with a knob at each hip
       g.clear();
-      g.fillStyle(CHARRED.bone);
+      g.fillStyle(this.boneColor());
       g.fillRoundedRect(hips.x + 4, hips.y + 3, hips.width - 8, 5, 2.5);
       g.fillCircle(-SHAPE.hip.x, SHAPE.hip.y, CHARRED.knob + 0.6);
       g.fillCircle(SHAPE.hip.x, SHAPE.hip.y, CHARRED.knob + 0.6);
@@ -1260,10 +1280,10 @@ class Painter {
     this.addBones(() => {
       // A spine from the waist to the neck, with ribs and shoulders across it
       g.clear();
-      g.fillStyle(CHARRED.bone);
+      g.fillStyle(this.boneColor());
       g.fillRoundedRect(-CHARRED.thick / 2, neck.y, CHARRED.thick, waist.y - neck.y, 2);
       g.fillRoundedRect(-SHAPE.shoulder.x, SHAPE.shoulder.y - 2, SHAPE.shoulder.x * 2, 3.5, 1.7);
-      g.lineStyle(2.2, CHARRED.bone);
+      g.lineStyle(2.2, this.boneColor());
       for (let rib = 0; rib < 4; rib++) {
         const y = chest.y + 9 + rib * 5;
         const half = chest.width / 2 - 2 - rib * 1.6;
@@ -1408,7 +1428,7 @@ class Painter {
       // A skull: a round top, a jaw with teeth, and embers still glowing in the eye holes
       const { eye } = SHAPE;
       g.clear();
-      g.fillStyle(CHARRED.bone);
+      g.fillStyle(this.boneColor());
       g.fillCircle(0, head.y - 1, head.radius - 2);
       g.fillRoundedRect(-6, head.y + 5, 15, 9, 3);
       g.fillStyle(CHARRED.shine, 0.55);
@@ -1764,6 +1784,37 @@ class Painter {
     return g;
   }
 
+  /** The color of the next bone it draws: charred black, or the next color of the rainbow. */
+  private boneColor(): number {
+    if (!this.rainbowBones) return CHARRED.bone;
+    const colors = UNICORN.rainbow;
+    this.bonesDrawn += 1;
+    return colors[this.bonesDrawn % colors.length] ?? CHARRED.bone;
+  }
+
+  /**
+   * A green glass bottle in the hand, lying across it: a round body with a label and
+   * green drink inside, a neck of normal length, and a lip at the end.
+   */
+  bottle(): Graphics {
+    const g = this.blank();
+    const c = CRAZY.bottle;
+    const handY = SHAPE.forearm.length + 2;
+    // Its neck points back, to the mouth: the body of the bottle is out in front
+    g.fillStyle(c.glass);
+    g.fillRoundedRect(-3, handY - 4.5, 17, 9, 3);
+    g.fillRect(-12, handY - 2.2, 9, 4.4);
+    g.fillStyle(c.lip);
+    g.fillRect(-14, handY - 2.8, 2.5, 5.6);
+    g.fillStyle(c.liquid, 0.75);
+    g.fillRoundedRect(-2, handY - 1, 15, 4.5, 2);
+    g.fillStyle(c.label);
+    g.fillRect(3, handY - 4.5, 7, 9);
+    g.fillStyle(c.shine, 0.7);
+    g.fillRect(-0.5, handY - 3.5, 13, 1.3);
+    return g;
+  }
+
   private blank(): Graphics {
     return this.scene.make.graphics({}, false);
   }
@@ -1796,7 +1847,7 @@ class Painter {
   private bone(g: Graphics, length: number): void {
     const { thick, knob } = CHARRED;
     g.clear();
-    g.fillStyle(CHARRED.bone);
+    g.fillStyle(this.boneColor());
     g.fillRoundedRect(-thick / 2, 0, thick, length, thick / 2);
     g.fillCircle(0, 0, knob);
     g.fillCircle(0, length, knob);

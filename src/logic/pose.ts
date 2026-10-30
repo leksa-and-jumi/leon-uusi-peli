@@ -36,7 +36,10 @@ export type PoseKind =
   | 'choke'
   | 'slam'
   | 'sit'
-  | 'drive';
+  | 'drive'
+  | 'floss'
+  | 'drink'
+  | 'puke';
 
 export const STAND: Pose = {
   frontArm: 0,
@@ -165,6 +168,27 @@ export const MOVES = {
   sit: { leg: -1.4, knee: 1.35, arm: -0.95, elbow: -0.5, waist: 0.08 },
   /** Sitting inside a car: legs stretched out in front, hands on the wheel. */
   drive: { leg: -1.5, knee: 0.15, arm: -0.45, elbow: -1.5, waist: 0.05 },
+  /**
+   * The floss dance: both arms straight, swinging together to the front and to the
+   * back, fast, while the hips swing the other way.
+   */
+  floss: { beatMs: 320, arm: 0.75, waist: 0.22, lean: 0.1, leg: 0.12 },
+  /**
+   * Drinking from a bottle: the front hand up at the mouth, the head and the upper body
+   * tipped back, gulping now and then.
+   */
+  drink: { arm: -0.75, elbow: -2.6, waist: -0.14, head: -0.4, gulp: 0.08, gulpMs: 700 },
+  /** Throwing up: bent right over, hands on the knees, the head down. */
+  puke: {
+    arm: -0.35,
+    elbow: -0.2,
+    leg: -0.1,
+    knee: 0.25,
+    waist: 0.75,
+    head: 0.35,
+    heave: 0.08,
+    heaveMs: 260,
+  },
   /** A limp doll: how far each joint can flop, at most. */
   limp: { arm: 2.9, leg: 1.2, elbow: 2.2, knee: 2, waist: 1, head: 1 },
 } as const;
@@ -272,6 +296,52 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         // On its knees the doll is that much lower
         lift: -move.drop,
         lean: 0,
+      };
+    }
+    case 'floss': {
+      const move = MOVES.floss;
+      const swing = Math.sin((timeMs / move.beatMs) * Math.PI);
+      return {
+        frontArm: move.arm * swing,
+        backArm: move.arm * swing,
+        frontLeg: move.leg * swing,
+        backLeg: move.leg * swing,
+        frontElbow: 0,
+        backElbow: 0,
+        frontKnee: 0,
+        backKnee: 0,
+        waist: -move.waist * swing,
+        head: move.waist * swing * 0.5,
+        lift: 0,
+        lean: -move.lean * swing,
+      };
+    }
+    case 'drink': {
+      const move = MOVES.drink;
+      const gulp = move.gulp * Math.max(0, Math.sin((timeMs / move.gulpMs) * Math.PI * 2));
+      return {
+        ...STAND,
+        frontArm: move.arm,
+        frontElbow: move.elbow,
+        waist: move.waist - gulp,
+        head: move.head - gulp,
+      };
+    }
+    case 'puke': {
+      const move = MOVES.puke;
+      const heave = move.heave * Math.sin((timeMs / move.heaveMs) * Math.PI * 2);
+      return {
+        ...STAND,
+        frontArm: move.arm,
+        backArm: move.arm,
+        frontElbow: move.elbow,
+        backElbow: move.elbow,
+        frontLeg: move.leg,
+        backLeg: move.leg,
+        frontKnee: move.knee,
+        backKnee: move.knee,
+        waist: move.waist + heave,
+        head: move.head + heave,
       };
     }
     case 'slam': {
