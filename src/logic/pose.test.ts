@@ -215,3 +215,26 @@ describe('stooping', () => {
     expect(pose.head).toBeLessThan(STAND.head + 0.3);
   });
 });
+
+describe('crazy poses', () => {
+  it('flosses with both arms swinging the same way, and the hips the other way', () => {
+    const pose = poseFor('floss', MOVES.floss.beatMs / 2);
+    expect(pose.frontArm).toBeCloseTo(MOVES.floss.arm);
+    expect(pose.backArm).toBeCloseTo(MOVES.floss.arm);
+    expect(pose.waist).toBeLessThan(0);
+    const other = poseFor('floss', (MOVES.floss.beatMs * 3) / 2);
+    expect(other.frontArm).toBeCloseTo(-MOVES.floss.arm);
+    expect(other.waist).toBeGreaterThan(0);
+  });
+
+  it('drinks with the front hand bent up to the mouth and the head tipped back', () => {
+    const pose = poseFor('drink', 0);
+    expect(pose.frontElbow).toBeLessThan(-2);
+    expect(pose.head).toBeLessThan(0);
+    expect(pose.backArm).toBe(STAND.backArm);
+  });
+
+  it('throws up bent right over', () => {
+    expect(poseFor('puke', 0).waist).toBeGreaterThan(0.5);
+  });
+});

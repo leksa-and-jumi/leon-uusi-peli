@@ -262,6 +262,9 @@ export class MainScene extends Phaser.Scene {
   private crazyTint!: Phaser.GameObjects.Rectangle;
   private crazyMs = 0;
   private crazyDancers = new Set<Person>();
+  /** Green puke on the floor: where it came from, where its middle is, and how long ago. */
+  private pukes: { mouth: Spot; x: number; ms: number }[] = [];
+  private pukeLayer!: Phaser.GameObjects.Graphics;
   /** The light of the flashlights, drawn again every frame. */
   private lightLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
@@ -475,6 +478,9 @@ export class MainScene extends Phaser.Scene {
       smoke: (x, y) => {
         this.puff(x, y);
       },
+      puke: (mouth, direction) => {
+        this.throwUp(mouth, direction);
+      },
       horror: false,
       screech: () => {
         this.sfx.screech();
@@ -608,6 +614,7 @@ export class MainScene extends Phaser.Scene {
     );
     this.rainbowLayer = this.add.graphics().setDepth(DEPTH.block - 0.5);
     this.poopLayer = this.add.graphics().setDepth(DEPTH.bullet);
+    this.pukeLayer = this.add.graphics().setDepth(DEPTH.floorCover + 0.5);
     this.crazyTint = this.add
       .rectangle(0, MENU.height, GAME_WIDTH, AREA.floorY - MENU.height, 0xffffff, CRAZY.tint.alpha)
       .setOrigin(0)
@@ -704,6 +711,7 @@ export class MainScene extends Phaser.Scene {
     this.world.people = this.people;
     this.haunt(delta);
     this.craze(delta);
+    this.spreadPuke(delta);
     this.steerPlayers(delta);
     // A piece that leans on something is a flight of steps: several boxes for one body
     this.solids = this.blocks
@@ -1653,6 +1661,8 @@ export class MainScene extends Phaser.Scene {
         this.forget(this.everything());
         this.clearBullets();
         this.clearMess();
+        this.pukes = [];
+        this.poops = [];
       }
       return;
     }
@@ -3251,6 +3261,60 @@ export class MainScene extends Phaser.Scene {
       g.fillStyle(shine, 0.8).fillCircle(x - size * 0.45, y - size * 1.1, size * 0.18);
       return true;
     });
+  }
+
+  /** A doll in crazy mode throws up: a green stream from its mouth, and a puddle in front of it. */
+  private throwUp(mouth: Spot, direction: Facing): void {
+    const { ahead, halfWidth } = CRAZY.puke;
+    const x = clamp(mouth.x + direction * ahead, AREA.left + halfWidth, AREA.right - halfWidth);
+    this.pukes.push({ mouth, x, ms: 0 });
+    this.sfx.gulp();
+  }
+
+  /**
+   * The green puke on the floor grows, and fades away when its time is up. A doll that
+   * isn't angry and stands in it melts into it and leaves a rainbow skeleton.
+   */
+  private spreadPuke(delta: number): void {
+    const puke = CRAZY.puke;
+    const g = this.pukeLayer.clear();
+    this.pukes = this.pukes.filter((spot) => (spot.ms += delta) < puke.ms);
+    for (const spot of this.pukes) {
+      const grown = Math.min(1, spot.ms / puke.growMs);
+      const alpha = Math.min(1, (puke.ms - spot.ms) / puke.fadeMs);
+      const width = puke.halfWidth * grown;
+      const y = AREA.floorY;
+      if (spot.ms < puke.streamMs) {
+        // The stream from the mouth down to the floor
+        const { mouth } = spot;
+        g.lineStyle(6, puke.color, alpha);
+        g.beginPath();
+        g.moveTo(mouth.x, mouth.y);
+        g.lineTo((mouth.x + spot.x) / 2, mouth.y + (y - mouth.y) * 0.3);
+        g.lineTo(spot.x, y);
+        g.strokePath();
+      }
+      g.fillStyle(puke.dark, alpha);
+      g.fillEllipse(spot.x, y + 1, width * 2 + 4, 12);
+      g.fillStyle(puke.color, alpha);
+      g.fillEllipse(spot.x, y, width * 2, 9);
+      g.fillEllipse(spot.x - width * 0.55, y - 2, width * 0.7, 8);
+      g.fillEllipse(spot.x + width * 0.4, y - 1.5, width * 0.8, 7);
+      g.fillStyle(puke.light, alpha * 0.9);
+      g.fillCircle(spot.x - width * 0.3, y - 2.5, 2.2 * grown);
+      g.fillCircle(spot.x + width * 0.5, y - 2, 1.6 * grown);
+      g.fillCircle(spot.x + width * 0.05, y - 3.5, 1.3 * grown);
+      if (grown < 1) continue;
+      for (const doll of this.people) {
+        const standing = doll.feet.y >= AREA.floorY - 4 && this.dragged !== doll;
+        const inside = Math.abs(doll.feet.x - spot.x) <= width;
+        if (!standing || !inside || doll.dead || doll.safe || doll.activity === 'angry') continue;
+        if (doll.melt(this.solidBoxes(doll), true)) {
+          this.world.smoke(doll.feet.x, AREA.floorY - 10);
+          this.sfx.gulp();
+        }
+      }
+    }
   }
 
   /** A doll blows up into a cloud of poop glitter, and is gone. */

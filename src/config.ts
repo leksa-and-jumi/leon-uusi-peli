@@ -1683,6 +1683,29 @@ export const CRAZY = {
     count: 44,
     colors: [0xff80ab, 0xce93d8, 0x81d4fa, 0xa5d6a7, 0xfff59d, 0xffcc80, 0xffffff],
   },
+  /**
+   * An angry doll stands drinking from a green bottle. Every `pukeEveryMs` it bends
+   * over for `bendMs` and throws up, the first time somewhere in the first `pukeEveryMs`.
+   */
+  drink: { pukeEveryMs: 10000, bendMs: 1000 },
+  bottle: { glass: 0x2e7d32, liquid: 0x76ff03, lip: 0x1b5e20, label: 0xfff59d, shine: 0xc8e6c9 },
+  /**
+   * The green puke: a stream from the mouth for `streamMs`, then a puddle on the floor
+   * `ahead` in front of the doll and `halfWidth` to each side, growing in `growMs`. It
+   * fades away over its last `fadeMs`, and is gone after `ms`. A doll that isn't angry
+   * and stands in it melts into it, and leaves a skeleton in rainbow colors.
+   */
+  puke: {
+    ms: 5000,
+    halfWidth: 38,
+    ahead: 30,
+    growMs: 350,
+    fadeMs: 800,
+    streamMs: 500,
+    color: 0x7cb342,
+    dark: 0x33691e,
+    light: 0xc5e1a5,
+  },
   face: {
     white: 0xffffff,
     pupil: 0x1b1b1b,

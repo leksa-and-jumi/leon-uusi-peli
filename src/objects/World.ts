@@ -113,6 +113,8 @@ export interface World {
   note: (pitch: number) => void;
   /** A puff of smoke rises from this spot. */
   smoke: (x: number, y: number) => void;
+  /** A doll in crazy mode throws up from its mouth at `mouth`, facing this way. */
+  puke: (mouth: Spot, direction: Facing) => void;
   /** Horror mode is on: the dolls look creepy, are always angry, leap and claw. */
   horror: boolean;
   /** A doll leaps at somebody in horror mode: it shrieks. */
