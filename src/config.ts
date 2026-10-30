@@ -1378,6 +1378,11 @@ export interface BlockDef {
   hollow?: { floor: number; thick: number };
   /** It gives off light: a warm glow this wide around its flame, `up` from the ground. */
   glows?: { up: number; radius: number };
+  /**
+   * It is a rainbow: an arch of stripes, each `stripe` thick. Nothing bumps into it,
+   * but unicorns jump up on top of it.
+   */
+  arch?: { stripe: number };
   /** It is a drawbridge: from its bubble it is let down the way it points, and pulled up again. */
   bridge?: boolean;
   /** It is a flight of stairs with this many steps: dolls walk up it, the way it points. */
@@ -1473,7 +1478,7 @@ export type MonsterKind =
 /** Things that hurt the dolls that touch them or come near. They are solid like building pieces. */
 export type TrapKind = 'spikes' | 'saw' | 'burner' | 'tesla' | 'laserTower' | 'mine' | 'cactus';
 /** Forces of nature you can put in: a pool of lava, a pool of water, and a black hole. */
-export type ElementKind = 'lava' | 'water' | 'blackHole' | 'cloud';
+export type ElementKind = 'lava' | 'water' | 'blackHole' | 'cloud' | 'rainbow';
 /** The pieces of a castle. */
 export type CastleKind =
   | 'tower'
@@ -1655,6 +1660,32 @@ export const UNICORN = {
   laserColorMs: 50,
   /** What comes up: this many drops of each color, sprayed out of its mouth. */
   puke: { drops: 7 },
+} as const;
+
+/**
+ * Unicorns on a rainbow. Nobody riding it, a unicorn jumps up on top of the closest
+ * rainbow with room on it, in `hop.ms`, `hop.up` higher than the straight way there.
+ * The `seats` on top are parts of the rainbow's half-width from its middle: the first
+ * unicorn sits in the middle. Up there it poops every so often (`everyMs`), right
+ * over a doll, from just under its tail (`from`, on its drawing). A poop is `size`
+ * big and falls with `gravity`, never faster sideways than `aim`. It burns any doll
+ * it hits to ash at once, and splats into `splat` drops of its color on the floor.
+ */
+export const RAINBOW = {
+  seats: [0, -0.62, 0.62],
+  hop: { ms: 750, up: 90 },
+  poop: {
+    everyMs: { min: 900, max: 1800 },
+    from: { x: -24, up: 30 },
+    size: 9,
+    gravity: 1500,
+    aim: 450,
+    damage: 99,
+    splat: 5,
+    /** Each poop is a swirl of three of these, one on top of the other. */
+    colors: [0xff80ab, 0xce93d8, 0x81d4fa, 0xa5d6a7, 0xfff59d, 0xffcc80],
+    shine: 0xffffff,
+  },
 } as const;
 
 /** The head of a skibidi fridge. */
@@ -2506,6 +2537,15 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     menuScale: 0.28,
     colors: { fill: 0x4b3d35, dark: 0x1e1612, light: 0x76624f, detail: 0xffc857 },
     hollow: { floor: 140, thick: 14 },
+  },
+  // A rainbow standing on the floor, with a little cloud at each end. Dolls walk
+  // through it; unicorns jump up on top of it and poop down on everybody
+  rainbow: {
+    halfWidth: 190,
+    height: 190,
+    menuScale: 0.26,
+    colors: { fill: 0xff5252, dark: 0xb388ff, light: 0xffffff, detail: 0x40c4ff },
+    arch: { stripe: 11 },
   },
   // An old gravestone with a cross on it, cracked and mossy, a mound of earth in front
   tombstone: {
@@ -4223,11 +4263,14 @@ export const BUILD_KINDS: readonly BuildKind[] = [
   'barrel',
   'tnt',
 ];
-export const MONSTER_KINDS: readonly MonsterKind[] = [
+/** The monsters page. The unicorn and its rainbow are there too: a unicorn is no car. */
+export const MONSTER_KINDS: readonly (MonsterKind | 'unicorn' | 'rainbow')[] = [
   'skibidi',
   'skibidiToilet',
   'skibidiCone',
   'skibidiTv',
+  'unicorn',
+  'rainbow',
   'chomper',
   'ghost',
   'batMonster',
@@ -4248,7 +4291,6 @@ export const VEHICLE_KINDS: readonly VehicleKind[] = [
   'plane',
   'saucer',
   'ship',
-  'unicorn',
 ];
 /** The gear page. */
 /** The weapons that can fall from the sky in a two-player battle. */
@@ -4761,6 +4803,10 @@ export const SOUND = {
     hiss: { from: 900, to: 150, seconds: 0.12, volume: 0.3 },
   },
   /** A ghost scaring a doll: an eerie rising howl. */
+  /** A unicorn poops: a short, silly drop in pitch. */
+  plop: {
+    tone: { wave: 'sine', from: 520, to: 140, seconds: 0.14, volume: 0.45 },
+  },
   /** A doll in horror mode leaps at somebody: a thin, high shriek sliding down, with a hiss. */
   screech: {
     tone: { wave: 'sawtooth', from: 1400, to: 420, seconds: 0.4, volume: 0.09 },

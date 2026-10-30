@@ -256,6 +256,12 @@ export class Sfx {
     this.burst(SOUND.gulp.hiss);
   }
 
+  /** A unicorn on a rainbow lets a poop drop. */
+  plop(): void {
+    if (!this.ready('plop')) return;
+    this.tone(SOUND.plop.tone);
+  }
+
   /** A doll leaping at somebody in horror mode. */
   screech(): void {
     if (!this.ready('screech')) return;

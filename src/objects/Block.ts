@@ -27,6 +27,7 @@ import {
   TOPPLE,
   TURN_ACTIONS,
   TV,
+  UNICORN,
   VEHICLE_ACTIONS,
   VEHICLE_HULL,
   WATER,
@@ -177,9 +178,9 @@ export class Block extends Body {
     super(x, y);
     this.def = BLOCKS[kind];
     const ghost = this.def.monster?.ghost;
-    const { liquid, hole, cloud } = this.def;
-    // A ghost, a pool, a black hole and a cloud aren't solid: things go right into them
-    this.solid = !ghost && !liquid && !hole && !cloud && !this.def.monster?.shark;
+    const { liquid, hole, cloud, arch } = this.def;
+    // A ghost, a pool, a black hole, a cloud and a rainbow aren't solid: things go right into them
+    this.solid = !ghost && !liquid && !hole && !cloud && !arch && !this.def.monster?.shark;
     // A ghost, a flying saucer and a black hole hold themselves up in the air. A pool
     // doesn't fall either: it lies on the floor, under everything.
     const flier = this.def.monster?.saucer ?? this.def.monster?.dragon;
@@ -331,6 +332,9 @@ export class Block extends Body {
    */
   override get pickBox(): Box {
     const box = super.pickBox;
+    // A rainbow is grabbed by its top: a click under it goes through
+    const arch = this.def.arch;
+    if (arch) return { ...box, bottom: this.box.top + arch.stripe * UNICORN.rainbow.length };
     const hollow = this.def.hollow;
     if (!hollow || this.fallen !== 0) return box;
     return { ...box, bottom: this.box.bottom - hollow.floor };
@@ -1503,8 +1507,8 @@ function isCastle(kind: BlockKind): kind is CastleKind {
 }
 
 function isElement(kind: BlockKind): kind is ElementKind {
-  const { liquid, hole, cloud } = BLOCKS[kind];
-  return liquid !== undefined || hole !== undefined || cloud !== undefined;
+  const { liquid, hole, cloud, arch } = BLOCKS[kind];
+  return liquid !== undefined || hole !== undefined || cloud !== undefined || arch !== undefined;
 }
 
 function isTrap(kind: BlockKind): kind is TrapKind {

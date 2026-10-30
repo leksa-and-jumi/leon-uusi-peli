@@ -32,6 +32,7 @@ import {
   HORROR,
   SHADOW_MONSTER,
   UNICORN,
+  RAINBOW,
   HIT_FX,
   ITEMS,
   LASER,
@@ -89,6 +90,7 @@ import { steerFrom, takeSeat } from '../logic/duel';
 import { pickDrop } from '../logic/drops';
 import { waveKinds, waveSize } from '../logic/waves';
 import { inBeam, type Beam } from '../logic/light';
+import { aimDrop, archTop, hopSpot } from '../logic/rainbow';
 import { clamp } from '../logic/bounds';
 import { layOutArena } from '../logic/arena';
 import { wreckParts } from '../logic/wreck';
@@ -243,6 +245,14 @@ export class MainScene extends Phaser.Scene {
     { trail: { x: number; y: number; ms: number }[]; pukeMs: number }
   >();
   private rainbowLayer!: Phaser.GameObjects.Graphics;
+  /**
+   * Every unicorn up on a rainbow (or on its way up): the rainbow, where it jumped
+   * from, how long ago, and the time until it poops next. And the poops falling down,
+   * each with its speed and the colors of its swirl.
+   */
+  private perches = new Map<Block, { rainbow: Block; from: Spot; ms: number; poopMs: number }>();
+  private poops: { x: number; y: number; vx: number; vy: number; colors: number[] }[] = [];
+  private poopLayer!: Phaser.GameObjects.Graphics;
   /** The light of the flashlights, drawn again every frame. */
   private lightLayer!: Phaser.GameObjects.Graphics;
   private shadowLayer!: Phaser.GameObjects.Graphics;
@@ -588,6 +598,7 @@ export class MainScene extends Phaser.Scene {
         .setVisible(false),
     );
     this.rainbowLayer = this.add.graphics().setDepth(DEPTH.block - 0.5);
+    this.poopLayer = this.add.graphics().setDepth(DEPTH.bullet);
     this.rides = new Map();
     this.lightLayer = this.add
       .graphics()
@@ -711,6 +722,8 @@ export class MainScene extends Phaser.Scene {
     this.trackDrag();
     this.forget(this.everything().filter((body) => body.gone));
     this.rideUnicorns(delta);
+    this.perchUnicorns(delta);
+    this.dropPoops(delta);
     this.drawShadows();
     this.markPlayers();
     this.markEnemies();
@@ -745,8 +758,8 @@ export class MainScene extends Phaser.Scene {
     for (const body of this.everything()) {
       if (body instanceof Item && body.isHeld) continue;
       if (body instanceof Block) {
-        const { liquid, hole, cloud, monster } = body.def;
-        if (liquid || hole || cloud || monster?.ghost) continue;
+        const { liquid, hole, cloud, arch, monster } = body.def;
+        if (liquid || hole || cloud || arch || monster?.ghost) continue;
       }
       const shadow = shadowOf(body.box, AREA.floorY, SHADOW);
       if (!shadow) continue;
@@ -1489,7 +1502,12 @@ export class MainScene extends Phaser.Scene {
    * the dolls lying on the ground, so that it lands on them and they stay under it.
    */
   private solidBoxes(except: Body): Box[] {
-    const boxes = this.solids.filter((solid) => solid.body !== except).map((solid) => solid.box);
+    // A rainbow doesn't climb up out of the unicorns sitting on it
+    const rainbow = except instanceof Block && except.def.arch !== undefined;
+    const boxes = this.solids
+      .filter((solid) => solid.body !== except)
+      .filter((solid) => !rainbow || !(solid.body instanceof Block && this.perches.has(solid.body)))
+      .map((solid) => solid.box);
     if (!except.solid) return boxes;
     const own = except.box;
     // A piece that has just landed in a doll rides it down, instead of dropping through
@@ -3100,6 +3118,116 @@ export class MainScene extends Phaser.Scene {
         });
       });
     }
+  }
+
+  /**
+   * A unicorn that nobody rides or holds jumps up on top of the closest rainbow with
+   * room on it, and sits there pooping down on the dolls.
+   */
+  private perchUnicorns(delta: number): void {
+    const rainbows = this.blocks.filter((block) => block.def.arch !== undefined);
+    const { seats, hop, poop } = RAINBOW;
+    const free = (unicorn: Block): boolean => this.dragged !== unicorn && !unicorn.isOn('drive');
+    for (const [unicorn, perch] of this.perches) {
+      const there = this.blocks.includes(unicorn) && rainbows.includes(perch.rainbow);
+      if (!there || !free(unicorn)) this.perches.delete(unicorn);
+    }
+    const sittingOn = (rainbow: Block): Block[] =>
+      [...this.perches]
+        .filter(([, perch]) => perch.rainbow === rainbow)
+        .map(([unicorn]) => unicorn);
+    for (const unicorn of this.blocks) {
+      if (!unicorn.def.drive?.rainbow || this.perches.has(unicorn) || !free(unicorn)) continue;
+      const away = (rainbow: Block): number => Math.abs(rainbow.feet.x - unicorn.feet.x);
+      const rainbow = rainbows
+        .filter((one) => sittingOn(one).length < seats.length)
+        .sort((one, other) => away(one) - away(other))[0];
+      if (!rainbow) continue;
+      const poopMs = hop.ms + this.someTime(poop.everyMs);
+      this.perches.set(unicorn, { rainbow, from: unicorn.feet, ms: 0, poopMs });
+    }
+    for (const rainbow of rainbows) {
+      sittingOn(rainbow).forEach((unicorn, seat) => {
+        const perch = this.perches.get(unicorn);
+        if (!perch) return;
+        const { halfWidth, height } = rainbow.def;
+        const top = archTop(rainbow.feet, halfWidth, height, (seats[seat] ?? 0) * halfWidth);
+        perch.ms += delta;
+        const at = hopSpot(perch.from, top, perch.ms / hop.ms, hop.up);
+        unicorn.tug(at.x - unicorn.feet.x, at.y - unicorn.feet.y, AREA);
+        perch.poopMs -= delta;
+        if (perch.poopMs > 0) return;
+        perch.poopMs = this.someTime(poop.everyMs);
+        this.poop(unicorn);
+      });
+    }
+  }
+
+  /** A unicorn on a rainbow lets a poop drop, aimed at one of the dolls below. */
+  private poop(unicorn: Block): void {
+    const { from, gravity, aim, colors } = RAINBOW.poop;
+    const scale = unicorn.def.drive?.scale ?? 1;
+    const tail = {
+      x: unicorn.feet.x + unicorn.pointing * from.x * scale,
+      y: unicorn.feet.y - from.up * scale,
+    };
+    const dolls = this.people.filter((doll) => !doll.dead && !doll.safe);
+    const doll = dolls[Math.floor(Math.random() * dolls.length)];
+    const box = doll?.hitBox;
+    const vx = box ? aimDrop(tail, { x: (box.left + box.right) / 2, y: box.top }, gravity, aim) : 0;
+    const swirl = Array.from(
+      { length: 3 },
+      () => colors[Math.floor(Math.random() * colors.length)] ?? colors[0],
+    );
+    this.poops.push({ ...tail, vx, vy: 0, colors: swirl });
+    this.sfx.plop();
+  }
+
+  /**
+   * The poops fall. One that hits a doll burns it to ash at once; on the floor it
+   * splats into a little puddle of its colors.
+   */
+  private dropPoops(delta: number): void {
+    const { size, gravity, damage, splat, shine } = RAINBOW.poop;
+    const seconds = delta / 1000;
+    const g = this.poopLayer.clear();
+    this.poops = this.poops.filter((poop) => {
+      poop.vy += gravity * seconds;
+      poop.x += poop.vx * seconds;
+      poop.y += poop.vy * seconds;
+      const middle = poop.y - size / 2;
+      const doll = this.people.find((person) => {
+        const box = person.hitBox;
+        const inside =
+          poop.x >= box.left && poop.x <= box.right && middle >= box.top && middle <= box.bottom;
+        return inside && !person.dead;
+      });
+      const landed = poop.y >= AREA.floorY || poop.x < AREA.left || poop.x > AREA.right;
+      if (doll || landed) {
+        if (doll?.shot(poop.vx < 0 ? -1 : 1, this.solidBoxes(doll), damage, 'laser')) {
+          this.sfx.zap();
+        }
+        const y = Math.min(poop.y, AREA.floorY);
+        for (const color of poop.colors) this.world.bleed(poop.x, y, splat, color, true);
+        return false;
+      }
+      // A soft swirl of three colors, getting smaller to a little tip, with a shine on it
+      const [bottom = 0, middleColor = 0, top = 0] = poop.colors;
+      const { x, y } = poop;
+      g.fillStyle(bottom).fillEllipse(x, y - size * 0.45, size * 2.2, size * 0.9);
+      g.fillStyle(middleColor).fillEllipse(x, y - size * 1.05, size * 1.65, size * 0.8);
+      g.fillStyle(top).fillEllipse(x, y - size * 1.55, size * 1.05, size * 0.7);
+      g.fillTriangle(
+        x - size * 0.3,
+        y - size * 1.7,
+        x + size * 0.3,
+        y - size * 1.7,
+        x + size * 0.2,
+        y - size * 2.3,
+      );
+      g.fillStyle(shine, 0.8).fillCircle(x - size * 0.45, y - size * 1.1, size * 0.18);
+      return true;
+    });
   }
 
   /** A unicorn throws up a rainbow: drops of every color spray out of its mouth and land as puddles. */

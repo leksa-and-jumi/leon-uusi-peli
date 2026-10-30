@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLOCKS, LAVA, WATER, type BlockDef, type ElementKind } from '../config';
+import { BLOCKS, LAVA, UNICORN, WATER, type BlockDef, type ElementKind } from '../config';
 import { shade } from '../logic/color';
 
 type Graphics = Phaser.GameObjects.Graphics;
@@ -13,6 +13,7 @@ type Graphics = Phaser.GameObjects.Graphics;
 export function drawElement(g: Graphics, kind: ElementKind, whole: boolean): Graphics {
   const def = BLOCKS[kind];
   if (kind === 'cloud') return drawCloud(g, def);
+  if (kind === 'rainbow') return drawRainbow(g, def);
   if (!whole) return g;
   if (kind === 'blackHole') {
     g.save();
@@ -22,6 +23,36 @@ export function drawElement(g: Graphics, kind: ElementKind, whole: boolean): Gra
     return g;
   }
   return drawLiquid(g, kind, 0, def, def.halfWidth, def.height);
+}
+
+/** A rainbow: an arch of stripes, red on the outside, with a fluffy little cloud at each end. */
+function drawRainbow(g: Graphics, def: BlockDef): Graphics {
+  const stripe = def.arch?.stripe ?? 11;
+  const radius = def.halfWidth;
+  UNICORN.rainbow.forEach((color, index) => {
+    g.lineStyle(stripe + 0.6, color);
+    g.beginPath();
+    g.arc(0, 0, radius - stripe * (index + 0.5), Math.PI, Math.PI * 2);
+    g.strokePath();
+  });
+  // A thin bright line along the top, so it shines a bit
+  g.lineStyle(2, def.colors.light, 0.55);
+  g.beginPath();
+  g.arc(0, 0, radius - stripe * 0.3, Math.PI * 1.15, Math.PI * 1.45);
+  g.strokePath();
+  const middle = radius - (stripe * UNICORN.rainbow.length) / 2;
+  for (const side of [-1, 1]) {
+    const x = side * middle;
+    g.fillStyle(0xdde6f0);
+    g.fillCircle(x - 22, -12, 13);
+    g.fillCircle(x + 22, -12, 13);
+    g.fillStyle(def.colors.light);
+    g.fillCircle(x - 18, -16, 14);
+    g.fillCircle(x + 18, -16, 14);
+    g.fillCircle(x, -26, 19);
+    g.fillRect(x - 32, -16, 64, 16);
+  }
+  return g;
 }
 
 /** A pool as it looks at this moment: water with waves rolling by, or glowing, bubbling lava. */
