@@ -191,6 +191,7 @@ export class Person extends Body {
   /** Horror mode: it has the creepy face and claws. And in the middle of a leap at somebody, and the rest before the next one. */
   private haunted = false;
   private cured = false;
+  private crazy = false;
   /** Running away from something scary at this x, or `null`. */
   private fleeFrom: number | null = null;
   private lunging = false;
@@ -806,6 +807,17 @@ export class Person extends Body {
     const started = this.fleeFrom === null && from !== null;
     this.fleeFrom = from;
     return started;
+  }
+
+  /**
+   * Crazy mode on or off for this doll: a crazy face, or its own again. Says whether
+   * that changed anything.
+   */
+  goCrazy(on: boolean): boolean {
+    if (this.crazy === on) return false;
+    this.crazy = on;
+    this.figure.setCrazy(on);
+    return true;
   }
 
   /** Horror mode on or off for this doll: the creepy face and claws, or its own look again. */

@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import {
   ASHEN,
   BLOOD,
+  CRAZY,
   GEAR,
   JET,
   MUSCLE,
@@ -108,6 +109,9 @@ interface Limb {
 /** The creepy faces of horror mode. */
 type HorrorFace = 'grin' | 'stitched' | 'scream' | 'hollow' | 'smile';
 const HORROR_FACES: readonly HorrorFace[] = ['grin', 'stitched', 'scream', 'hollow', 'smile'];
+/** The faces of crazy mode. */
+type CrazyFace = 'spiral' | 'googly' | 'crossed';
+const CRAZY_FACES: readonly CrazyFace[] = ['spiral', 'googly', 'crossed'];
 
 export class PersonFigure {
   readonly container: Container;
@@ -134,6 +138,9 @@ export class PersonFigure {
   private readonly horrorEyes: Graphics;
   private readonly claws: Graphics[];
   private horror = false;
+  /** Crazy mode: a crazy face over its own while it is alive. */
+  private readonly crazyFace: Graphics;
+  private crazy = false;
   /** The shadow monster is creepy as it is: it keeps its own face, and always has claws. */
   private readonly ghastly: boolean;
   private angry = false;
@@ -212,6 +219,8 @@ export class PersonFigure {
     this.ghastly = look.extra === 'shadow';
     this.horrorFace = paint.horrorFace(creepy).setVisible(false);
     this.horrorEyes = paint.horrorEyes(creepy).setVisible(false);
+    const silly = CRAZY_FACES[Math.floor(Math.random() * CRAZY_FACES.length)] ?? 'spiral';
+    this.crazyFace = paint.crazyFace(silly).setVisible(false);
 
     // The parts are drawn where they are on a standing doll, so each bending part
     // is moved back by the spot it bends around
@@ -224,6 +233,7 @@ export class PersonFigure {
       this.brows,
       this.horrorFace,
       this.horrorEyes,
+      this.crazyFace,
     ];
     face.forEach((part) => part.setPosition(0, -neck.y));
     this.headPart = scene.make.container({ x: 0, y: neck.y - waist.y }, false).add(face);
@@ -794,6 +804,13 @@ export class PersonFigure {
     this.showFace();
   }
 
+  /** Crazy mode on or off: a crazy face, or its own face again. */
+  setCrazy(on: boolean): void {
+    if (this.crazy === on) return;
+    this.crazy = on;
+    this.showFace();
+  }
+
   /**
    * Show the face it has now: its own eyes (crosses once it is dead, angry brows while
    * it is angry), or in horror mode the creepy face, with the red glow in its eyes
@@ -805,8 +822,11 @@ export class PersonFigure {
     this.horrorFace.setVisible(spooky && !this.faceless);
     this.horrorEyes.setVisible(spooky && !this.lifeless);
     this.claws.forEach((claw) => claw.setVisible(spooky || (this.ghastly && !spoilt)));
+    // Crazy mode gives a living doll a crazy face, unless horror mode has made it creepy
+    const silly = this.crazy && !spoilt && !spooky && !this.lifeless && !this.faceless;
+    this.crazyFace.setVisible(silly && !this.ghastly);
     if (spoilt) return;
-    const own = !this.faceless && !spooky;
+    const own = !this.faceless && !spooky && !(silly && !this.ghastly);
     this.eyes.setVisible(own && !this.lifeless);
     this.deadEyes.setVisible(own && this.lifeless);
     // The shadow monster has no angry brows: it is creepy enough without
@@ -1667,6 +1687,79 @@ class Painter {
       g.fillTriangle(dx - 1.3, handY + 3, dx + 1.3, handY + 3, dx + 2.5 * long, tip);
       g.fillStyle(long > 1 ? EXTRA_COLORS.shadow.bone : c.clawTip);
       g.fillTriangle(dx + 0.9 * long, tip - 3, dx + 2 * long, tip - 3, dx + 2.5 * long, tip);
+    }
+    return g;
+  }
+
+  /**
+   * The face it has in crazy mode, drawn over its own: spirals for eyes and a grin with
+   * the tongue out; one huge eye and one tiny one, looking different ways, over a mouth
+   * wide open; or both eyes looking at its nose, with big front teeth and the tongue out.
+   */
+  crazyFace(kind: CrazyFace): Graphics {
+    const g = this.blank();
+    const { eye } = SHAPE;
+    const c = CRAZY.face;
+    const ball = (x: number, radius: number, lookX: number, lookY: number): void => {
+      g.fillStyle(c.white);
+      g.fillCircle(x, eye.y, radius);
+      g.lineStyle(0.8, c.line);
+      g.strokeCircle(x, eye.y, radius);
+      g.fillStyle(c.pupil);
+      g.fillCircle(x + lookX, eye.y + lookY, radius * 0.45);
+    };
+    const tongue = (x: number, y: number): void => {
+      g.fillStyle(c.tongue);
+      g.fillEllipse(x, y + 2.5, 4, 6);
+      g.lineStyle(0.6, c.mouth);
+      g.lineBetween(x, y + 1, x, y + 4);
+    };
+    switch (kind) {
+      case 'spiral':
+        for (const x of [eye.back, eye.front]) {
+          g.fillStyle(c.white);
+          g.fillCircle(x, eye.y, 3.8);
+          g.lineStyle(0.9, c.spiral);
+          g.beginPath();
+          for (let step = 0; step <= 24; step++) {
+            const angle = step * 0.55;
+            const r = 0.2 + step * 0.15;
+            const px = x + Math.cos(angle) * r;
+            const py = eye.y + Math.sin(angle) * r;
+            if (step === 0) g.moveTo(px, py);
+            else g.lineTo(px, py);
+          }
+          g.strokePath();
+        }
+        g.lineStyle(1.4, c.line);
+        g.beginPath();
+        g.arc(5.5, -98, 6, 0.25, Math.PI - 0.25);
+        g.strokePath();
+        tongue(7.5, -93);
+        break;
+      case 'googly':
+        ball(eye.back - 0.5, 4.6, -1.6, 1.4);
+        ball(eye.front + 1.5, 2.6, 0.9, -0.9);
+        g.fillStyle(c.mouth);
+        g.fillEllipse(6, -94, 9, 6.5);
+        tongue(6.5, -93.5);
+        break;
+      case 'crossed':
+        ball(eye.back, 3.3, 1.5, 0.4);
+        ball(eye.front, 3.3, -1.5, 0.4);
+        g.lineStyle(1.3, c.line);
+        g.beginPath();
+        g.moveTo(0, -95.5);
+        g.lineTo(3, -94);
+        g.lineTo(6, -95.5);
+        g.lineTo(9, -94);
+        g.lineTo(12, -95.5);
+        g.strokePath();
+        g.fillStyle(c.white);
+        g.fillRect(4.6, -95, 2.2, 2.6);
+        g.fillRect(7, -95, 2.2, 2.6);
+        tongue(10.5, -94.5);
+        break;
     }
     return g;
   }

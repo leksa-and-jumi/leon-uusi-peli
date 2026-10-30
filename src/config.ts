@@ -1259,7 +1259,12 @@ export const MENU = {
   lock: { body: 0x6b6f76, shackle: 0x9a9fa7, hole: 0x2b2d33 },
   slots: { x: 210, y: 10, width: 58, height: 80, gap: 6 },
   /** The slots of a page end before this. A page with many things gets narrower slots. */
-  slotsEnd: GAME_WIDTH - 202,
+  slotsEnd: GAME_WIDTH - 258,
+  /** The tall button left of the battle button that switches crazy mode on and off. */
+  crazy: { x: GAME_WIDTH - 250, y: 10, width: 50, height: 80, gap: 0 },
+  crazyEmoji: '🤪',
+  crazyColor: 0x6a1b9a,
+  crazyOnColor: 0xff4081,
   /** The button that starts and ends a two-player battle. It is lit while one is on. */
   duel: { x: GAME_WIDTH - 194, y: 10, width: 50, height: 38, gap: 0 },
   duelEmoji: '🎮',
@@ -1660,6 +1665,32 @@ export const UNICORN = {
   laserColorMs: 50,
   /** What comes up: this many drops of each color, sprayed out of its mouth. */
   puke: { drops: 7 },
+} as const;
+
+/**
+ * Crazy mode. The room keeps changing color, going round the rainbow in `tint.ms`.
+ * Every doll gets a crazy face, and the ones just standing about dance. Unicorns go
+ * round and chubby, on tiny legs, and up on a rainbow they poop like a machine gun
+ * (`poopEveryMs`). A poop that hits a doll on the head (its top `head` pixels) blows
+ * it up into `glitter` sparkles of poop colors.
+ */
+export const CRAZY = {
+  tint: { ms: 4000, alpha: 0.2 },
+  popUp: { emoji: '🤪', fontSize: '96px', ms: 1300, grow: 1.6 },
+  poopEveryMs: { min: 110, max: 180 },
+  head: 30,
+  glitter: {
+    count: 44,
+    colors: [0xff80ab, 0xce93d8, 0x81d4fa, 0xa5d6a7, 0xfff59d, 0xffcc80, 0xffffff],
+  },
+  face: {
+    white: 0xffffff,
+    pupil: 0x1b1b1b,
+    line: 0x2b1b1b,
+    mouth: 0x5d1020,
+    tongue: 0xff6f91,
+    spiral: 0x7b1fa2,
+  },
 } as const;
 
 /**

@@ -78,6 +78,7 @@ export class SpawnMenu {
   private selectedIndex = FIRST_THING;
   private duelOn = false;
   private horrorOn = false;
+  private crazyOn = false;
   private unlocked = 0;
 
   constructor(scene: Phaser.Scene) {
@@ -117,6 +118,15 @@ export class SpawnMenu {
     const horror = slotRect(MENU.horror, 0);
     scene.add
       .text(horror.x + horror.width / 2, horror.y + horror.height / 2, MENU.horrorEmoji, {
+        fontSize: MENU.duelFontSize,
+      })
+      .setOrigin(0.5)
+      .setResolution(SHARP)
+      .setDepth(MENU.depth + 1);
+
+    const crazy = slotRect(MENU.crazy, 0);
+    scene.add
+      .text(crazy.x + crazy.width / 2, crazy.y + crazy.height / 2, MENU.crazyEmoji, {
         fontSize: MENU.duelFontSize,
       })
       .setOrigin(0.5)
@@ -169,10 +179,11 @@ export class SpawnMenu {
    * A click on the menu: switch the page, or pick the thing in the slot under it.
    * Says `'clear'`, `'sound'` or `'full'` when one of those buttons was pressed.
    */
-  click(px: number, py: number): 'clear' | 'sound' | 'full' | 'duel' | 'horror' | null {
+  click(px: number, py: number): 'clear' | 'sound' | 'full' | 'duel' | 'horror' | 'crazy' | null {
     if (slotAt(MENU.clear, 1, px, py) !== null) return 'clear';
     if (slotAt(MENU.duel, 1, px, py) !== null) return 'duel';
     if (slotAt(MENU.horror, 1, px, py) !== null) return 'horror';
+    if (slotAt(MENU.crazy, 1, px, py) !== null) return 'crazy';
     if (slotAt(MENU.sound, 1, px, py) !== null) return 'sound';
     if (this.canGoFull && slotAt(MENU.full, 1, px, py) !== null) return 'full';
 
@@ -226,6 +237,13 @@ export class SpawnMenu {
     this.showPage();
   }
 
+  /** Light the crazy button pink while crazy mode is on. */
+  showCrazy(on: boolean): void {
+    if (this.crazyOn === on) return;
+    this.crazyOn = on;
+    this.showPage();
+  }
+
   /** The slots of the open page: narrower than usual when the page holds many things. */
   private row(): SlotRow {
     return fitRow(MENU.slots, this.choices().length, MENU.slotsEnd);
@@ -258,6 +276,9 @@ export class SpawnMenu {
     const horror = slotRect(MENU.horror, 0);
     panel.fillStyle(this.horrorOn ? MENU.horrorOnColor : MENU.horrorColor);
     panel.fillRoundedRect(horror.x, horror.y, horror.width, horror.height, MENU.slotRadius);
+    const crazy = slotRect(MENU.crazy, 0);
+    panel.fillStyle(this.crazyOn ? MENU.crazyOnColor : MENU.crazyColor);
+    panel.fillRoundedRect(crazy.x, crazy.y, crazy.width, crazy.height, MENU.slotRadius);
     const buttons = this.canGoFull ? [MENU.sound, MENU.full] : [MENU.sound];
     for (const button of buttons.map((row) => slotRect(row, 0))) {
       panel.fillStyle(MENU.soundColor);
