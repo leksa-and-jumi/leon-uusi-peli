@@ -654,11 +654,13 @@ export class MainScene extends Phaser.Scene {
     const keys = this.input.keyboard?.addKeys(DUEL_KEYS.join(','));
     this.duelKeys = keys ? (keys as Record<DuelKey, Phaser.Input.Keyboard.Key>) : null;
 
+    // The right mouse button is for the game, not for the browser's menu
+    this.input.mouse?.disableContextMenu();
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.sfx.unlock();
       // A finger is thicker than a mouse pointer: things are easier to grab with it
       Body.pickPadding = pointer.wasTouch ? PICK_PADDING_TOUCH : PICK_PADDING;
-      this.press(pointer.x / SHARP, pointer.y / SHARP);
+      this.press(pointer.x / SHARP, pointer.y / SHARP, pointer.rightButtonDown());
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.dragged?.dragTo(pointer.x / SHARP, pointer.y / SHARP, AREA);
@@ -1603,7 +1605,8 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private press(px: number, py: number): void {
+  /** A click or a tap at this point. `right` when it is the right mouse button. */
+  private press(px: number, py: number, right = false): void {
     if (this.menu.covers(py)) {
       const pressed = this.menu.click(px, py);
       // A browser only goes full screen when a finger or the mouse button lets go
@@ -1639,9 +1642,10 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    // Playing alone, a click in the area is an attack: the doll turns that way and
-    // shoots or hits, for as long as the button is held down
-    const alone = this.mode === 'solo' ? this.players[0] : null;
+    // Playing alone, a left click in the area is an attack: the doll turns that way and
+    // shoots or hits, for as long as the button is held down. The right button picks,
+    // puts in and moves things, as a click always does
+    const alone = this.mode === 'solo' && !right ? this.players[0] : null;
     if (alone && !alone.dead && this.people.includes(alone)) {
       alone.faceToward(px);
       this.mouseHit = true;
