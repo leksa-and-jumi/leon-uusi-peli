@@ -1800,18 +1800,19 @@ class Painter {
     const g = this.blank();
     const c = CRAZY.bottle;
     const handY = SHAPE.forearm.length + 2;
-    // Its neck points back, to the mouth: the body of the bottle is out in front
+    // With the hand up at the face its neck points back, into the mouth, and the
+    // bottom of the bottle is up in the air in front
     g.fillStyle(c.glass);
-    g.fillRoundedRect(-3, handY - 4.5, 17, 9, 3);
-    g.fillRect(-12, handY - 2.2, 9, 4.4);
+    g.fillRoundedRect(-14, handY - 4.5, 17, 9, 3);
+    g.fillRect(3, handY - 2.2, 9, 4.4);
     g.fillStyle(c.lip);
-    g.fillRect(-14, handY - 2.8, 2.5, 5.6);
+    g.fillRect(11.5, handY - 2.8, 2.5, 5.6);
     g.fillStyle(c.liquid, 0.75);
-    g.fillRoundedRect(-2, handY - 1, 15, 4.5, 2);
+    g.fillRoundedRect(-13, handY - 1, 15, 4.5, 2);
     g.fillStyle(c.label);
-    g.fillRect(3, handY - 4.5, 7, 9);
+    g.fillRect(-10, handY - 4.5, 7, 9);
     g.fillStyle(c.shine, 0.7);
-    g.fillRect(-0.5, handY - 3.5, 13, 1.3);
+    g.fillRect(-12.5, handY - 3.5, 13, 1.3);
     return g;
   }
 
