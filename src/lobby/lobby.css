@@ -1,0 +1,291 @@
+/* The lobby: a card over the game, and a little sign in the corner while online */
+:root {
+  --lobby-back: rgba(14, 16, 26, 0.72);
+  --lobby-card: #23263a;
+  --lobby-line: #3a3f5c;
+  --lobby-text: #f2f3f8;
+  --lobby-soft: #a9adc6;
+  --lobby-go: #ffd54f;
+  --lobby-go-text: #2b2200;
+  --lobby-blue: #5c8dff;
+  --lobby-bad: #ff6b6b;
+  --lobby-good: #69e08a;
+}
+
+.lobby {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--lobby-back);
+  backdrop-filter: blur(3px);
+  font:
+    15px/1.4 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: var(--lobby-text);
+  z-index: 10;
+  touch-action: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.lobby[hidden],
+.lobby-sign[hidden],
+.lobby-invite[hidden] {
+  display: none;
+}
+
+.lobby-card {
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--lobby-card);
+  border: 1px solid var(--lobby-line);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.lobby h1 {
+  margin: 0 0 14px;
+  font-size: 24px;
+  text-align: center;
+}
+
+.lobby h2 {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lobby-soft);
+}
+
+.lobby button {
+  font: inherit;
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: var(--lobby-line);
+  color: var(--lobby-text);
+  cursor: pointer;
+}
+
+.lobby button:hover {
+  filter: brightness(1.15);
+}
+
+.lobby button:focus-visible,
+.lobby input:focus-visible {
+  outline: 2px solid var(--lobby-go);
+  outline-offset: 2px;
+}
+
+.lobby .play {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  font-size: 22px;
+  font-weight: 700;
+  background: var(--lobby-go);
+  color: var(--lobby-go-text);
+  border-radius: 14px;
+}
+
+.lobby .go {
+  background: var(--lobby-go);
+  color: var(--lobby-go-text);
+  font-weight: 700;
+}
+
+.lobby .blue {
+  background: var(--lobby-blue);
+  color: #ffffff;
+}
+
+.lobby-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.lobby-row > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.lobby input {
+  font: inherit;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--lobby-line);
+  background: #171a29;
+  color: var(--lobby-text);
+}
+
+.lobby .pin {
+  flex: 0 0 76px;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.lobby .code {
+  flex: 0 0 96px;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+
+.lobby-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--lobby-soft);
+}
+
+.lobby-problem {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--lobby-bad);
+  min-height: 1em;
+}
+
+.lobby-players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.lobby-players li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 6px 6px 12px;
+  border-radius: 10px;
+  background: #1b1e2e;
+}
+
+.lobby-players li::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--lobby-good);
+}
+
+.lobby-players span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lobby-room {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #1b1e2e;
+  text-align: center;
+}
+
+.lobby-room strong {
+  display: block;
+  font-size: 34px;
+  letter-spacing: 0.25em;
+  color: var(--lobby-go);
+}
+
+.lobby-sign {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  background: rgba(20, 22, 34, 0.85);
+  color: #ffffff;
+  font:
+    13px system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  z-index: 5;
+}
+
+.lobby-sign button {
+  font: inherit;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: #3a3f5c;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.lobby-invite {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px 10px 16px;
+  border-radius: 14px;
+  background: var(--lobby-card);
+  border: 1px solid var(--lobby-go);
+  color: var(--lobby-text);
+  font:
+    15px system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+}
+
+.lobby-invite button {
+  font: inherit;
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  background: #3a3f5c;
+  color: #ffffff;
+}
+
+.lobby-invite .yes {
+  background: var(--lobby-go);
+  color: var(--lobby-go-text);
+  font-weight: 700;
+}
+
+/* A phone held sideways is low: everything a bit tighter */
+@media (max-height: 480px) {
+  .lobby-card {
+    padding: 14px 18px;
+  }
+
+  .lobby h1 {
+    margin-bottom: 8px;
+    font-size: 19px;
+  }
+
+  .lobby .play {
+    padding: 10px;
+    font-size: 19px;
+  }
+
+  .lobby h2 {
+    margin-top: 12px;
+  }
+}
