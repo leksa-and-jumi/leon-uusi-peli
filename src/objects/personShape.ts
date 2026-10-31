@@ -739,6 +739,47 @@ export class PersonFigure {
    * taken out of the doll and put into the area where it was, and both cut ends get
    * a mark. Only one part ever comes off a doll. Gives `null` when one already has.
    */
+  /** How high its shoulders are on the screen right now. */
+  get shoulderY(): number {
+    return this.frontArm.upper.getWorldTransformMatrix().ty;
+  }
+
+  /**
+   * Show just one part of it while `draw` runs: its `body` (all but the arms), or one
+   * arm. Everything else is hidden for that moment, and shown again after.
+   */
+  drawOnly(part: 'body' | 'frontArm' | 'backArm', draw: () => void): void {
+    type Shown = Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Visible;
+    const hidden: Shown[] = [];
+    const hide = (thing: Phaser.GameObjects.GameObject): void => {
+      const shown = thing as Shown;
+      if (!shown.visible) return;
+      shown.setVisible(false);
+      hidden.push(shown);
+    };
+    if (part === 'body') {
+      hide(this.frontArm.upper);
+      hide(this.backArm.upper);
+    } else {
+      const keep = part === 'frontArm' ? this.frontArm.upper : this.backArm.upper;
+      // Everything but the arm and what holds it is hidden
+      const holders = new Set<Phaser.GameObjects.GameObject>();
+      for (let at = keep.parentContainer as Container | null; at; at = at.parentContainer) {
+        holders.add(at);
+      }
+      const walk = (box: Container): void => {
+        for (const child of box.list) {
+          if (child === keep) continue;
+          if (holders.has(child)) walk(child as Container);
+          else hide(child);
+        }
+      };
+      walk(this.container);
+    }
+    draw();
+    hidden.forEach((thing) => thing.setVisible(true));
+  }
+
   cutOff(part: BodyPart): LoosePart | null {
     if (this.severed) return null;
     const { picture, lift, reach } = this.partPicture(part);

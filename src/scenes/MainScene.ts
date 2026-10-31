@@ -118,6 +118,7 @@ import { Body } from '../objects/Body';
 import { Item } from '../objects/Item';
 import { Part } from '../objects/Part';
 import { Person } from '../objects/Person';
+import type { PersonFigure } from '../objects/personShape';
 import { SpawnMenu } from '../objects/SpawnMenu';
 import type { HitSound, World } from '../objects/World';
 
@@ -205,9 +206,8 @@ export class MainScene extends Phaser.Scene {
   private items: Item[] = [];
   /** The parts that have been cut off dolls and lie around. */
   private parts: Part[] = [];
-  /** The pictures of dolls cut in two, and how many halves still use each one. */
+  /** How many pictures of dolls cut in two have been taken: each gets a name of its own. */
   private slices = 0;
-  private sliceUses = new Map<string, number>();
   private bullets: Bullet[] = [];
   private pieces: Piece[] = [];
   /** Blood on the floor. It stays until it is wiped away with the broom. */
@@ -2437,36 +2437,62 @@ export class MainScene extends Phaser.Scene {
    */
   /**
    * A doll comes apart in two at the height `y`, where a samurai sword went through
-   * it. A picture is taken of the doll just as it is, and the halves of that picture,
-   * above and below the cut, fly apart as two loose parts with a bloody cut end each.
+   * it. Pictures are taken of the doll just as it is, and the halves of them, above
+   * and below the cut, fly apart as two loose parts with a bloody cut end each. Cut
+   * anywhere under the shoulders, the arms stay whole, on the upper half.
    */
   private cutInTwo(
-    figure: Phaser.GameObjects.Container,
+    figure: PersonFigure,
     y: number,
     top: number,
     direction: Facing,
     blood: number,
   ): void {
     const { size, below, stump } = SLICE;
-    const feet = { x: figure.x, y: figure.y };
+    const doll = figure.container;
+    const feet = { x: doll.x, y: doll.y };
     const left = feet.x - size / 2;
     const corner = feet.y + below - size;
-    const key = `slice-${String(this.slices++)}`;
-    const texture = this.textures.addDynamicTexture(key, size * SHARP, size * SHARP);
-    if (!texture) return;
-    // Drawn sharp: as big as it is on the screen
-    const { scaleX, scaleY } = figure;
-    figure.setScale(scaleX * SHARP, scaleY * SHARP);
-    figure.setPosition((feet.x - left) * SHARP, (feet.y - corner) * SHARP);
-    texture.draw(figure).render();
-    figure.setScale(scaleX, scaleY).setPosition(feet.x, feet.y);
+    const keys: string[] = [];
+    /** A sharp picture of the doll (or of what is shown of it), as big as it is on the screen. */
+    const snapshot = (): string | null => {
+      const key = `slice-${String(this.slices++)}`;
+      const texture = this.textures.addDynamicTexture(key, size * SHARP, size * SHARP);
+      if (!texture) return null;
+      const { scaleX, scaleY } = doll;
+      doll.setScale(scaleX * SHARP, scaleY * SHARP);
+      doll.setPosition((feet.x - left) * SHARP, (feet.y - corner) * SHARP);
+      texture.draw(doll).render();
+      doll.setScale(scaleX, scaleY).setPosition(feet.x, feet.y);
+      keys.push(key);
+      return key;
+    };
+    const armsUp = y > figure.shoulderY;
+    let body: string | null = null;
+    let backArm: string | null = null;
+    let frontArm: string | null = null;
+    if (armsUp) {
+      figure.drawOnly('body', () => (body = snapshot()));
+      figure.drawOnly('backArm', () => (backArm = snapshot()));
+      figure.drawOnly('frontArm', () => (frontArm = snapshot()));
+    } else {
+      body = snapshot();
+    }
+    if (body === null) return;
 
-    const half = (from: number, to: number, cutUp: boolean): Phaser.GameObjects.Container => {
-      const middle = (from + to) / 2;
-      const image = this.add
+    const picture = (key: string, middle: number): Phaser.GameObjects.Image =>
+      this.add
         .image(-size / 2, corner - middle, key)
         .setOrigin(0)
         .setScale(1 / SHARP);
+    const half = (
+      from: number,
+      to: number,
+      cutUp: boolean,
+      key: string,
+    ): Phaser.GameObjects.Container => {
+      const middle = (from + to) / 2;
+      const image = picture(key, middle);
       const fromRow = cutUp ? y - corner : 0;
       const toRow = cutUp ? size : y - corner;
       image.setCrop(0, fromRow * SHARP, size * SHARP, (toRow - fromRow) * SHARP);
@@ -2476,22 +2502,23 @@ export class MainScene extends Phaser.Scene {
       end.fillEllipse(0, cutY, stump.width + 3, stump.height + 2);
       end.fillStyle(blood);
       end.fillEllipse(0, cutY, stump.width, stump.height);
-      const picture = this.add.container(feet.x, middle, [image, end]);
-      // The picture is forgotten once neither half needs it any more
-      this.sliceUses.set(key, (this.sliceUses.get(key) ?? 0) + 1);
-      picture.once(Phaser.GameObjects.Events.DESTROY, () => {
-        const left = (this.sliceUses.get(key) ?? 1) - 1;
-        if (left > 0) {
-          this.sliceUses.set(key, left);
-          return;
-        }
-        this.sliceUses.delete(key);
-        if (this.textures.exists(key)) this.textures.remove(key);
-      });
-      return picture;
+      const parts: Phaser.GameObjects.GameObject[] = [image, end];
+      // The whole arms go with the upper half: the back one behind it, the front one in front
+      if (!cutUp && backArm !== null) parts.unshift(picture(backArm, middle));
+      if (!cutUp && frontArm !== null) parts.push(picture(frontArm, middle));
+      return this.add.container(feet.x, middle, parts);
     };
-    const upper = half(top, y, false);
-    const lower = half(y, feet.y, true);
+    const upper = half(top, y, false, body);
+    const lower = half(y, feet.y, true, body);
+    // The pictures are forgotten once neither half needs them any more
+    let halves = 2;
+    const done = (): void => {
+      halves -= 1;
+      if (halves > 0) return;
+      for (const key of keys) if (this.textures.exists(key)) this.textures.remove(key);
+    };
+    upper.once(Phaser.GameObjects.Events.DESTROY, done);
+    lower.once(Phaser.GameObjects.Events.DESTROY, done);
     const lift = PERSON.halfWidth * 0.6;
     this.sever(upper, lift, Math.max(lift, (y - top) / 2), direction, false);
     this.sever(lower, lift, Math.max(lift, (feet.y - y) / 2), direction, true);
