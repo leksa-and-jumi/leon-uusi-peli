@@ -8,6 +8,7 @@ import type { Facing } from '../logic/walk';
 import type { Block } from './Block';
 import type { Body } from './Body';
 import type { Person } from './Person';
+import type { PersonFigure } from './personShape';
 
 /** What a hit sounds like: a fist, a weapon, or nothing extra (a bullet already banged). */
 export type HitSound = 'punch' | 'clang' | 'squeak' | 'zap' | 'none';
@@ -75,7 +76,7 @@ export interface World {
    * apart in two there. `top` is the top of the doll; the blade went this way.
    */
   cutInTwo: (
-    picture: Phaser.GameObjects.Container,
+    figure: PersonFigure,
     y: number,
     top: number,
     direction: Facing,

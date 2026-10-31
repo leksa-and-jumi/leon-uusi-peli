@@ -1599,7 +1599,7 @@ export class Person extends Body {
     const { inside } = SLICE;
     const at = clamp(y, body.top + inside, body.bottom - inside);
     const color = this.look.blood ?? BLOOD.color;
-    world.cutInTwo(this.figure.container, at, body.top, this.knockDir, color);
+    world.cutInTwo(this.figure, at, body.top, this.knockDir, color);
     world.bleed(this.x, at, BLOOD.cutSpray, color, true);
     this.slicedApart = true;
   }
