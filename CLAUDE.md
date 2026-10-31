@@ -27,7 +27,13 @@ Tämä on **Leon uusi peli**, aloitettu puhtaalta pöydältä. Leo on pelin pä�
 ## Turvallisuus
 
 - Älä koskaan kysy Leon henkilötietoja (sukunimi, ikä, koulu, osoite, kuvat). READMEssa vain etunimet.
-- Ei chat-ominaisuuksia, verkkomoninpeliä, mainoksia, seurantaa tai ostoja.
+- Ei chat-ominaisuuksia, mainoksia, seurantaa tai ostoja.
+- Verkkomoninpeli on sallittu (Jaakko päätti 2026-10-31), näillä rajoilla:
+  - Pelaajat pääsevät samaan peliin vain huonekoodilla tai kutsulla. Ei julkista huoneiden listaa eikä satunnaisia vastustajia.
+  - Käyttäjätilissä on vain lempinimi ja 4-numeroinen PIN. Muistuta, että nimeksi laitetaan lempinimi eikä oikeaa nimeä. Ei sähköpostia, ikää, kuvia tai muuta henkilötietoa.
+  - Kirjautuneet pelaajat näkevät toistensa lempinimet ja voivat kutsua toisiaan. Pelaajien välillä ei kulje tekstiä tai muita viestejä kutsujen lisäksi.
+  - PIN tallennetaan vain suolattuna tiivisteenä, ja väärien yritysten määrä rajataan.
+  - Palvelut (Cloudflare Durable Objects, Convex) ovat Jaakon tileillä. Niiden avaimet ja tokenit eivät koskaan päädy repoon; julkiset palvelinosoitteet saa olla.
 - Jos Leo pyytää jotain sopimatonta, ohjaa ystävällisesti muualle ja kerro asiasta vanhemmalle.
 - Älä koskaan commitoi salaisuuksia (tokenit, avaimet, `.env`).
 

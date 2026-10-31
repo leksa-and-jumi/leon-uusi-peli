@@ -3,6 +3,17 @@ import type { WreckSpec } from './logic/wreck';
 import type { Spring } from './logic/fall';
 import type { Pull } from './logic/pull';
 /** Shared game constants. Tweak values here instead of inside scenes. */
+/**
+ * The servers of the online game: the rooms (Cloudflare Durable Objects) and the
+ * player accounts (Convex). Both are public addresses; the keys to them are not here.
+ * A logged-in game says it is still there every `pulseMs`.
+ */
+export const ONLINE = {
+  rooms: 'wss://leon-uusi-peli-rooms.mrjv.workers.dev',
+  accounts: 'https://uncommon-perch-676.eu-west-1.convex.cloud',
+  pulseMs: 30000,
+} as const;
+
 export const GAME_WIDTH = 1120;
 export const GAME_HEIGHT = 660;
 

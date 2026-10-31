@@ -8,6 +8,12 @@
 
 👉 **[Play here! / Pelaa tästä!](https://leksa-and-jumi.github.io/leon-uusi-peli/)**
 
+## Play online / Pelaa netissä
+
+🇬🇧 When the game opens, the big yellow **▶ Play** button starts it at once. Under it is the online part. Log in with a **nickname** (not your real name!) and a **4-digit PIN**, or make a new player. Then you see who else is online and can **invite** them. You can also make a **room** and tell a friend its 4-letter code, or join a room with a code. When both are in, a new game starts for both of you: player 1 steers the blue doll and player 2 the red one, each from their own computer (A D W F G or the arrow keys, either one), and both can put things in and move them with the mouse. The little sign in the bottom corner shows the room code and the connection, and ✖ leaves the room. The 🌐 button opens the lobby again.
+
+🇫🇮 Kun peli aukeaa, iso keltainen **▶ Pelaa**-nappi aloittaa sen heti. Sen alla on nettipelin osio. Kirjaudu **lempinimellä** (ei oikealla nimellä!) ja **4-numeroisella PIN-koodilla**, tai tee uusi pelaaja. Sitten näet, kuka muu on paikalla, ja voit **kutsua** hänet. Voit myös tehdä **huoneen** ja kertoa kaverille sen 4-kirjaimisen koodin, tai liittyä huoneeseen koodilla. Kun molemmat ovat sisällä, teille alkaa uusi yhteinen peli: pelaaja 1 ohjaa sinistä nukkea ja pelaaja 2 punaista, kumpikin omalta koneeltaan (A D W F G tai nuolinäppäimet, kumpi vain), ja molemmat voivat laittaa juttuja kentälle ja siirrellä niitä hiirellä. Alakulman pieni merkki näyttää huonekoodin ja yhteyden, ja ✖ poistuu huoneesta. 🌐-napista aula aukeaa uudestaan.
+
 ## How to play / Miten pelataan
 
 🇬🇧 The menu at the top has thirteen pages: 🧍 dolls, 🔫 weapons, 🧱 building pieces, 🚽 junk, 🚗 vehicles, 👾 monsters, ⚠️ traps and odd weapons, 🌊 lava, water, the black hole and things with strange powers, 🏰 castle pieces, 🛡️ gear, 🔮 superpowers, 🥷 fighters, and 🏆 golden weapons. Pick something 👆, then click in the gray area: it drops in and lands on the black floor. Drag things around with the mouse 🖐️. The red 🗑️ button takes everything away. The gray area has a ceiling: nothing flies past it. Every page starts with an empty box: with that picked, a click on the gray area puts nothing in.
@@ -340,5 +346,11 @@ npm run dev     # development / kehitys
 npm run check   # tests and checks / testit ja tarkistukset
 npm run build   # production build / tuotantoversio
 ```
+
+Online / Netti:
+
+- `server/` is a Cloudflare Worker with one Durable Object per room. It only relays the players' turns to each other (WebSocket hibernation, binary messages). Deploy with `npm run deploy:rooms`. / `server/` on Cloudflare Worker, jossa on yksi Durable Object jokaista huonetta kohti. Se vain välittää pelaajien vuorot toisilleen (WebSocket-hibernaatio, binääriviestit). Julkaisu: `npm run deploy:rooms`.
+- `convex/` holds the player accounts (nickname, salted PIN hash), who is online and the invitations. Deploy with `npm run deploy:accounts`. / `convex/` sisältää pelaajatilit (lempinimi ja suolattu PIN-tiiviste), paikallaolon ja kutsut. Julkaisu: `npm run deploy:accounts`.
+- `src/net/` plays the game in lockstep. Both computers play the same game from the same seed with deterministic math, and only the inputs travel, three frames per message. If the games ever drift apart, both start over together. / `src/net/` pelaa peliä tahdistetusti (lockstep). Molemmat koneet pelaavat samaa peliä samasta siemenluvusta deterministisellä matematiikalla, ja verkon yli kulkevat vain syötteet, kolme ruutua viestissä. Jos pelit joskus ajautuvat erilleen, molemmat aloittavat yhdessä alusta.
 
 Rules / Säännöt: [CLAUDE.md](CLAUDE.md).

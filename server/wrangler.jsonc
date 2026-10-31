@@ -1,0 +1,12 @@
+{
+  // The rooms of the online game: a Worker that hands each room to its own Durable Object
+  "name": "leon-uusi-peli-rooms",
+  "main": "rooms.ts",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "Room" }],
+  },
+  // The free plan needs Durable Objects that keep their data in SQLite (these keep none)
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "observability": { "enabled": false },
+}

@@ -1,3 +1,4 @@
+import { onlyHere } from '../net/detMath';
 import type Phaser from 'phaser';
 import {
   BLOCKS,
@@ -157,6 +158,26 @@ export class SpawnMenu {
   }
 
   /** What gets put into the area on the next click. */
+  /** What is picked, as a short code that goes over the network: its page and slot. */
+  get selectedCode(): string {
+    if (this.tab === 'golden') {
+      const kind = GOLDEN_KINDS[this.selectedIndex - 1];
+      return kind && this.selectedIndex <= this.unlocked ? `golden:${kind}` : 'none';
+    }
+    return `${this.tab}:${String(this.selectedIndex)}`;
+  }
+
+  /** What a code from `selectedCode` means: the same thing in every game. */
+  static choiceFromCode(code: string): SpawnChoice {
+    const [tab = '', at = ''] = code.split(':');
+    if (tab === 'golden') {
+      const kind = GOLDEN_KINDS.find((golden) => golden === at);
+      return kind ? { type: 'item', kind } : NOTHING;
+    }
+    const page = (CHOICES as Partial<Record<string, readonly SpawnChoice[]>>)[tab];
+    return page?.[Number(at)] ?? NOTHING;
+  }
+
   get selected(): SpawnChoice {
     const choice = this.choices()[this.selectedIndex];
     if (!choice) {
@@ -251,6 +272,13 @@ export class SpawnMenu {
 
   /** Draw the open page: the panel, the tab buttons and a picture in every slot. */
   private showPage(): void {
+    // Only this player sees their menu: it doesn't use up the random numbers of an online game
+    onlyHere(() => {
+      this.drawPage();
+    });
+  }
+
+  private drawPage(): void {
     const { panel, scene } = this;
     this.pictures.forEach((picture) => picture.destroy());
     this.pictures = [];

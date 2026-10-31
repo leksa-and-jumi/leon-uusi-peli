@@ -39,6 +39,13 @@ export class ActionBubbles {
     this.body = body;
   }
 
+  /** Gone for good: a player has left the online game. */
+  destroy(): void {
+    this.close();
+    this.graphics.destroy();
+    this.labels.forEach((label) => label.destroy());
+  }
+
   close(): void {
     this.body = null;
     this.centers = [];

@@ -4,6 +4,13 @@ import { crazyBeat, horrorBeat } from '../logic/music';
 type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
 /**
+ * The page's own random numbers, kept aside: online, the game's random numbers are
+ * shared with the other player, and sounds (which one player may have off) mustn't
+ * use any of them up.
+ */
+const noise = Math.random.bind(Math);
+
+/**
  * The sounds of the game, all made with code (no sound files): thumps, clangs,
  * shots and explosions built from tones that slide down and bursts of hiss.
  */
@@ -491,7 +498,7 @@ export class Sfx {
       this.hiss = context.createBuffer(1, length, context.sampleRate);
       const samples = this.hiss.getChannelData(0);
       for (let i = 0; i < length; i++) {
-        samples[i] = Math.random() * 2 - 1;
+        samples[i] = noise() * 2 - 1;
       }
     }
     return this.hiss;

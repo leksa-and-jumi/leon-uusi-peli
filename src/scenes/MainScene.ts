@@ -118,8 +118,10 @@ import { Body } from '../objects/Body';
 import { Item } from '../objects/Item';
 import { Part } from '../objects/Part';
 import { Person } from '../objects/Person';
+import type { NetGame, NetPlayable } from '../net/NetGame';
+import { KEY, type Command, type FrameInput } from '../net/protocol';
 import type { PersonFigure } from '../objects/personShape';
-import { SpawnMenu } from '../objects/SpawnMenu';
+import { SpawnMenu, type SpawnChoice } from '../objects/SpawnMenu';
 import type { HitSound, World } from '../objects/World';
 
 const AREA: PlaceArea = {
@@ -135,6 +137,43 @@ const DUEL_KEYS = ['A', 'D', 'W', 'F', 'G', 'SPACE', 'LEFT', 'RIGHT', 'UP', 'ENT
 /** The two kinds of battle: against each other, or together against enemies. */
 type BattleMode = 'versus' | 'team' | 'solo';
 type DuelKey = (typeof DUEL_KEYS)[number];
+
+/** What a player does with the keys in a frame. */
+interface Steering {
+  left: boolean;
+  right: boolean;
+  jump: boolean;
+  hit: boolean;
+  drop: boolean;
+}
+
+/**
+ * A player's hand: what it drags, where that has been lately (to see how fast it is
+ * swung and thrown), its last click (for double-clicks), a click on a pool that puts
+ * a thing in unless it turns out to be a double-click, its action bubbles, and, online,
+ * what that player has picked in their menu.
+ */
+interface Hand {
+  dragged: Body | null;
+  lastClick: Click | null;
+  lastDragSpot: Spot | null;
+  dragTrail: DragSample[];
+  spawnSoon: { x: number; y: number; atMs: number } | null;
+  bubbles: ActionBubbles;
+  choice: SpawnChoice | null;
+}
+
+function newHand(bubbles: ActionBubbles): Hand {
+  return {
+    dragged: null,
+    lastClick: null,
+    lastDragSpot: null,
+    dragTrail: [],
+    spawnSoon: null,
+    bubbles,
+    choice: null,
+  };
+}
 
 /**
  * One of the two cleaners at work. The old lady sweeps the `floor` and throws the bodies
@@ -197,9 +236,8 @@ interface Piece {
  * The area: pick something from the menu and click to put it in. Drag things around,
  * and double-click one to open its action bubbles.
  */
-export class MainScene extends Phaser.Scene {
+export class MainScene extends Phaser.Scene implements NetPlayable {
   private menu!: SpawnMenu;
-  private bubbles!: ActionBubbles;
   private readonly sfx = new Sfx();
   private people: Person[] = [];
   private blocks: Block[] = [];
@@ -323,6 +361,11 @@ export class MainScene extends Phaser.Scene {
   private dropMs = 0;
   private dropped: Item[] = [];
   private unlocked = 0;
+  /**
+   * Online, the golden weapons won in this game together: each player may have won a
+   * different number before, and both games must drop the same ones.
+   */
+  private wonTogether = 0;
   /** When each doll was last burnt by a stream of fire. */
   private readonly lastBurnt = new WeakMap<Person, number>();
   /**
@@ -339,12 +382,13 @@ export class MainScene extends Phaser.Scene {
     puffMs: number;
   }[] = [];
   private floorShadowLayer!: Phaser.GameObjects.Graphics;
-  private dragged: Body | null = null;
-  private lastClick: Click | null = null;
-  /** Where the dragged thing was a frame ago, to see how fast it is swung. */
-  private lastDragSpot: Spot | null = null;
-  /** Where the dragged thing has been in the last moments, to throw it when it is let go. */
-  private dragTrail: DragSample[] = [];
+  /**
+   * The hand of each player: what it drags, its clicks and its action bubbles. Playing
+   * alone there is one; online there is one for each player, and `hand` is the one
+   * whose turn it is.
+   */
+  private hands: Hand[] = [];
+  private hand!: Hand;
   /** When each doll was last hit by a swung weapon. */
   private lastSwingHit = new WeakMap<Person, number>();
   /** The boxes of everything solid, worked out once per frame. */
@@ -353,8 +397,6 @@ export class MainScene extends Phaser.Scene {
   private downDolls: Box[] = [];
   /** Things destroyed during this frame, waiting to be taken out of the game. */
   private doomed: Body[] = [];
-  /** A click on a pool that puts a new thing in, unless a second click makes it a double-click. */
-  private spawnSoon: { x: number; y: number; atMs: number } | null = null;
   /** When the thunder hammer last called down lightning. */
   private lastThunderMs = -Infinity;
   /** The full-screen button was pressed: switch when the press is let go. */
@@ -362,10 +404,84 @@ export class MainScene extends Phaser.Scene {
   /** Where the monsters' tune is: time into the beat, and which beat. */
   private chantMs = 0;
   private chantBeat = 0;
+  /**
+   * The game's own clock: how long it has played. Online, both players' games keep
+   * the same time with it.
+   */
+  private clockMs = 0;
+  /** The online game while there is one: it plays the frames, in step with the other player. */
+  private net: NetGame | null = null;
+  /** Online, the keys each player holds down this frame, and held down the frame before. */
+  private seatKeys: { now: number; before: number }[] = [];
   private world!: World;
 
   constructor() {
     super('MainScene');
+  }
+
+  // What the hand whose turn it is drags, clicked and has open
+  private get dragged(): Body | null {
+    return this.hand.dragged;
+  }
+
+  private set dragged(body: Body | null) {
+    this.hand.dragged = body;
+  }
+
+  private get lastClick(): Click | null {
+    return this.hand.lastClick;
+  }
+
+  private set lastClick(click: Click | null) {
+    this.hand.lastClick = click;
+  }
+
+  private get lastDragSpot(): Spot | null {
+    return this.hand.lastDragSpot;
+  }
+
+  private set lastDragSpot(spot: Spot | null) {
+    this.hand.lastDragSpot = spot;
+  }
+
+  private get dragTrail(): DragSample[] {
+    return this.hand.dragTrail;
+  }
+
+  private set dragTrail(trail: DragSample[]) {
+    this.hand.dragTrail = trail;
+  }
+
+  private get spawnSoon(): Hand['spawnSoon'] {
+    return this.hand.spawnSoon;
+  }
+
+  private set spawnSoon(soon: Hand['spawnSoon']) {
+    this.hand.spawnSoon = soon;
+  }
+
+  private get bubbles(): ActionBubbles {
+    return this.hand.bubbles;
+  }
+
+  /** How many golden weapons have been won: by this player, or online by both together. */
+  private get goldenWon(): number {
+    return this.net ? this.wonTogether : this.unlocked;
+  }
+
+  /** Is somebody's hand dragging it? */
+  private held(body: Body): boolean {
+    return this.hands.some((hand) => hand.dragged === body);
+  }
+
+  /** Do this with each player's hand in turn. */
+  private eachHand(act: () => void): void {
+    const own = this.hand;
+    for (const hand of this.hands) {
+      this.hand = hand;
+      act();
+    }
+    this.hand = own;
   }
 
   create(): void {
@@ -378,9 +494,7 @@ export class MainScene extends Phaser.Scene {
     this.stains = [];
     this.fumes = [];
     this.solids = [];
-    this.dragged = null;
-    this.lastClick = null;
-    this.lastDragSpot = null;
+    this.clockMs = 0;
     this.world = {
       area: AREA,
       bottom: GAME_HEIGHT,
@@ -640,7 +754,8 @@ export class MainScene extends Phaser.Scene {
     this.horrorAngered = new Set();
     this.stalker = { doll: null, waitMs: HORROR.shadow.firstMs, litMs: 0, deadMs: 0 };
     this.menu = new SpawnMenu(this);
-    this.bubbles = new ActionBubbles(this);
+    this.hands = [newHand(new ActionBubbles(this))];
+    this.hand = this.hands[0] as Hand;
     this.players = [null, null];
     this.duelHint = null;
     this.match = NEW_MATCH;
@@ -698,26 +813,47 @@ export class MainScene extends Phaser.Scene {
     this.input.mouse?.disableContextMenu();
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.sfx.unlock();
-      // A finger is thicker than a mouse pointer: things are easier to grab with it
-      Body.pickPadding = pointer.wasTouch ? PICK_PADDING_TOUCH : PICK_PADDING;
-      this.press(pointer.x / SHARP, pointer.y / SHARP);
+      const x = pointer.x / SHARP;
+      const y = pointer.y / SHARP;
+      // Online, what is pressed in the area goes to both games, to be played in step
+      const net = this.net;
+      if (net) {
+        if (this.menu.covers(y)) this.pressMenu(x, y);
+        else net.down(x, y, pointer.wasTouch, this.menu.selectedCode);
+        return;
+      }
+      this.touchPadding(pointer.wasTouch);
+      this.press(x, y);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      this.dragged?.dragTo(pointer.x / SHARP, pointer.y / SHARP, AREA);
+      const x = pointer.x / SHARP;
+      const y = pointer.y / SHARP;
+      if (this.net) this.net.move(x, y);
+      else this.dragged?.dragTo(x, y, AREA);
     });
     this.input.on('pointerup', () => {
       if (this.fullScreenAsked) {
         this.fullScreenAsked = false;
         this.scale.toggleFullscreen();
       }
-      this.letGo();
+      if (this.net) this.net.up();
+      else this.letGo();
     });
     this.input.on('pointerupoutside', () => {
-      this.letGo();
+      if (this.net) this.net.up();
+      else this.letGo();
     });
   }
 
   update(_time: number, delta: number): void {
+    // Online, the game plays in step with the other player's, frame by frame
+    if (this.net) this.net.tick(delta);
+    else this.simulate(delta);
+  }
+
+  /** Play the game on by `delta` milliseconds. */
+  simulate(delta: number): void {
+    this.clockMs += delta;
     this.world.people = this.people;
     this.haunt(delta);
     this.craze(delta);
@@ -735,11 +871,13 @@ export class MainScene extends Phaser.Scene {
     }
     this.pullIn(delta);
     this.pullMetal(delta);
-    if (this.spawnSoon && this.time.now - this.spawnSoon.atMs > DOUBLE_CLICK_MS) {
-      const { x, y } = this.spawnSoon;
-      this.spawnSoon = null;
-      this.spawn(x, y);
-    }
+    this.eachHand(() => {
+      if (this.spawnSoon && this.clockMs - this.spawnSoon.atMs > DOUBLE_CLICK_MS) {
+        const { x, y } = this.spawnSoon;
+        this.spawnSoon = null;
+        this.spawn(x, y);
+      }
+    });
     this.forget(this.doomed);
     this.doomed = [];
     this.chant(delta);
@@ -748,11 +886,13 @@ export class MainScene extends Phaser.Scene {
     this.updateFumes(delta);
     this.dropFromSky(delta);
     this.runTeamGame(delta);
-    this.sweep();
     this.handOutItems();
-    this.swing(delta);
-    this.pound(delta);
-    this.trackDrag();
+    this.eachHand(() => {
+      this.sweep();
+      this.swing(delta);
+      this.pound(delta);
+      this.trackDrag();
+    });
     this.forget(this.everything().filter((body) => body.gone));
     this.rideUnicorns(delta);
     this.perchUnicorns(delta);
@@ -760,7 +900,9 @@ export class MainScene extends Phaser.Scene {
     this.drawShadows();
     this.markPlayers();
     this.markEnemies();
-    this.bubbles.update(delta, AREA);
+    this.eachHand(() => {
+      this.bubbles.update(delta, AREA);
+    });
   }
 
   /**
@@ -1102,10 +1244,13 @@ export class MainScene extends Phaser.Scene {
    */
   private winPrize(): void {
     const middle = (AREA.left + AREA.right) / 2;
-    const fresh = GOLDEN_KINDS[this.unlocked];
+    const next = this.goldenWon;
+    const fresh = GOLDEN_KINDS[next];
     const any = GOLDEN_KINDS[Math.floor(Math.random() * GOLDEN_KINDS.length)];
     const kind = fresh ?? any;
-    if (fresh) {
+    if (fresh && this.net) this.wonTogether = unlockNext(this.wonTogether, GOLDEN_KINDS.length);
+    if (fresh && next >= this.unlocked) {
+      // New to this player: in their menu from now on
       this.unlocked = unlockNext(this.unlocked, GOLDEN_KINDS.length);
       saveGolden(this.unlocked);
       this.menu.setUnlocked(this.unlocked);
@@ -1160,7 +1305,7 @@ export class MainScene extends Phaser.Scene {
       { share: shares.power, things: POWER_KINDS.filter((power) => power !== 'megaOrb') },
       { share: shares.mega, things: ['megaOrb'] },
       { share: shares.gear, things: GEAR_KINDS },
-      { share: shares.golden, things: GOLDEN_KINDS.slice(0, this.unlocked) },
+      { share: shares.golden, things: GOLDEN_KINDS.slice(0, this.goldenWon) },
     ]);
     if (!kind) return;
     const x = AREA.left + margin + Math.random() * (AREA.right - AREA.left - margin * 2);
@@ -1441,7 +1586,6 @@ export class MainScene extends Phaser.Scene {
         else this.newRound();
       }
     }
-    const keys = this.duelKeys;
     const inGame = (doll: Person | null | undefined): doll is Person =>
       !!doll && !doll.dead && this.people.includes(doll);
     const battle = this.battling;
@@ -1460,20 +1604,150 @@ export class MainScene extends Phaser.Scene {
         else this.seat(this.players.map((sitting) => (sitting === doll ? null : sitting)));
         return;
       }
-      if (!keys) return;
-      const [left, right, jump, hit] =
-        seat === 0
-          ? [keys.A, keys.D, keys.W, keys.F]
-          : [keys.LEFT, keys.RIGHT, keys.UP, keys.ENTER];
-      // Playing alone, the space bar attacks too
-      const attack = hit.isDown || (seat === 0 && this.mode === 'solo' && keys.SPACE.isDown);
-      doll.steer(
-        steerFrom(left.isDown, right.isDown, Phaser.Input.Keyboard.JustDown(jump), attack),
-      );
+      const press = this.keysOf(seat);
+      if (!press) return;
+      doll.steer(steerFrom(press.left, press.right, press.jump, press.hit));
       // And one more key lets go of what it holds
-      const drop = seat === 0 ? keys.G : keys.K;
-      if (Phaser.Input.Keyboard.JustDown(drop)) doll.dropItem(this.solidBoxes(doll));
+      if (press.drop) doll.dropItem(this.solidBoxes(doll));
     });
+  }
+
+  /**
+   * What the player in this seat is doing with the keys: going left or right, jumping
+   * (just now), hitting, letting go (just now). Online each player has a seat of their
+   * own and uses their own keyboard; the keys come with the frame.
+   */
+  private keysOf(seat: number): Steering | null {
+    if (this.net) {
+      const held = this.seatKeys[seat];
+      if (!held) return null;
+      const down = (key: number): boolean => (held.now & key) !== 0;
+      const just = (key: number): boolean => down(key) && (held.before & key) === 0;
+      return {
+        left: down(KEY.left),
+        right: down(KEY.right),
+        jump: just(KEY.jump),
+        hit: down(KEY.hit),
+        drop: just(KEY.drop),
+      };
+    }
+    const keys = this.duelKeys;
+    if (!keys) return null;
+    const [left, right, jump, hit, drop] =
+      seat === 0
+        ? [keys.A, keys.D, keys.W, keys.F, keys.G]
+        : [keys.LEFT, keys.RIGHT, keys.UP, keys.ENTER, keys.K];
+    return {
+      left: left.isDown,
+      right: right.isDown,
+      jump: Phaser.Input.Keyboard.JustDown(jump),
+      // Playing alone, the space bar attacks too
+      hit: hit.isDown || (seat === 0 && this.mode === 'solo' && keys.SPACE.isDown),
+      drop: Phaser.Input.Keyboard.JustDown(drop),
+    };
+  }
+
+  /** The keys held down on this keyboard, for the online game: either set of keys will do. */
+  localKeys(): number {
+    const keys = this.duelKeys;
+    if (!keys) return 0;
+    let held = 0;
+    if (keys.A.isDown || keys.LEFT.isDown) held |= KEY.left;
+    if (keys.D.isDown || keys.RIGHT.isDown) held |= KEY.right;
+    if (keys.W.isDown || keys.UP.isDown) held |= KEY.jump;
+    if (keys.F.isDown || keys.SPACE.isDown || keys.ENTER.isDown) held |= KEY.hit;
+    if (keys.G.isDown || keys.K.isDown) held |= KEY.drop;
+    return held;
+  }
+
+  /**
+   * One frame of one player's input in the online game, played by everybody's game
+   * alike: the keys for that player's seat, and what that player's hand does.
+   */
+  applyInput(slot: number, input: FrameInput): void {
+    const held = this.seatKeys[slot] ?? { now: 0, before: 0 };
+    this.seatKeys[slot] = { now: input.keys, before: held.now };
+    const hand = this.hands[slot];
+    if (!hand || input.events.length === 0) return;
+    const own = this.hand;
+    this.hand = hand;
+    for (const event of input.events) {
+      if (event.kind === 'down') {
+        this.touchPadding(event.touch);
+        hand.choice = SpawnMenu.choiceFromCode(event.choice);
+        this.press(event.x, event.y);
+      } else if (event.kind === 'move') {
+        this.dragged?.dragTo(event.x, event.y, AREA);
+      } else if (event.kind === 'up') {
+        this.letGo();
+      } else {
+        this.command(event.command);
+      }
+    }
+    this.hand = own;
+  }
+
+  /**
+   * A new online game starts, the same in both players' games: everything is cleared,
+   * every mode is off, and each player has a hand of their own.
+   */
+  startOnline(net: NetGame, players: number): void {
+    this.net = net;
+    this.restartTogether();
+    this.hands.slice(1).forEach((hand) => hand.bubbles.destroy());
+    const first = this.hands[0] as Hand;
+    this.hands = [
+      first,
+      ...[...Array(players - 1).keys()].map(() => newHand(new ActionBubbles(this))),
+    ];
+    this.hands.forEach((hand) => {
+      hand.dragged = null;
+      hand.lastClick = null;
+      hand.spawnSoon = null;
+      hand.bubbles.close();
+    });
+    this.hand = first;
+    this.seatKeys = [...Array(players).keys()].map(() => ({ now: 0, before: 0 }));
+  }
+
+  /** The two games had drifted apart, or a new one starts: both clear everything, the same way. */
+  restartTogether(): void {
+    if (this.players.some((doll) => doll !== null)) this.seat([null, null]);
+    if (this.modeMenu) this.closeModeMenu();
+    if (this.horror) this.setHorror(false);
+    if (this.crazy) this.setCrazy(false);
+    this.clearAll();
+    this.clockMs = 0;
+    this.wonTogether = 0;
+  }
+
+  /** The online game is over: the game goes on here alone, just as it is. */
+  stopOnline(): void {
+    this.net = null;
+    this.hands.slice(1).forEach((hand) => hand.bubbles.destroy());
+    this.hands = this.hands.slice(0, 1);
+    this.hand = this.hands[0] as Hand;
+    this.hand.choice = null;
+  }
+
+  /**
+   * The game boiled down to one number: where everything is. Online, both players'
+   * games compare theirs every so often, to see that they still are the same.
+   */
+  fingerprint(): number {
+    let hash = 2166136261;
+    const mix = (value: number): void => {
+      hash = Math.imul(hash ^ (Math.round(value * 16) | 0), 16777619) >>> 0;
+    };
+    mix(this.people.length);
+    mix(this.blocks.length);
+    mix(this.items.length);
+    for (const body of this.everything()) {
+      mix(body.feet.x);
+      mix(body.feet.y);
+    }
+    for (const doll of this.people) mix(doll.livesLeft);
+    return hash >>> 0;
   }
 
   /** The number of each player hangs over its doll. */
@@ -1568,12 +1842,12 @@ export class MainScene extends Phaser.Scene {
   private pullIn(delta: number): void {
     for (const hole of this.blocks) {
       const pull = hole.def.hole;
-      if (!pull || !hole.canBePicked || hole === this.dragged) continue;
+      if (!pull || !hole.canBePicked || this.held(hole)) continue;
       const at = hole.box;
       const holeX = (at.left + at.right) / 2;
       const holeY = (at.top + at.bottom) / 2;
       for (const body of this.everything()) {
-        if (body === this.dragged || !body.canBePicked || this.doomed.includes(body)) continue;
+        if (this.held(body) || !body.canBePicked || this.doomed.includes(body)) continue;
         if (body instanceof Block && (body.def.hole || body.def.liquid)) continue;
         if (body instanceof Item && body.isHeld) continue;
         if (body instanceof Person && body.seated) continue;
@@ -1605,7 +1879,7 @@ export class MainScene extends Phaser.Scene {
       const magnetX = (at.left + at.right) / 2;
       const magnetY = (at.top + at.bottom) / 2;
       for (const body of this.everything()) {
-        if (body === magnet || body === this.dragged || !body.metal || !body.canBePicked) continue;
+        if (body === magnet || this.held(body) || !body.metal || !body.canBePicked) continue;
         if (body instanceof Item && body.isHeld) continue;
         if (body instanceof Person && (body.seated || body.holding === magnet)) continue;
         const box = body instanceof Person ? body.hitBox : body.box;
@@ -1657,23 +1931,7 @@ export class MainScene extends Phaser.Scene {
   /** A click or a tap at this point. */
   private press(px: number, py: number): void {
     if (this.menu.covers(py)) {
-      const pressed = this.menu.click(px, py);
-      // A browser only goes full screen when a finger or the mouse button lets go
-      if (pressed === 'full') this.fullScreenAsked = true;
-      if (pressed === 'sound') {
-        this.sfx.muted = !this.sfx.muted;
-        this.menu.showSound(!this.sfx.muted);
-      }
-      if (pressed === 'duel') this.toggleDuel();
-      if (pressed === 'horror') this.setHorror(!this.horror);
-      if (pressed === 'crazy') this.setCrazy(!this.crazy);
-      if (pressed === 'clear') {
-        this.forget(this.everything());
-        this.clearBullets();
-        this.clearMess();
-        this.pukes = [];
-        this.poops = [];
-      }
+      this.pressMenu(px, py);
       return;
     }
 
@@ -1712,7 +1970,7 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    const click = { timeMs: this.time.now, target: body };
+    const click = { timeMs: this.clockMs, target: body };
     if (body instanceof Block && body.def.liquid) {
       // A pool can't be grabbed. A double-click opens its bubble (to drain it); a
       // single click goes through it, and puts a new thing in after a moment.
@@ -1722,7 +1980,7 @@ export class MainScene extends Phaser.Scene {
       if (twice && target === body) this.bubbles.close();
       else if (twice) this.bubbles.open(body);
       else if (target) this.bubbles.close();
-      else this.spawnSoon = { x: px, y: py, atMs: this.time.now };
+      else this.spawnSoon = { x: px, y: py, atMs: this.clockMs };
       return;
     }
     if (isDoubleClick(this.lastClick, click, DOUBLE_CLICK_MS)) {
@@ -1753,7 +2011,7 @@ export class MainScene extends Phaser.Scene {
     }
     const now = body.feet;
     this.lastDragSpot = now;
-    const timeMs = this.time.now;
+    const timeMs = this.clockMs;
     this.dragTrail = recentSamples(
       [...this.dragTrail, { timeMs, x: now.x, y: now.y }],
       timeMs,
@@ -1779,9 +2037,9 @@ export class MainScene extends Phaser.Scene {
       .sort((one, other) => Math.abs(one.feet.x - before.x) - Math.abs(other.feet.x - before.x));
 
     for (const person of inTheWay) {
-      const sinceLastHit = this.time.now - (this.lastSwingHit.get(person) ?? -Infinity);
+      const sinceLastHit = this.clockMs - (this.lastSwingHit.get(person) ?? -Infinity);
       if (!swingLands(speed, SWING.minSpeed, sinceLastHit, SWING.cooldownMs)) continue;
-      this.lastSwingHit.set(person, this.time.now);
+      this.lastSwingHit.set(person, this.clockMs);
       const direction = swingDirection(now.x - before.x, now.x, person.feet.x);
       const middle = now.y - weapon.size.height / 2;
       const deadly = person.hit(
@@ -1850,7 +2108,7 @@ export class MainScene extends Phaser.Scene {
       }
     }
     if (body instanceof Person || body instanceof Item || body instanceof Part) {
-      const speed = throwSpeed(recentSamples(this.dragTrail, this.time.now, TOSS.windowMs));
+      const speed = throwSpeed(recentSamples(this.dragTrail, this.clockMs, TOSS.windowMs));
       body.throwWith(speed.x, speed.y, this.solidBoxes(body));
     } else {
       body.release(this.solidBoxes(body));
@@ -1900,6 +2158,46 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * A click on the menu: a page, a thing to put in, or a button. Online, the buttons
+   * that change the game for both players go to both games, to be played in step.
+   */
+  private pressMenu(px: number, py: number): void {
+    const pressed = this.menu.click(px, py);
+    // A browser only goes full screen when a finger or the mouse button lets go
+    if (pressed === 'full') this.fullScreenAsked = true;
+    if (pressed === 'sound') {
+      this.sfx.muted = !this.sfx.muted;
+      this.menu.showSound(!this.sfx.muted);
+    }
+    if (pressed === 'clear' || pressed === 'duel' || pressed === 'horror' || pressed === 'crazy') {
+      if (this.net) this.net.command(pressed);
+      else this.command(pressed);
+    }
+  }
+
+  /** A button along the top that changes the game for everybody. */
+  private command(command: Command): void {
+    if (command === 'duel') this.toggleDuel();
+    if (command === 'horror') this.setHorror(!this.horror);
+    if (command === 'crazy') this.setCrazy(!this.crazy);
+    if (command === 'clear') this.clearAll();
+  }
+
+  /** The red button: everything goes, and the mess with it. */
+  private clearAll(): void {
+    this.forget(this.everything());
+    this.clearBullets();
+    this.clearMess();
+    this.pukes = [];
+    this.poops = [];
+  }
+
+  /** A finger is thicker than a mouse pointer: things are easier to grab with it. */
+  private touchPadding(touch: boolean): void {
+    Body.pickPadding = touch ? PICK_PADDING_TOUCH : PICK_PADDING;
+  }
+
   /** What a click at this point grabs: items first, then dolls, then building pieces. */
   private bodyUnder(px: number, py: number): Body | null {
     // A pool covers the whole floor: whatever else is under the click is picked before it
@@ -1916,7 +2214,7 @@ export class MainScene extends Phaser.Scene {
 
   /** Put what is picked in the menu into the area, around the click. */
   private spawn(px: number, py: number): void {
-    const choice = this.menu.selected;
+    const choice = this.hand.choice ?? this.menu.selected;
     if (choice.type === 'none' || choice.type === 'locked') return;
     if (choice.type === 'person') {
       const feet = placeFeet(px, py, AREA, PERSON);
@@ -1949,7 +2247,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private forgetOldest(list: readonly Body[]): void {
-    const oldest = list.find((body) => body !== this.dragged);
+    const oldest = list.find((body) => !this.held(body));
     if (oldest) this.forget([oldest]);
   }
 
@@ -1983,9 +2281,11 @@ export class MainScene extends Phaser.Scene {
       // An item that goes while a doll holds it (a stink bomb that went off) leaves an empty hand
       const holder = body instanceof Item ? body.heldBy : null;
       if (holder && !all.has(holder)) holder.lost(body as Item);
-      if (this.dragged === body) this.dragged = null;
-      if (this.bubbles.target === body) this.bubbles.close();
-      if (this.lastClick?.target === body) this.lastClick = null;
+      for (const hand of this.hands) {
+        if (hand.dragged === body) hand.dragged = null;
+        if (hand.bubbles.target === body) hand.bubbles.close();
+        if (hand.lastClick?.target === body) hand.lastClick = null;
+      }
       body.destroy();
     }
     this.people = this.people.filter((body) => !all.has(body));
@@ -2080,7 +2380,7 @@ export class MainScene extends Phaser.Scene {
       if (bullet.gun.look?.rainbow) {
         // A rainbow laser goes through every color of the rainbow as it flies
         const { rainbow, laserColorMs } = UNICORN;
-        const turn = Math.floor(this.time.now / laserColorMs + bullet.flown / 40);
+        const turn = Math.floor(this.clockMs / laserColorMs + bullet.flown / 40);
         bullet.picture.setFillStyle(rainbow[turn % rainbow.length] ?? bullet.gun.look.color);
       }
       const { flame } = bullet.gun;
@@ -2150,9 +2450,9 @@ export class MainScene extends Phaser.Scene {
       } else if (victim) {
         // In a stream of fire a doll isn't burnt by every single puff, only every now and then
         const every = flame?.burnEveryMs;
-        const since = this.time.now - (this.lastBurnt.get(victim) ?? -Infinity);
+        const since = this.clockMs - (this.lastBurnt.get(victim) ?? -Infinity);
         if (every === undefined || since >= every) {
-          if (every !== undefined) this.lastBurnt.set(victim, this.time.now);
+          if (every !== undefined) this.lastBurnt.set(victim, this.clockMs);
           const solids = this.solidBoxes(victim);
           const wound = flame ? 'burn' : (bullet.gun.wound ?? 'hole');
           // The cleaning lady remembers who shot at her
@@ -2373,8 +2673,8 @@ export class MainScene extends Phaser.Scene {
    * the floor are fried.
    */
   private thunder(source: Body, spare?: Body): void {
-    if (this.time.now - this.lastThunderMs < THUNDER.cooldownMs) return;
-    this.lastThunderMs = this.time.now;
+    if (this.clockMs - this.lastThunderMs < THUNDER.cooldownMs) return;
+    this.lastThunderMs = this.clockMs;
     const { x, y } = source.feet;
     this.bolt(x, AREA.top, x, y - source.size.height, THUNDER.bolt);
     const floorY = AREA.floorY - THUNDER.floorUp;
@@ -3105,7 +3405,7 @@ export class MainScene extends Phaser.Scene {
       const x = block.feet.x;
       const y = block.feet.y - glow.up;
       const flicker =
-        1 + candle.flicker * Math.sin(this.time.now / candle.flickerMs + x) * Math.random();
+        1 + candle.flicker * Math.sin(this.clockMs / candle.flickerMs + x) * Math.random();
       for (const [wide, part] of candle.rings) {
         g.fillStyle(candle.color, strength * part);
         g.fillCircle(x, y, glow.radius * wide * flicker);
@@ -3259,7 +3559,7 @@ export class MainScene extends Phaser.Scene {
   private perchUnicorns(delta: number): void {
     const rainbows = this.blocks.filter((block) => block.def.arch !== undefined);
     const { seats, hop, poop } = RAINBOW;
-    const free = (unicorn: Block): boolean => this.dragged !== unicorn && !unicorn.isOn('drive');
+    const free = (unicorn: Block): boolean => !this.held(unicorn) && !unicorn.isOn('drive');
     for (const [unicorn, perch] of this.perches) {
       const there = this.blocks.includes(unicorn) && rainbows.includes(perch.rainbow);
       if (!there || !free(unicorn)) this.perches.delete(unicorn);
@@ -3412,7 +3712,7 @@ export class MainScene extends Phaser.Scene {
       g.fillCircle(spot.x + width * 0.05, y - 3.5, 1.3 * grown);
       if (grown < 1) continue;
       for (const doll of this.people) {
-        const standing = doll.feet.y >= AREA.floorY - 4 && this.dragged !== doll;
+        const standing = doll.feet.y >= AREA.floorY - 4 && !this.held(doll);
         const inside = Math.abs(doll.feet.x - spot.x) <= width;
         if (!standing || !inside || doll.dead || doll.safe || doll.activity === 'angry') continue;
         if (doll.melt(this.solidBoxes(doll), true)) {
@@ -3614,8 +3914,8 @@ export class MainScene extends Phaser.Scene {
       const started = person.flee(from ? from.x : null);
       if (!started) continue;
       const last = this.screamedAt.get(person) ?? -Infinity;
-      if (this.time.now - last < againMs) continue;
-      this.screamedAt.set(person, this.time.now);
+      if (this.clockMs - last < againMs) continue;
+      this.screamedAt.set(person, this.clockMs);
       this.popUp(person.feet.x, person.box.top - 18, emoji, fontSize, ms, grow);
       this.sfx.squeak();
     }
