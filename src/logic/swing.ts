@@ -1,3 +1,4 @@
+import type { Box } from './ground';
 import type { Spot } from './pick';
 import type { Facing } from './walk';
 
@@ -25,4 +26,17 @@ export function swingDirection(movedX: number, weaponX: number, targetX: number)
   if (movedX > 0) return 1;
   if (movedX < 0) return -1;
   return targetX < weaponX ? -1 : 1;
+}
+
+/**
+ * All the space a box went through when it moved here from `dx`, `dy` away: so that
+ * something moved very fast still hits what was in its way, and doesn't jump past it.
+ */
+export function sweptBox(box: Box, dx: number, dy: number): Box {
+  return {
+    left: Math.min(box.left, box.left + dx),
+    right: Math.max(box.right, box.right + dx),
+    top: Math.min(box.top, box.top + dy),
+    bottom: Math.max(box.bottom, box.bottom + dy),
+  };
 }

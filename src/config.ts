@@ -2065,6 +2065,14 @@ export const SMOKE = {
 } as const;
 
 /** A part that a blade has cut off a doll: how it flies off, and how long it lies around. */
+/**
+ * A samurai sword finishes a doll off: it comes apart in two right where the blade
+ * went through. A picture `size` big is taken of the doll, its feet `below` above the
+ * bottom of it. Each half gets a cut end of blood this wide (`stump`). The blade goes
+ * through at least `inside` from the top of the doll and from its feet.
+ */
+export const SLICE = { size: 300, below: 40, stump: { width: 26, height: 6 }, inside: 8 } as const;
+
 export const SEVER = {
   push: 170,
   lift: 300,

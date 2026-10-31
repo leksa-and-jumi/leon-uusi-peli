@@ -52,6 +52,7 @@ import {
   QUAKE,
   RIDE_GAP,
   SEVER,
+  SLICE,
   SHADOW,
   SHARDS,
   SMOKE,
@@ -92,6 +93,7 @@ import { pickDrop } from '../logic/drops';
 import { waveKinds, waveSize } from '../logic/waves';
 import { inBeam, type Beam } from '../logic/light';
 import { aimDrop, archTop, hopSpot } from '../logic/rainbow';
+import { shade } from '../logic/color';
 import { clamp } from '../logic/bounds';
 import { layOutArena } from '../logic/arena';
 import { wreckParts } from '../logic/wreck';
@@ -108,7 +110,7 @@ import {
 import { loadGolden, saveGolden } from '../storage';
 import { sameTeam } from '../logic/team';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
-import { swingDirection, swingLands, swingSpeed } from '../logic/swing';
+import { sweptBox, swingDirection, swingLands, swingSpeed } from '../logic/swing';
 import type { Facing } from '../logic/walk';
 import { ActionBubbles } from '../objects/ActionBubbles';
 import { Block } from '../objects/Block';
@@ -203,6 +205,9 @@ export class MainScene extends Phaser.Scene {
   private items: Item[] = [];
   /** The parts that have been cut off dolls and lie around. */
   private parts: Part[] = [];
+  /** The pictures of dolls cut in two, and how many halves still use each one. */
+  private slices = 0;
+  private sliceUses = new Map<string, number>();
   private bullets: Bullet[] = [];
   private pieces: Piece[] = [];
   /** Blood on the floor. It stays until it is wiped away with the broom. */
@@ -409,6 +414,9 @@ export class MainScene extends Phaser.Scene {
       },
       zap: (fromX, fromY, victim, damage, pushSpeed, spark) => {
         this.zap(fromX, fromY, victim, damage, pushSpeed, spark);
+      },
+      cutInTwo: (picture, y, top, direction, blood) => {
+        this.cutInTwo(picture, y, top, direction, blood);
       },
       sever: (picture, lift, reach, direction, gentle) => {
         this.sever(picture, lift, reach, direction, gentle);
@@ -1762,21 +1770,27 @@ export class MainScene extends Phaser.Scene {
     const now = weapon.feet;
     const before = this.lastDragSpot ?? now;
     const speed = swingSpeed(before, now, delta);
+    // Everything it went through since the last frame: moved ever so fast, it still hits
+    const reach = sweptBox(weapon.pickBox, before.x - now.x, before.y - now.y);
+    const inTheWay = this.people
+      .filter((person) => person.canBePicked && overlaps(reach, person.box))
+      .sort((one, other) => Math.abs(one.feet.x - before.x) - Math.abs(other.feet.x - before.x));
 
-    for (const person of this.people) {
-      if (!person.canBePicked || !overlaps(weapon.pickBox, person.box)) continue;
+    for (const person of inTheWay) {
       const sinceLastHit = this.time.now - (this.lastSwingHit.get(person) ?? -Infinity);
       if (!swingLands(speed, SWING.minSpeed, sinceLastHit, SWING.cooldownMs)) continue;
       this.lastSwingHit.set(person, this.time.now);
       const direction = swingDirection(now.x - before.x, now.x, person.feet.x);
+      const middle = now.y - weapon.size.height / 2;
       const deadly = person.hit(
         direction,
         this.solidBoxes(person),
         melee.damage,
         melee.pushSpeed,
         melee.wound,
+        middle,
       );
-      this.showHit(person.feet.x, now.y - weapon.size.height / 2, deadly, melee.sound ?? 'clang');
+      this.showHit(person.feet.x, middle, deadly, melee.sound ?? 'clang');
       if (weapon instanceof Item && weapon.def.stick) {
         // It sinks in and stays there: the hand lets go of it
         weapon.stickInto(person, direction);
@@ -2421,6 +2435,69 @@ export class MainScene extends Phaser.Scene {
    * A part cut off a doll: it comes away, drops to the floor and lies there, where it
    * can be picked up like any other thing. With too many lying around, the oldest goes.
    */
+  /**
+   * A doll comes apart in two at the height `y`, where a samurai sword went through
+   * it. A picture is taken of the doll just as it is, and the halves of that picture,
+   * above and below the cut, fly apart as two loose parts with a bloody cut end each.
+   */
+  private cutInTwo(
+    figure: Phaser.GameObjects.Container,
+    y: number,
+    top: number,
+    direction: Facing,
+    blood: number,
+  ): void {
+    const { size, below, stump } = SLICE;
+    const feet = { x: figure.x, y: figure.y };
+    const left = feet.x - size / 2;
+    const corner = feet.y + below - size;
+    const key = `slice-${String(this.slices++)}`;
+    const texture = this.textures.addDynamicTexture(key, size * SHARP, size * SHARP);
+    if (!texture) return;
+    // Drawn sharp: as big as it is on the screen
+    const { scaleX, scaleY } = figure;
+    figure.setScale(scaleX * SHARP, scaleY * SHARP);
+    figure.setPosition((feet.x - left) * SHARP, (feet.y - corner) * SHARP);
+    texture.draw(figure).render();
+    figure.setScale(scaleX, scaleY).setPosition(feet.x, feet.y);
+
+    const half = (from: number, to: number, cutUp: boolean): Phaser.GameObjects.Container => {
+      const middle = (from + to) / 2;
+      const image = this.add
+        .image(-size / 2, corner - middle, key)
+        .setOrigin(0)
+        .setScale(1 / SHARP);
+      const fromRow = cutUp ? y - corner : 0;
+      const toRow = cutUp ? size : y - corner;
+      image.setCrop(0, fromRow * SHARP, size * SHARP, (toRow - fromRow) * SHARP);
+      const end = this.add.graphics();
+      const cutY = y - middle;
+      end.fillStyle(shade(blood, -0.45));
+      end.fillEllipse(0, cutY, stump.width + 3, stump.height + 2);
+      end.fillStyle(blood);
+      end.fillEllipse(0, cutY, stump.width, stump.height);
+      const picture = this.add.container(feet.x, middle, [image, end]);
+      // The picture is forgotten once neither half needs it any more
+      this.sliceUses.set(key, (this.sliceUses.get(key) ?? 0) + 1);
+      picture.once(Phaser.GameObjects.Events.DESTROY, () => {
+        const left = (this.sliceUses.get(key) ?? 1) - 1;
+        if (left > 0) {
+          this.sliceUses.set(key, left);
+          return;
+        }
+        this.sliceUses.delete(key);
+        if (this.textures.exists(key)) this.textures.remove(key);
+      });
+      return picture;
+    };
+    const upper = half(top, y, false);
+    const lower = half(y, feet.y, true);
+    const lift = PERSON.halfWidth * 0.6;
+    this.sever(upper, lift, Math.max(lift, (y - top) / 2), direction, false);
+    this.sever(lower, lift, Math.max(lift, (feet.y - y) / 2), direction, true);
+    this.sfx.shatter();
+  }
+
   private sever(
     picture: Phaser.GameObjects.Container,
     lift: number,

@@ -39,6 +39,7 @@ import {
   WATER,
   DROWN,
   MELT,
+  SLICE,
   CRAZY,
   type ActionId,
   type GunDef,
@@ -287,6 +288,10 @@ export class Person extends Body {
    * takes `'any'` part; a saw takes everything above the waist.
    */
   private cutPending: BodyPart | 'any' | null = null;
+  /** How high the last hit got it, when that is known: a samurai sword cuts it in two right there. */
+  private hitY: number | null = null;
+  /** Cut in two: the halves are loose parts now, and the doll itself is gone. */
+  private slicedApart = false;
 
   /** Limp like a ragdoll right now: every joint swings loosely. */
   private ragdoll = false;
@@ -347,6 +352,7 @@ export class Person extends Body {
   /** A robot that has blown up is gone. */
   override get gone(): boolean {
     // A robot leaves nothing in lava; of anything else, a skeleton stays on the bottom
+    if (this.slicedApart) return true;
     return super.gone || this.blown || this.blownAway || (this.meltMs === 0 && this.machine);
   }
 
@@ -967,11 +973,13 @@ export class Person extends Body {
     damage: number = PUNCH_DAMAGE,
     pushSpeed: number = KNOCK.pushSpeed,
     wound: WoundKind = 'bruise',
+    atY: number | null = null,
   ): boolean {
     if (this.safe) {
       this.provoke(null);
       return false;
     }
+    this.hitY = atY;
     this.thaw();
     // The laser that finishes a doll off doesn't knock it over: it turns to ash as it stands
     const toAsh = wound === 'laser' && !this.dead && isDead(takeHit(this.lives, damage));
@@ -1582,6 +1590,20 @@ export class Person extends Body {
     world.explode(this, short.blast);
   }
 
+  /**
+   * A samurai sword went right through it at the height `y`: it comes apart in two
+   * there, blood sprays, and the two halves fly apart. The doll itself is gone.
+   */
+  private cutInTwo(y: number, world: World): void {
+    const body = this.hitBox;
+    const { inside } = SLICE;
+    const at = clamp(y, body.top + inside, body.bottom - inside);
+    const color = this.look.blood ?? BLOOD.color;
+    world.cutInTwo(this.figure.container, at, body.top, this.knockDir, color);
+    world.bleed(this.x, at, BLOOD.cutSpray, color, true);
+    this.slicedApart = true;
+  }
+
   /** A part comes off, a different one every time, and flies away. Blood sprays from the cut. */
   private comeApart(wanted: BodyPart | 'any', world: World): void {
     const any = BODY_PARTS[Math.floor(Math.random() * BODY_PARTS.length)] ?? 'head';
@@ -1646,7 +1668,8 @@ export class Person extends Body {
     if (this.cutPending) {
       const part = this.cutPending;
       this.cutPending = null;
-      this.comeApart(part, world);
+      if (part === 'any' && this.hitY !== null && !this.machine) this.cutInTwo(this.hitY, world);
+      else this.comeApart(part, world);
     }
     // A weapon left in the body keeps the wound open
     if (this.stuck.size > 0) this.bleedMs = Math.max(this.bleedMs, BLOOD.dripEveryMs * 2);
@@ -1994,6 +2017,7 @@ export class Person extends Body {
         damage,
         weapon?.melee?.pushSpeed ?? strong?.pushSpeed,
         clawed ? 'claw' : weapon?.melee?.wound,
+        this.handSpot.y,
       );
       world.hitEffect(target.feet.x, target.feet.y - PERSON.height * 0.75, deadly, sound);
       return;
