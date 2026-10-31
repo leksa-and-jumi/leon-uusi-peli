@@ -1,5 +1,5 @@
-import { HORROR, SOUND } from '../config';
-import { horrorBeat } from '../logic/music';
+import { CRAZY, HORROR, SOUND } from '../config';
+import { crazyBeat, horrorBeat } from '../logic/music';
 
 type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
@@ -20,6 +20,8 @@ export class Sfx {
     beat: number;
     nextAt: number;
   } | null = null;
+  /** The silly music of crazy mode while it plays: its volume knob, what puts the next notes in, and the next beat and when it is. */
+  private silly: { volume: GainNode; timer: number; beat: number; nextAt: number } | null = null;
   private context: AudioContext | null = null;
   private hiss: AudioBuffer | null = null;
   /** When each sound was last played, so the same one isn't piled up many times at once. */
@@ -35,6 +37,106 @@ export class Sfx {
     const music = this.music;
     if (music && this.context) {
       music.volume.gain.setTargetAtTime(quiet ? 0 : 1, this.context.currentTime, 0.05);
+    }
+    if (this.silly && this.context) {
+      this.silly.volume.gain.setTargetAtTime(quiet ? 0 : 1, this.context.currentTime, 0.05);
+    }
+  }
+
+  /** Start the silly music of crazy mode: the beats of its tune put in a little ahead, one after the other. */
+  startSillyMusic(): void {
+    const context = this.context;
+    if (this.silly || !context) return;
+    const now = context.currentTime;
+    const volume = context.createGain();
+    volume.gain.setValueAtTime(this.quiet ? 0 : 1, now);
+    volume.connect(context.destination);
+    const timer = window.setInterval(() => {
+      this.putInSillyBeats();
+    }, CRAZY.music.everyMs);
+    this.silly = { volume, timer, beat: 0, nextAt: now + 0.1 };
+    this.putInSillyBeats();
+  }
+
+  /** Stop the silly music: it fades out. */
+  stopSillyMusic(): void {
+    const silly = this.silly;
+    const context = this.context;
+    if (!silly || !context) return;
+    this.silly = null;
+    window.clearInterval(silly.timer);
+    const { fadeSeconds } = CRAZY.music;
+    const now = context.currentTime;
+    silly.volume.gain.cancelScheduledValues(now);
+    silly.volume.gain.setTargetAtTime(0, now, fadeSeconds / 4);
+    window.setTimeout(
+      () => {
+        silly.volume.disconnect();
+      },
+      fadeSeconds * 1000 + 200,
+    );
+  }
+
+  /** Put in the beats of the silly tune that come in the next moment. */
+  private putInSillyBeats(): void {
+    const silly = this.silly;
+    const context = this.context;
+    if (!silly || !context) return;
+    const { beatSeconds, tune, aheadSeconds } = CRAZY.music;
+    silly.nextAt = Math.max(silly.nextAt, context.currentTime);
+    while (silly.nextAt < context.currentTime + aheadSeconds) {
+      const beat = crazyBeat(silly.beat, tune);
+      const at = silly.nextAt;
+      if (beat.note !== null) this.tootle(beat.note, at, silly.volume);
+      if (beat.bass !== null) this.bounce(beat.bass, at, silly.volume);
+      if (beat.slide) this.slideWhistle(beat.slide === 'up', at, silly.volume);
+      if (beat.honk) this.clownHorn(at, silly.volume);
+      silly.beat += 1;
+      silly.nextAt += beatSeconds;
+    }
+  }
+
+  /** A short squeaky note of the silly tune. */
+  private tootle(frequency: number, at: number, out: AudioNode): void {
+    const { lead } = CRAZY.music;
+    const oscillator = this.oscillator(lead.wave, frequency, at);
+    oscillator.connect(this.fadingAt(lead.volume, at, lead.seconds, out));
+    oscillator.stop(at + lead.seconds);
+  }
+
+  /** A bouncy low note: it boings up into its pitch. */
+  private bounce(frequency: number, at: number, out: AudioNode): void {
+    const { bass } = CRAZY.music;
+    const oscillator = this.oscillator('sine', frequency * bass.bend, at);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency, at + bass.bendSeconds);
+    oscillator.connect(this.fadingAt(bass.volume, at, bass.seconds, out));
+    oscillator.stop(at + bass.seconds);
+  }
+
+  /** A slide whistle: a whistling note sliding all the way up, or all the way down. */
+  private slideWhistle(up: boolean, at: number, out: AudioNode): void {
+    const { slide } = CRAZY.music;
+    const [from, to] = up ? [slide.low, slide.high] : [slide.high, slide.low];
+    const oscillator = this.oscillator('sine', from, at);
+    oscillator.frequency.exponentialRampToValueAtTime(to, at + slide.seconds);
+    oscillator.connect(this.fadingAt(slide.volume, at, slide.seconds, out));
+    oscillator.stop(at + slide.seconds);
+  }
+
+  /** A clown horn: two quick, nasal honks. */
+  private clownHorn(at: number, out: AudioNode): void {
+    const context = this.context;
+    if (!context) return;
+    const { honk } = CRAZY.music;
+    for (const start of [at, at + honk.gap]) {
+      const filter = context.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = honk.filter;
+      filter.connect(this.fadingAt(honk.volume, start, honk.seconds, out));
+      const oscillator = this.oscillator('sawtooth', honk.from, start);
+      oscillator.frequency.exponentialRampToValueAtTime(honk.to, start + honk.seconds);
+      oscillator.connect(filter);
+      oscillator.stop(start + honk.seconds);
     }
   }
 

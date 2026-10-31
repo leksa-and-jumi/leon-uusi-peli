@@ -635,6 +635,8 @@ export class MainScene extends Phaser.Scene {
       .setBlendMode(Phaser.BlendModes.ADD);
     this.horror = false;
     this.sfx.stopMusic();
+    this.crazy = false;
+    this.sfx.stopSillyMusic();
     this.horrorAngered = new Set();
     this.stalker = { doll: null, waitMs: HORROR.shadow.firstMs, litMs: 0, deadMs: 0 };
     this.menu = new SpawnMenu(this);
@@ -3462,7 +3464,10 @@ export class MainScene extends Phaser.Scene {
         grow,
       );
       this.sfx.boing();
+      this.sfx.startSillyMusic();
+      return;
     }
+    this.sfx.stopSillyMusic();
   }
 
   /**

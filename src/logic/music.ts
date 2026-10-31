@@ -37,3 +37,46 @@ export function horrorBeat(beat: number, tune: HorrorTune): HorrorBeat {
     whisper: beat % tune.whisperEvery === tune.whisperEvery - 1,
   };
 }
+
+/** What plays on one beat of the silly tune of crazy mode. */
+export interface CrazyBeat {
+  /** The squeaky tune's note (in hertz), or `null` for a rest. */
+  note: number | null;
+  /** A bouncy low note (in hertz), or `null` for none. */
+  bass: number | null;
+  /** A slide whistle going up or down, or `null` for none. */
+  slide: 'up' | 'down' | null;
+  /** A clown horn: honk honk. */
+  honk: boolean;
+}
+
+/** How the silly tune goes. */
+export interface CrazyTune {
+  /** The tune: semitones up (or down) from `base`, `null` for a rest. */
+  notes: readonly (number | null)[];
+  base: number;
+  /** The low notes, one on every `bassEvery` beats, in turn: semitones from `bassBase`. */
+  bass: readonly number[];
+  bassBase: number;
+  bassEvery: number;
+  /** On which beats of the tune the slide whistle goes up, and down. */
+  slideUp: readonly number[];
+  slideDown: readonly number[];
+  /** On which beats of the tune the clown horn honks. */
+  honks: readonly number[];
+}
+
+/** What plays on beat number `beat` (counting from 0) of the silly tune. */
+export function crazyBeat(beat: number, tune: CrazyTune): CrazyBeat {
+  const at = beat % tune.notes.length;
+  const step = tune.notes[at] ?? null;
+  const onBass = beat % tune.bassEvery === 0;
+  const bassStep = onBass ? tune.bass[(beat / tune.bassEvery) % tune.bass.length] : undefined;
+  const slide = tune.slideUp.includes(at) ? 'up' : tune.slideDown.includes(at) ? 'down' : null;
+  return {
+    note: step === null ? null : pitch(tune.base, step),
+    bass: bassStep === undefined ? null : pitch(tune.bassBase, bassStep),
+    slide,
+    honk: tune.honks.includes(at),
+  };
+}
