@@ -70,6 +70,17 @@ export interface World {
    * up. `lift` keeps it on top of the floor, `reach` is how long it is to each side,
    * and `gentle` when it isn't flung off but just comes away.
    */
+  /**
+   * A samurai sword has finished this doll off, through it at the height `y`: it comes
+   * apart in two there. `top` is the top of the doll; the blade went this way.
+   */
+  cutInTwo: (
+    picture: Phaser.GameObjects.Container,
+    y: number,
+    top: number,
+    direction: Facing,
+    blood: number,
+  ) => void;
   sever: (
     picture: Phaser.GameObjects.Container,
     lift: number,

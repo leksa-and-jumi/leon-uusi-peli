@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { swingDirection, swingLands, swingSpeed } from './swing';
+import { sweptBox, swingDirection, swingLands, swingSpeed } from './swing';
 
 describe('swingSpeed', () => {
   it('is the distance moved in a second', () => {
@@ -34,5 +34,18 @@ describe('swingDirection', () => {
   it('knocks away from the weapon when it moves straight down', () => {
     expect(swingDirection(0, 100, 50)).toBe(-1);
     expect(swingDirection(0, 100, 150)).toBe(1);
+  });
+});
+
+describe('sweptBox', () => {
+  const box = { left: 100, right: 120, top: 50, bottom: 60 };
+
+  it('reaches back to where the box came from', () => {
+    expect(sweptBox(box, -80, 0)).toEqual({ left: 20, right: 120, top: 50, bottom: 60 });
+    expect(sweptBox(box, 50, -30)).toEqual({ left: 100, right: 170, top: 20, bottom: 60 });
+  });
+
+  it('is just the box when it did not move', () => {
+    expect(sweptBox(box, 0, 0)).toEqual(box);
   });
 });

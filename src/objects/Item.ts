@@ -21,6 +21,7 @@ import {
 } from '../config';
 import { clamp } from '../logic/bounds';
 import { blockedX, overlaps, type Box } from '../logic/ground';
+import { sweptBox } from '../logic/swing';
 import type { PlaceArea } from '../logic/place';
 import type { Facing } from '../logic/walk';
 import { Body } from './Body';
@@ -57,6 +58,8 @@ export class Item extends Body {
   private tossed = false;
   /** Thrown, and not come to rest yet: only then can it break on what it hits. */
   private thrown = false;
+  /** How high it was the last time it slid or flew sideways: what it went through since counts too. */
+  private glideY: number | null = null;
   /** A firework: time left of its flight up, and until its next puff of smoke. */
   private launchMs = 0;
   private smokeMs = 0;
@@ -169,6 +172,12 @@ export class Item extends Body {
     this.vx = 0;
     this.tossed = false;
     this.thrown = false;
+  }
+
+  /** Let go of, from here: what it goes through counts from here on. */
+  override release(solids: readonly Box[], speedY = 0): void {
+    this.glideY = null;
+    super.release(solids, speedY);
   }
 
   /**
@@ -350,6 +359,8 @@ export class Item extends Body {
    * to hit with hurts the first standing doll it flies into.
    */
   private glide(deltaMs: number, world: World): void {
+    const from = { x: this.x, y: this.glideY ?? this.y };
+    this.glideY = this.y;
     if (this.vx === 0 || this.state === 'held' || this.state === 'flying') return;
     const { halfWidth, height } = this.size;
     const wanted = this.x + this.vx * (deltaMs / 1000);
@@ -369,15 +380,28 @@ export class Item extends Body {
 
     const melee = this.size.melee;
     if (!this.tossed || !melee || Math.abs(this.vx) < ITEM_TOSS.hitSpeed) return;
-    // It never hits the doll that threw it
-    const victim = world.people.find(
-      (person) => person !== this.dropper && person.canBeHit && overlaps(this.box, person.box),
-    );
+    // It never hits the doll that threw it. Thrown ever so fast, it still hits the first
+    // doll in its way: it doesn't fly past it between two frames
+    const path = sweptBox(this.box, from.x - this.x, from.y - this.y);
+    const victim = world.people
+      .filter((person) => person !== this.dropper && person.canBeHit && overlaps(path, person.box))
+      .sort((one, other) => Math.abs(one.feet.x - from.x) - Math.abs(other.feet.x - from.x))[0];
     if (!victim) return;
+    // It goes in where the doll is, not past it
+    const box = victim.box;
+    this.x = clamp(this.x, box.left - halfWidth / 2, box.right + halfWidth / 2);
     const direction = this.vx < 0 ? -1 : 1;
     const solids = world.solidBoxes(victim);
-    const deadly = victim.hit(direction, solids, melee.damage, melee.pushSpeed, melee.wound);
-    world.hitEffect(victim.feet.x, this.y - height / 2, deadly, melee.sound ?? 'clang');
+    const middle = this.y - height / 2;
+    const deadly = victim.hit(
+      direction,
+      solids,
+      melee.damage,
+      melee.pushSpeed,
+      melee.wound,
+      middle,
+    );
+    world.hitEffect(victim.feet.x, middle, deadly, melee.sound ?? 'clang');
     this.tossed = false;
     if (this.size.stick) {
       this.stickInto(victim, direction);

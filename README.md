@@ -214,6 +214,10 @@
 
 🇫🇮 **Samuraimiekka ⚔️:** niin terävä, että yksi huitaisu menee suoraan läpi: nukesta irtoaa osa (joka kerta eri: pää, käsi, jalka tai koko yläruumis), nukke on heti poissa pelistä ja verta roiskuu paljon. Yksi osa per nukke. 😡 Vihainen nukke, jolla on miekka kädessä, viipaloi muut nuket samalla tavalla.
 
+🇬🇧 **Cut right where it hits ⚔️:** now the samurai sword cuts a doll in two exactly where the blade goes through, not at the joints. Swing it through the belly and the doll comes apart at the belly; through the head and it comes apart right across the head. The top half flies off, the bottom half falls over, and both have a bloody cut end. Both halves can be picked up and thrown like other loose parts. The **sword** and the **knife** now always stick into the doll they are thrown at or swung into, however fast you throw or swing them with the mouse: they never fly past the doll any more.
+
+🇫🇮 **Leikkaa juuri osumakohdasta ⚔️:** nyt samuraimiekka leikkaa nuken kahtia tarkalleen siitä kohdasta, jonka läpi terä menee, eikä nivelistä. Huitaise vatsan läpi, niin nukke menee kahtia vatsasta; pään läpi, niin se menee poikki keskeltä päätä. Yläpuolisko lentää pois, alapuolisko kaatuu, ja kummassakin on verinen leikkauskohta. Molemmat puoliskot voi ottaa käteen ja heittää kuten muutkin irronneet osat. **Miekka** ja **veitsi** tarttuvat nyt aina kiinni nukkeen, johon ne heitetään tai huitaistaan, vaikka heittäisit tai huitaisisit hiirellä kuinka nopeasti tahansa: ne eivät enää lennä nuken ohi.
+
 🇬🇧 **Swing it yourself 🗡️:** grab a sword or a bat and drag it fast into a doll: the doll loses a life and falls over. Carrying it slowly doesn't hurt anybody. A sword, an axe or a spear that you swing or throw into a doll sinks in and stays stuck where it hit. The doll bleeds for as long as it is in there. Grab the weapon to pull it out.
 
 🇫🇮 **Huitaise itse 🗡️:** tartu miekkaan tai mailaan ja vedä se nopeasti nukkeen: nukke menettää elämän ja kaatuu. Hitaasti kantaminen ei satuta ketään. Miekka, kirves tai keihäs, jonka huitaiset tai heität nukkeen, uppoaa siihen ja jää kiinni osumakohtaan. Nukke vuotaa verta niin kauan kuin ase on siinä. Tartu aseeseen, niin vedät sen ulos.
@@ -278,25 +282,25 @@
 
 🇫🇮 **Räsynuket 🪆:** kaadettu, nostettu tai heitetty nukke menee täysin lötköksi. Nosta se, niin se roikkuu kädestäsi kädet, jalat ja pää roikkuen; heiluta sitä, niin ne heiluvat kuin oikealla ihmisellä; pidä sitä paikallaan, niin ne roikkuvat paikallaan (tartu jalasta, niin se roikkuu pää alaspäin!). Heitetty nukke, joka osuu seinään, pysähtyy siihen ja putoaa alas. Maassa se lötkähtää litteäksi: yksikään käsi tai jalka ei jää pystyyn ilmaan. Elävä nukke nousee hetken päästä ylös; nukke, jolla ei ole elämiä, jää lötköksi. Heiluta nukkea kädessäsi, niin se kaataa nuket, joihin se osuu. Päästä irti, kun hiiri liikkuu, niin heität sen: nuket, joihin se osuu, kaatuvat ja nousevat ylös menettämättä elämiä.
 
-| Item / Tavara         | 🇬🇧                                         | 🇫🇮                                            |
-| --------------------- | ------------------------------------------ | --------------------------------------------- |
-| 🔫 pistol             | shoots slowly from far away, takes 1 life  | ampuu hitaasti kaukaa, vie 1 elämän           |
-| 🔫 machine gun        | shoots very fast, takes 1 life per bullet  | ampuu tosi nopeasti, vie 1 elämän per luoti   |
-| 🔫 shotgun            | five bullets at once, but not far          | viisi luotia kerralla, mutta ei kauas         |
-| 🗡️ sword              | reaches further than a fist, takes 1 life  | yltää nyrkkiä pidemmälle, vie 1 elämän        |
-| ⚔️ samurai sword      | one swing cuts a part off the doll         | yksi huitaisu irrottaa nukesta osan           |
-| 🪓 axe                | takes 2 lives                              | vie 2 elämää                                  |
-| 🔱 spear              | reaches very far, takes 1 life             | yltää tosi kauas, vie 1 elämän                |
-| 🏏 bat                | takes 1 life and sends the doll flying     | vie 1 elämän ja lennättää nuken kauas         |
-| 🔨 hammer             | heavy: takes 2 lives, sends dolls flying   | painava: vie 2 elämää, nuket lentävät         |
-| ⚡ thunder hammer     | slam it on the floor: lightning!           | iske se lattiaan: salama!                     |
-| 🔪 knife              | short, takes 1 life, sticks in when thrown | lyhyt, vie 1 elämän, jää kiinni heitettäessä  |
-| 🏹 bow                | shoots arrows far, one at a time           | ampuu nuolia kauas, yhden kerrallaan          |
-| 🔴 laser gun          | a fast red ray: 2 lives, leaves only ash   | nopea punainen säde: 2 elämää, jää vain tuhka |
-| 🟢 laser sword        | a blade of light: 2 lives, leaves only ash | valomiekka: 2 elämää, jäljelle jää vain tuhka |
-| 🚀 rocket launcher    | its rocket explodes where it hits          | sen raketti räjähtää osuessaan                |
-| 💣 bomb (⚠️ page)     | double-click it and press 🔥 to light it   | tuplaklikkaa sitä ja paina 🔥, niin se syttyy |
-| 🧨 dynamite (⚠️ page) | like the bomb: 3 seconds, a huge blast     | kuin pommi: 3 sekuntia, valtava räjähdys      |
+| Item / Tavara         | 🇬🇧                                           | 🇫🇮                                               |
+| --------------------- | -------------------------------------------- | ------------------------------------------------ |
+| 🔫 pistol             | shoots slowly from far away, takes 1 life    | ampuu hitaasti kaukaa, vie 1 elämän              |
+| 🔫 machine gun        | shoots very fast, takes 1 life per bullet    | ampuu tosi nopeasti, vie 1 elämän per luoti      |
+| 🔫 shotgun            | five bullets at once, but not far            | viisi luotia kerralla, mutta ei kauas            |
+| 🗡️ sword              | reaches further than a fist, takes 1 life    | yltää nyrkkiä pidemmälle, vie 1 elämän           |
+| ⚔️ samurai sword      | one swing cuts the doll in two where it hits | yksi huitaisu leikkaa nuken kahtia osumakohdasta |
+| 🪓 axe                | takes 2 lives                                | vie 2 elämää                                     |
+| 🔱 spear              | reaches very far, takes 1 life               | yltää tosi kauas, vie 1 elämän                   |
+| 🏏 bat                | takes 1 life and sends the doll flying       | vie 1 elämän ja lennättää nuken kauas            |
+| 🔨 hammer             | heavy: takes 2 lives, sends dolls flying     | painava: vie 2 elämää, nuket lentävät            |
+| ⚡ thunder hammer     | slam it on the floor: lightning!             | iske se lattiaan: salama!                        |
+| 🔪 knife              | short, takes 1 life, sticks in when thrown   | lyhyt, vie 1 elämän, jää kiinni heitettäessä     |
+| 🏹 bow                | shoots arrows far, one at a time             | ampuu nuolia kauas, yhden kerrallaan             |
+| 🔴 laser gun          | a fast red ray: 2 lives, leaves only ash     | nopea punainen säde: 2 elämää, jää vain tuhka    |
+| 🟢 laser sword        | a blade of light: 2 lives, leaves only ash   | valomiekka: 2 elämää, jäljelle jää vain tuhka    |
+| 🚀 rocket launcher    | its rocket explodes where it hits            | sen raketti räjähtää osuessaan                   |
+| 💣 bomb (⚠️ page)     | double-click it and press 🔥 to light it     | tuplaklikkaa sitä ja paina 🔥, niin se syttyy    |
+| 🧨 dynamite (⚠️ page) | like the bomb: 3 seconds, a huge blast       | kuin pommi: 3 sekuntia, valtava räjähdys         |
 
 🇬🇧 Double-click a doll to open its action bubbles. A pressed bubble glows, and pressing it again stops it.
 
