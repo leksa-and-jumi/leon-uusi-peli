@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { horrorBeat, pitch, type HorrorTune } from './music';
+import { crazyBeat, horrorBeat, pitch, type CrazyTune, type HorrorTune } from './music';
 
 const tune: HorrorTune = {
   notes: [0, null, 12],
@@ -50,5 +50,43 @@ describe('horrorBeat', () => {
       true,
       true,
     ]);
+  });
+});
+
+describe('crazyBeat', () => {
+  const silly: CrazyTune = {
+    notes: [0, 12, null, 7],
+    base: 500,
+    bass: [0, 7],
+    bassBase: 100,
+    bassEvery: 2,
+    slideUp: [1],
+    slideDown: [3],
+    honks: [2],
+  };
+
+  it('plays the notes of the tune in turn, and rests', () => {
+    expect(crazyBeat(0, silly).note).toBe(500);
+    expect(crazyBeat(1, silly).note).toBeCloseTo(1000);
+    expect(crazyBeat(2, silly).note).toBeNull();
+  });
+
+  it('starts the tune again from the top', () => {
+    expect(crazyBeat(4, silly).note).toBe(500);
+  });
+
+  it('bounces between the low notes on every other beat', () => {
+    expect(crazyBeat(0, silly).bass).toBe(100);
+    expect(crazyBeat(1, silly).bass).toBeNull();
+    expect(crazyBeat(2, silly).bass).toBeCloseTo(pitch(100, 7));
+    expect(crazyBeat(4, silly).bass).toBe(100);
+  });
+
+  it('slides the whistle and honks the horn on their beats', () => {
+    expect(crazyBeat(1, silly).slide).toBe('up');
+    expect(crazyBeat(3, silly).slide).toBe('down');
+    expect(crazyBeat(0, silly).slide).toBeNull();
+    expect(crazyBeat(6, silly).honk).toBe(true);
+    expect(crazyBeat(5, silly).honk).toBe(false);
   });
 });
