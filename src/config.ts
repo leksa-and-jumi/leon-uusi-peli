@@ -897,6 +897,15 @@ export const WALK = { speed: 80 } as const;
 export const JUMP = { height: 72, clear: 14, speed: 150, least: 2, restMs: 1500 } as const;
 
 /**
+ * On a phone or a tablet a steered doll has buttons on the screen instead of keys: what
+ * is on them. The game looks this often whether a doll is steered, to bring them up.
+ */
+export const TOUCH_PAD = {
+  labels: { left: '◀', right: '▶', jump: '⬆️', hit: '👊', drop: '⤓' },
+  lookMs: 150,
+} as const;
+
+/**
  * A two-player battle on one keyboard. Player 1 steers with A and D, jumps with W and
  * hits with F; player 2 uses the arrow keys and Enter. The battle button puts in a doll
  * for each (which of the `PEOPLE`, and how far across the area), and any doll can be
@@ -976,6 +985,8 @@ export const DUEL = {
     text: '🎮   1:  A  D  W  +  F   (G ⤓)          2:  ←  →  ↑  +  Enter   (K ⤓)',
     // The team game alone has only player 1, who attacks with the left mouse button too; the right one puts things in and moves them
     solo: '🎮   1:  A  D  W  +  SPACE   (G ⤓)        🖱️  =  🧍 🧱 ✋',
+    /** On a touch screen the buttons are there to see: the hint just points at them. */
+    touch: '👇   ◀  ▶   ⬆️  👊   👇',
     fontSize: '19px',
     down: 62,
     ms: 9000,

@@ -3,6 +3,7 @@ import { COLORS, GAME_HEIGHT, GAME_WIDTH } from './config';
 import { Lobby } from './lobby/Lobby';
 import { MainScene } from './scenes/MainScene';
 import { SHARP } from './screen';
+import { TouchPad } from './touch/TouchPad';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -48,3 +49,13 @@ new Lobby({
     keysTo();
   },
 });
+
+// On a phone or a tablet, a steered doll has buttons on the screen instead of keys
+new TouchPad(scene);
+
+// Once it has been opened, the game works without the internet too: like an app
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => undefined);
+  });
+}

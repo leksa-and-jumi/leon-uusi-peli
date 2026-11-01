@@ -13,3 +13,9 @@ export const SHARP = ((): number => {
   const most = navigator.maxTouchPoints > 0 ? SHARPNESS.mostOnTouch : SHARPNESS.most;
   return sharpness(window.devicePixelRatio, shown, most);
 })();
+
+/** Is this a phone or a tablet, played with fingers? */
+export function touchScreen(): boolean {
+  if (typeof window === 'undefined') return false;
+  return navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
+}

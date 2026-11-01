@@ -97,6 +97,11 @@ export class NetGame {
     return this.status.code;
   }
 
+  /** This player's seat: 0 or 1, or -1 before it is known. */
+  get slot(): number {
+    return this.status.slot;
+  }
+
   /** Leave the room: the game goes on here alone. */
   leave(): void {
     window.clearInterval(this.pinger);
