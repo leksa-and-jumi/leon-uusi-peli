@@ -1,0 +1,112 @@
+/* The buttons for steering a doll with fingers, over the game's bottom corners */
+.touch-pad {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  z-index: 5;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.touch-pad[hidden] {
+  display: none;
+}
+
+.touch-group {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.touch-group.left {
+  /* Past the online sign in the corner, so that it can still be pressed */
+  left: calc(62px + env(safe-area-inset-left));
+}
+
+.touch-group.right {
+  right: max(14px, env(safe-area-inset-right));
+}
+
+.touch-key {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font:
+    30px/1 system-ui,
+    sans-serif;
+  color: #ffffff;
+  background: rgba(20, 22, 34, 0.45);
+  border: 3px solid var(--pad-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  opacity: 0.8;
+}
+
+.touch-key.down {
+  background: var(--pad-color);
+  opacity: 1;
+  transform: scale(0.94);
+}
+
+/* Jumping and hitting are pressed the most: the biggest buttons */
+.touch-key.jump,
+.touch-key.hit {
+  width: 80px;
+  height: 80px;
+  font-size: 36px;
+}
+
+.touch-key.drop {
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+}
+
+/* The jump button sits a little higher, so that the thumb finds it between the others */
+.touch-group.right .touch-key.jump {
+  margin-bottom: 40px;
+}
+
+/* Two players on one phone: smaller buttons, all in each player's own corner */
+.touch-pad.two .touch-group {
+  gap: 8px;
+}
+
+.touch-pad.two .touch-key {
+  width: 54px;
+  height: 54px;
+  font-size: 24px;
+}
+
+.touch-pad.two .touch-key.drop {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+}
+
+.touch-pad.two .touch-group .touch-key.jump {
+  margin-bottom: 30px;
+}
+
+@media (max-height: 420px) {
+  .touch-key {
+    width: 58px;
+    height: 58px;
+    font-size: 26px;
+  }
+
+  .touch-key.jump,
+  .touch-key.hit {
+    width: 68px;
+    height: 68px;
+    font-size: 30px;
+  }
+}

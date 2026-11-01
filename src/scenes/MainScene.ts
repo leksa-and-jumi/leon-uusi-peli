@@ -77,7 +77,7 @@ import {
   type GunDef,
 } from '../config';
 import { Sfx } from '../audio/Sfx';
-import { SHARP } from '../screen';
+import { SHARP, touchScreen } from '../screen';
 import { shadowOf } from '../logic/shadow';
 import { drawFloor, drawWall } from '../objects/backdrop';
 import { blastDirection, inBlast } from '../logic/blast';
@@ -114,6 +114,7 @@ import {
 } from '../logic/match';
 import { loadGolden, saveGolden } from '../storage';
 import { sameTeam } from '../logic/team';
+import { PadKeys } from '../logic/pad';
 import { recentSamples, throwSpeed, type DragSample } from '../logic/toss';
 import { sweptBox, swingDirection, swingLands, swingSpeed } from '../logic/swing';
 import type { Facing } from '../logic/walk';
@@ -338,6 +339,8 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
   /** The hearts over every enemy: the fighters of a team game's waves, and the shadow monster. */
   private enemyMarks = new Map<Person, Phaser.GameObjects.Text>();
   private duelKeys: Record<DuelKey, Phaser.Input.Keyboard.Key> | null = null;
+  /** Each seat's buttons on a touch screen. */
+  readonly pads: readonly PadKeys[] = [new PadKeys(), new PadKeys()];
   private duelHint: Phaser.GameObjects.Text | null = null;
   /**
    * How the battle stands, and the scoreboard that shows it. The look of each
@@ -1563,7 +1566,7 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
   private showDuelHint(): void {
     this.duelHint?.destroy();
     const { text, solo, fontSize, down, ms, fadeMs, depth } = DUEL.hint;
-    const keys = this.mode === 'solo' ? solo : text;
+    const keys = touchScreen() ? DUEL.hint.touch : this.mode === 'solo' ? solo : text;
     const hint = this.add
       .text(GAME_WIDTH / 2, AREA.top + down, keys, {
         fontSize,
@@ -1656,21 +1659,37 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
       seat === 0
         ? [keys.A, keys.D, keys.W, keys.F, keys.G]
         : [keys.LEFT, keys.RIGHT, keys.UP, keys.ENTER, keys.K];
+    // On a touch screen, the buttons there do the same as the keys
+    const pad = this.pads[seat]?.read() ?? { held: 0, pressed: 0 };
+    const on = (bits: number, key: number): boolean => (bits & key) !== 0;
     return {
-      left: left.isDown,
-      right: right.isDown,
-      jump: Phaser.Input.Keyboard.JustDown(jump),
+      left: left.isDown || on(pad.held, KEY.left),
+      right: right.isDown || on(pad.held, KEY.right),
+      jump: Phaser.Input.Keyboard.JustDown(jump) || on(pad.pressed, KEY.jump),
       // Playing alone, the space bar attacks too
-      hit: hit.isDown || (seat === 0 && this.mode === 'solo' && keys.SPACE.isDown),
-      drop: Phaser.Input.Keyboard.JustDown(drop),
+      hit:
+        hit.isDown ||
+        (seat === 0 && this.mode === 'solo' && keys.SPACE.isDown) ||
+        on(pad.held, KEY.hit),
+      drop: Phaser.Input.Keyboard.JustDown(drop) || on(pad.pressed, KEY.drop),
     };
+  }
+
+  /** The seats steered on this device right now: for the buttons on a touch screen. */
+  padSeats(): number[] {
+    if (this.net) {
+      const slot = this.net.slot;
+      return this.players[slot] ? [slot] : [];
+    }
+    return this.players.flatMap((doll, seat) => (doll ? [seat] : []));
   }
 
   /** The keys held down on this keyboard, for the online game: either set of keys will do. */
   localKeys(): number {
+    // And the buttons on a touch screen
+    let held = this.pads.reduce((bits, pad) => bits | pad.read().held, 0);
     const keys = this.duelKeys;
-    if (!keys) return 0;
-    let held = 0;
+    if (!keys) return held;
     if (keys.A.isDown || keys.LEFT.isDown) held |= KEY.left;
     if (keys.D.isDown || keys.RIGHT.isDown) held |= KEY.right;
     if (keys.W.isDown || keys.UP.isDown) held |= KEY.jump;

@@ -292,6 +292,14 @@
 
 🇫🇮 **Puhelimella tai tabletilla 📱:** peli toimii sormella samalla tavalla kuin hiirellä: napauta valikkoa, napauta harmaata aluetta, niin tavara tulee paikalle, raahaa sormella, ja tuplanapauta, niin toimintopallot aukeavat. Pidä puhelinta vaakasuorassa. ⛶-napista peli täyttää koko näytön. Voit myös lisätä pelin kotinäytölle (selaimen valikosta: ”Lisää Koti-valikkoon”), niin se aukeaa kuin sovellus.
 
+🇬🇧 **Buttons for your fingers 🎮:** when you steer a doll in a battle on a phone, buttons come up in the corners: ◀ ▶ to walk, ⬆️ to jump, 👊 to hit and ⤓ to drop what you hold. You can slide your finger from one button to the next. Two players on one phone each get their own buttons in their own corner, in their own color.
+
+🇫🇮 **Napit sormille 🎮:** kun ohjaat nukkea taistelussa puhelimella, nurkkiin tulee napit: ◀ ▶ kävelee, ⬆️ hyppää, 👊 lyö ja ⤓ pudottaa sen, mitä nukke pitää. Sormen voi liu'uttaa napilta toiselle. Kun kaksi pelaa samalla puhelimella, kummallakin on omat napit omassa nurkassaan, omalla värillään.
+
+🇬🇧 **Any browser, even without the internet ✈️:** the game works in any browser, not just Chrome or Safari: also Firefox, Samsung Internet, Edge and others, and on older phones too. Once you have opened it, the phone keeps the game, and it starts even without the internet (only playing online needs the internet).
+
+🇫🇮 **Mikä tahansa selain, ilman nettiäkin ✈️:** peli toimii missä tahansa selaimessa, ei vain Chromessa tai Safarissa: myös Firefoxissa, Samsung Internetissä, Edgessä ja muissa, ja vanhemmissakin puhelimissa. Kun olet avannut pelin kerran, puhelin pitää sen tallessa, ja se käynnistyy ilman nettiäkin (vain netissä pelaaminen tarvitsee netin).
+
 🇬🇧 **Teams 🎨:** dolls of the same color are on the same side. An angry doll only goes after dolls of another color, and its bullets fly past its own color. An angry doll goes for the **monsters** 👾 too (the skibidis, the chomper, the UFO, the dragon, the shark, the boss; not the ghostly ones): it shoots them, or runs up and hits them, and every punch counts as a bullet (a weapon that takes more lives counts as more). A skibidi's laser is quick, though, so it takes a few dolls to bring one down.
 
 🇫🇮 **Joukkueet 🎨:** samanväriset nuket ovat samalla puolella. Vihainen nukke käy vain erivärisien kimppuun, ja sen luodit lentävät omanväristen ohi. Vihainen nukke käy myös **hirviöiden** 👾 kimppuun (skibidit, hotkija, ufo, lohikäärme, hai, pomo; ei kummitusmaisten): se ampuu niitä tai juoksee luo ja lyö, ja jokainen lyönti lasketaan yhdeksi luodiksi (enemmän elämiä vievä ase useammaksi). Skibidin laser on kuitenkin nopea, joten yhden kaatamiseen tarvitaan muutama nukke.
