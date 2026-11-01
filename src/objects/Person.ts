@@ -858,6 +858,11 @@ export class Person extends Body {
     this.facing = this.facing === 1 ? -1 : 1;
   }
 
+  /** Turn to look this way. */
+  face(way: Facing): void {
+    this.facing = way;
+  }
+
   /** Take an item into the hand. Whatever was there before is dropped. */
   hold(item: Item, solids: readonly Box[]): void {
     this.dropItem(solids);
@@ -1170,6 +1175,12 @@ export class Person extends Body {
       if (this.onHands) this.drawOnHands(kind);
       else this.draw(kind, 0);
     }
+  }
+
+  /** A vampire's bite has given it a life, up to as many as it started with. */
+  gainLife(): void {
+    if (this.dead) return;
+    this.lives = Math.min(this.lives + 1, this.look.lives ?? PERSON.lives);
   }
 
   /** Stand on its hands, upside down, for `ms` (or longer, if it already does). */
