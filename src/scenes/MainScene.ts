@@ -32,6 +32,8 @@ import {
   HINT,
   HORROR,
   SHADOW_MONSTER,
+  SPECIAL_POWERS,
+  KNOCK,
   WEIRDO,
   UNICORN,
   RAINBOW,
@@ -95,6 +97,8 @@ import { waveKinds, waveSize } from '../logic/waves';
 import { inBeam, type Beam } from '../logic/light';
 import { aimDrop, archTop, hopSpot } from '../logic/rainbow';
 import { shade } from '../logic/color';
+import { aimAt } from '../logic/shot';
+import type { Activity } from '../logic/activity';
 import { clamp } from '../logic/bounds';
 import { layOutArena } from '../logic/arena';
 import { wreckParts } from '../logic/wreck';
@@ -306,15 +310,18 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
   private crazyTint!: Phaser.GameObjects.Rectangle;
   private crazyMs = 0;
   private crazyDancers = new Set<Person>();
+  /** The time until each special doll uses its special power next. */
+  private powerWaits = new Map<Person, number>();
+  /** The dolls under a witch's dance spell: how long it lasts, and what they did before. */
+  private spells = new Map<Person, { ms: number; before: Activity }>();
   /**
    * Mr. Strange of crazy mode: the one who is here (or `null`), the time until he
-   * comes, how long he still stays, and the time until his next trick.
+   * comes, and how long he still stays.
    */
-  private weirdo: { doll: Person | null; waitMs: number; stayMs: number; trickMs: number } = {
+  private weirdo: { doll: Person | null; waitMs: number; stayMs: number } = {
     doll: null,
     waitMs: 0,
     stayMs: 0,
-    trickMs: 0,
   };
   /** Green puke on the floor: where it came from, where its middle is, and how long ago. */
   private pukes: { mouth: Spot; x: number; ms: number }[] = [];
@@ -907,6 +914,7 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
     this.forget(this.everything().filter((body) => body.gone));
     this.rideUnicorns(delta);
     this.perchUnicorns(delta);
+    this.useSpecialPowers(delta);
     this.dropPoops(delta);
     this.drawShadows();
     this.markPlayers();
@@ -2446,6 +2454,22 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
       }
       const struck = hit === null ? undefined : solids[hit]?.body;
       const victim = hit === null ? undefined : targets[hit - solids.length];
+      const { pie } = bullet.gun;
+      if (pie) {
+        // A cream pie in the face: down it goes, unhurt, and cream splats everywhere
+        const atX = Phaser.Math.Clamp(bullet.x, AREA.left, AREA.right);
+        const atY = Phaser.Math.Clamp(bullet.y, AREA.top, AREA.floorY);
+        this.bleed(atX, atY, pie.drops, SPECIAL_POWERS.clown.cream, true);
+        if (victim) {
+          victim.hit(bullet.direction, this.solidBoxes(victim), 0, pie.pushSpeed, 'bruise');
+          const { up, reactionSize, ms, grow } = CRAZY.weirdo;
+          const { emoji } = SPECIAL_POWERS.clown;
+          this.popUp(victim.feet.x, victim.hitBox.top - up, emoji, reactionSize, ms, grow);
+        }
+        this.sfx.honk();
+        bullet.picture.destroy();
+        return false;
+      }
       const { confetti } = bullet.gun;
       if (confetti) {
         // Confetti hurts nobody: it bursts into little colored pieces, and whoever it hits laughs
@@ -3751,7 +3775,7 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
    */
   private bringWeirdo(delta: number): void {
     const weirdo = this.weirdo;
-    const { againMs, trickEveryMs } = CRAZY.weirdo;
+    const { againMs } = CRAZY.weirdo;
     const doll = weirdo.doll;
     if (doll && (!this.people.includes(doll) || doll.dead)) {
       // Somebody got him: he comes back later all the same
@@ -3768,21 +3792,138 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
       this.weirdoGoes();
       return;
     }
-    weirdo.trickMs -= delta;
-    if (weirdo.trickMs > 0) return;
-    weirdo.trickMs = trickEveryMs;
-    this.weirdTrick(weirdo.doll);
+    // His trick is his special power, like for any Mr. Strange put in from the menu
+  }
+
+  /**
+   * Every special doll uses its special power every so often, on the closest other doll
+   * within reach: a vampire's bite, a witch's dance spell, a pumpkin thrown, a cream pie
+   * in the face, or Mr. Strange's trick.
+   */
+  private useSpecialPowers(delta: number): void {
+    for (const doll of this.powerWaits.keys()) {
+      if (!this.people.includes(doll)) this.powerWaits.delete(doll);
+    }
+    for (const doll of this.people) {
+      const special = doll.look.special;
+      if (!special || doll.dead) continue;
+      const power = SPECIAL_POWERS[special];
+      const wait = (this.powerWaits.get(doll) ?? Math.random() * power.everyMs) - delta;
+      // Only standing on its own feet (or hands): not while held, thrown or lying down
+      if (wait > 0 || doll.isDown || this.held(doll)) {
+        this.powerWaits.set(doll, Math.max(wait, 0));
+        continue;
+      }
+      this.powerWaits.set(doll, power.everyMs);
+      if (special === 'weirdo') {
+        this.weirdTrick(doll);
+        continue;
+      }
+      const target = this.closestOther(doll, power.reach);
+      if (!target) continue;
+      if (special === 'vampire') this.bite(doll, target);
+      else if (special === 'witch') this.danceSpell(doll, target);
+      else this.throwAt(doll, target, SPECIAL_POWERS[special].gun);
+    }
+    this.endSpells(delta);
+  }
+
+  /** The closest living doll to `doll` that isn't `doll` itself, within `reach`. */
+  private closestOther(doll: Person, reach: number): Person | null {
+    let best: Person | null = null;
+    for (const other of this.people) {
+      if (other === doll || other.dead || other.safe) continue;
+      const away = Math.abs(other.feet.x - doll.feet.x);
+      if (away > reach) continue;
+      if (!best || away < Math.abs(best.feet.x - doll.feet.x)) best = other;
+    }
+    return best;
+  }
+
+  /**
+   * The vampire turns into a bat in a puff of smoke, flies right next to the other doll
+   * and bites it: the life it takes is his.
+   */
+  private bite(vampire: Person, victim: Person): void {
+    const { bite, side, emoji, fontSize } = SPECIAL_POWERS.vampire;
+    const from = vampire.feet;
+    this.puff(from.x, from.y - PERSON.height / 2);
+    this.popUp(from.x, from.y - PERSON.height, emoji, fontSize, CRAZY.weirdo.ms, CRAZY.weirdo.grow);
+    const way: Facing = victim.feet.x >= from.x ? 1 : -1;
+    const to = clamp(
+      victim.feet.x - way * side,
+      AREA.left + PERSON.halfWidth,
+      AREA.right - PERSON.halfWidth,
+    );
+    vampire.tug(to - from.x, victim.feet.y - from.y, AREA);
+    vampire.face(way);
+    this.puff(to, victim.feet.y - PERSON.height / 2);
+    this.sfx.spook();
+    const top = victim.hitBox.top;
+    const deadly = victim.hit(
+      way,
+      this.solidBoxes(victim),
+      bite,
+      KNOCK.pushSpeed / 2,
+      'stab',
+      top + 18,
+    );
+    this.showHit(victim.feet.x, top + 18, deadly, 'none');
+    vampire.gainLife();
+  }
+
+  /** The witch's dance spell: green sparkles fly over, and the other doll has to dance. */
+  private danceSpell(witch: Person, target: Person): void {
+    const { danceMs, color, emoji, sparkles } = SPECIAL_POWERS.witch;
+    const from = witch.handSpot;
+    const to = { x: target.feet.x, y: target.feet.y - PERSON.height / 2 };
+    for (let i = 1; i <= sparkles; i++) {
+      const part = i / sparkles;
+      this.world.sparkle(from.x + (to.x - from.x) * part, from.y + (to.y - from.y) * part, color);
+    }
+    const { up, reactionSize, ms, grow } = CRAZY.weirdo;
+    this.popUp(target.feet.x, target.hitBox.top - up, emoji, reactionSize, ms, grow);
+    this.sfx.note(1320);
+    const spell = this.spells.get(target);
+    if (spell) {
+      spell.ms = danceMs;
+      return;
+    }
+    const before = target.activity;
+    if (before !== 'dance') target.toggle('dance');
+    this.spells.set(target, { ms: danceMs, before });
+  }
+
+  /** When a dance spell wears off, the doll goes back to what it was doing. */
+  private endSpells(delta: number): void {
+    for (const [doll, spell] of this.spells) {
+      spell.ms -= delta;
+      if (spell.ms > 0 && this.people.includes(doll) && !doll.dead) continue;
+      this.spells.delete(doll);
+      if (doll.dead || doll.activity !== 'dance' || spell.before === 'dance') continue;
+      doll.toggle(spell.before === 'idle' ? 'dance' : spell.before);
+    }
+  }
+
+  /** A pumpkin or a cream pie, thrown from the hand at the other doll. */
+  private throwAt(thrower: Person, target: Person, gun: GunDef): void {
+    const hand = thrower.handSpot;
+    const box = target.hitBox;
+    const way: Facing = target.feet.x >= thrower.feet.x ? 1 : -1;
+    thrower.face(way);
+    const aim = aimAt(hand.x, hand.y, target.feet.x, box.top + 16, way);
+    this.shoot(thrower, hand.x, hand.y, way, gun, aim);
   }
 
   /** Out of nowhere, in a burst of confetti and a boing: Mr. Strange, on his hands. */
   private weirdoComes(): void {
-    const { stayMs, trickEveryMs, arrive, trickSize, ms, grow } = CRAZY.weirdo;
+    const { stayMs, arrive, trickSize, ms, grow } = CRAZY.weirdo;
     const margin = PERSON.halfWidth * 3;
     const x = AREA.left + margin + Math.random() * (AREA.right - AREA.left - margin * 2);
     const doll = this.addPerson(WEIRDO, x, AREA.floorY);
     doll.toggle('walk');
     if (Math.random() < 0.5) doll.turn();
-    this.weirdo = { doll, waitMs: 0, stayMs, trickMs: trickEveryMs / 2 };
+    this.weirdo = { doll, waitMs: 0, stayMs };
     this.world.fireworks(x, AREA.floorY - 20);
     this.sfx.boing();
     const emoji = arrive[Math.floor(Math.random() * arrive.length)] ?? '❓';
@@ -3799,7 +3940,6 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
       doll: null,
       waitMs: this.someTime(CRAZY.weirdo.againMs),
       stayMs: 0,
-      trickMs: 0,
     };
     if (!doll || !this.people.includes(doll)) return;
     this.world.fireworks(doll.feet.x, AREA.floorY - 20);
@@ -3878,7 +4018,7 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
     this.crazyMs = 0;
     // Mr. Strange comes a moment after it starts, and goes when it ends
     if (this.weirdo.doll) this.weirdoGoes();
-    this.weirdo = { doll: null, waitMs: CRAZY.weirdo.firstMs, stayMs: 0, trickMs: 0 };
+    this.weirdo = { doll: null, waitMs: CRAZY.weirdo.firstMs, stayMs: 0 };
     if (on) {
       const { emoji, fontSize, ms, grow } = CRAZY.popUp;
       this.popUp(

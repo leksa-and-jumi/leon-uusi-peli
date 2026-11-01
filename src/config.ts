@@ -226,6 +226,8 @@ export interface PersonLook {
   eye?: number;
   /** It always walks on its hands, upside down. */
   handstand?: boolean;
+  /** A special power of its own, used every so often (see `SPECIAL_POWERS`). */
+  special?: SpecialPower;
   /** Something extra that shows what kind of doll it is. */
   extra?:
     | 'antenna'
@@ -520,6 +522,7 @@ export const WEIRDO = {
   joint: 0x689f38,
   extra: 'wizardHat',
   handstand: true,
+  special: 'weirdo',
   lives: 6,
   speed: 1.3,
   tall: 1.25,
@@ -541,6 +544,7 @@ export const VAMPIRE = {
   body: 0xe6e3ef,
   joint: 0x9e9aad,
   eye: 0xd50000,
+  special: 'vampire',
   human: {
     skin: 0xe6e3ef,
     hair: 0x111111,
@@ -556,6 +560,7 @@ export const WITCH = {
   body: 0x8bc34a,
   joint: 0x558b2f,
   extra: 'wizardHat',
+  special: 'witch',
   human: {
     skin: 0x8bc34a,
     hair: 0x1b1b1b,
@@ -571,6 +576,7 @@ export const PUMPKIN_HEAD = {
   body: 0x3e2a1f,
   joint: 0x24170f,
   extra: 'pumpkin',
+  special: 'pumpkin',
 } as const satisfies PersonLook;
 
 /** Only in the menu in crazy mode: a clown, with a red nose and rainbow tufts of hair. */
@@ -578,6 +584,7 @@ export const CLOWN = {
   body: 0xfafafa,
   joint: 0xd32f2f,
   extra: 'clownNose',
+  special: 'clown',
   human: {
     skin: 0xfafafa,
     hair: 0xfafafa,
@@ -588,6 +595,62 @@ export const CLOWN = {
     shoes: 0xd32f2f,
   },
 } as const satisfies PersonLook;
+
+/** The special powers of the special dolls of horror mode and crazy mode. */
+export type SpecialPower = 'vampire' | 'witch' | 'pumpkin' | 'clown' | 'weirdo';
+
+/**
+ * What each special power does, and how often (`everyMs`), to the closest other doll
+ * within `reach`:
+ * - The vampire turns into a bat in a puff of smoke, flies right next to that doll and
+ *   bites it, taking a life for himself.
+ * - The witch casts a dance spell: that doll has to dance for `danceMs`, whatever it
+ *   was doing.
+ * - The pumpkin head throws a pumpkin, which goes off with a little blast.
+ * - The clown throws a cream pie in the face: the doll falls over, unhurt, all creamy.
+ * - Mr. Strange does his trick (see `CRAZY.weirdo`).
+ */
+export const SPECIAL_POWERS = {
+  vampire: { everyMs: 6000, reach: 650, bite: 1, side: 34, emoji: '🦇', fontSize: '34px' },
+  witch: { everyMs: 5000, reach: 560, danceMs: 4000, color: 0x76ff03, emoji: '✨', sparkles: 8 },
+  pumpkin: {
+    everyMs: 6500,
+    reach: 620,
+    gun: {
+      range: 620,
+      damage: 1,
+      everyMs: 6500,
+      autoMs: 6500,
+      bulletSpeed: 520,
+      muzzle: { x: 30, y: 90 },
+      barrelUp: 0,
+      shell: {
+        blast: { radius: 75, damage: 1, pushSpeed: 420 },
+        width: 13,
+        height: 12,
+        color: 0xff8f00,
+      },
+    } satisfies GunDef,
+  },
+  clown: {
+    everyMs: 4500,
+    reach: 600,
+    emoji: '🥧',
+    cream: 0xfff8e1,
+    gun: {
+      range: 600,
+      damage: 0,
+      everyMs: 4500,
+      autoMs: 4500,
+      bulletSpeed: 560,
+      muzzle: { x: 30, y: 90 },
+      barrelUp: 0,
+      look: { width: 16, height: 9, color: 0xfff3e0 },
+      pie: { pushSpeed: 260, drops: 16 },
+    } satisfies GunDef,
+  },
+  weirdo: { everyMs: 5000, reach: 0 },
+} as const;
 
 /** Standing on its hands, its feet are this far above its hands (times its size). */
 export const HANDSTAND = { reach: 126 } as const;
@@ -1782,14 +1845,13 @@ export const CRAZY = {
   /**
    * Mr. Strange: `firstMs` after crazy mode starts he pops up out of nowhere, in a burst
    * of confetti. He stays `stayMs`, and comes back again a while after he has gone.
-   * Every `trickEveryMs` he does his trick: a honk, and every doll within `reach` of
+   * Every so often (`SPECIAL_POWERS.weirdo`) he does his trick: a honk, and every doll within `reach` of
    * him stands on its hands too, for `flipMs`. Every other doll reacts with a face.
    */
   weirdo: {
     firstMs: 4000,
     againMs: { min: 15000, max: 30000 },
     stayMs: 25000,
-    trickEveryMs: 5000,
     reach: 320,
     flipMs: 4500,
     arrive: ['❓', '🎩', '🙃'],
@@ -3328,6 +3390,8 @@ export interface GunDef {
   frost?: { ms: number; width: number; height: number; color: number };
   /** A cannon: its bullet is a big shell that goes off with this blast where it hits. */
   shell?: { blast: BlastDef; width: number; height: number; color: number };
+  /** A cream pie: it knocks the doll it hits over, unhurt, and splats into this many drops. */
+  pie?: { pushSpeed: number; drops: number };
   /** Party time: its bullets burst into confetti where they hit, and hurt nobody. */
   confetti?: { pieces: number; colors: readonly number[] };
 }
