@@ -39,7 +39,8 @@ export type PoseKind =
   | 'drive'
   | 'floss'
   | 'drink'
-  | 'puke';
+  | 'puke'
+  | 'handstand';
 
 export const STAND: Pose = {
   frontArm: 0,
@@ -189,6 +190,11 @@ export const MOVES = {
     heave: 0.08,
     heaveMs: 260,
   },
+  /**
+   * Standing on its hands, upside down: both arms straight up over the head (which is
+   * down, then), stepping in turn, and the legs kicking about in the air.
+   */
+  handstand: { stepMs: 520, arm: 0.22, split: 0.35, kick: 0.45, knee: 0.9, head: -0.25 },
   /** A limp doll: how far each joint can flop, at most. */
   limp: { arm: 2.9, leg: 1.2, elbow: 2.2, knee: 2, waist: 1, head: 1 },
 } as const;
@@ -342,6 +348,24 @@ export function poseFor(kind: PoseKind, timeMs: number): Pose {
         backKnee: move.knee,
         waist: move.waist + heave,
         head: move.head + heave,
+      };
+    }
+    case 'handstand': {
+      const move = MOVES.handstand;
+      const step = Math.sin((timeMs / move.stepMs) * Math.PI * 2);
+      return {
+        frontArm: -Math.PI + move.arm * step,
+        backArm: -Math.PI - move.arm * step,
+        frontElbow: 0,
+        backElbow: 0,
+        frontLeg: -move.split + move.kick * step,
+        backLeg: move.split - move.kick * step,
+        frontKnee: move.knee * Math.max(0, step),
+        backKnee: move.knee * Math.max(0, -step),
+        waist: 0,
+        head: move.head,
+        lift: 0,
+        lean: 0,
       };
     }
     case 'slam': {

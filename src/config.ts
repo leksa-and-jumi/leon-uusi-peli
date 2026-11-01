@@ -224,6 +224,8 @@ export interface PersonLook {
   joint: number;
   /** Eye color, when it isn't the usual dark. */
   eye?: number;
+  /** It always walks on its hands, upside down. */
+  handstand?: boolean;
   /** Something extra that shows what kind of doll it is. */
   extra?:
     | 'antenna'
@@ -506,6 +508,34 @@ export const SHADOW_MONSTER = {
   slim: 0.6,
   stoop: 0.22,
 } as const satisfies PersonLook;
+
+/**
+ * Mr. Strange, who comes to crazy mode: tall and thin, with green skin, pink hair, a
+ * moustache and a wizard's hat, and he walks on his hands, upside down.
+ */
+export const WEIRDO = {
+  body: 0x9ccc65,
+  joint: 0x689f38,
+  extra: 'wizardHat',
+  handstand: true,
+  lives: 6,
+  speed: 1.3,
+  tall: 1.25,
+  slim: 0.85,
+  human: {
+    skin: 0x9ccc65,
+    hair: 0xff4fa3,
+    style: 'long',
+    beard: true,
+    shirt: 0xc6ff00,
+    sleeves: 'long',
+    trousers: 0x7c4dff,
+    shoes: 0xff9100,
+  },
+} as const satisfies PersonLook;
+
+/** Standing on its hands, its feet are this far above its hands (times its size). */
+export const HANDSTAND = { reach: 126 } as const;
 
 export const GRANDPA = {
   body: 0x8d6e63,
@@ -1689,6 +1719,28 @@ export const CRAZY = {
   tint: { ms: 4000, alpha: 0.2 },
   popUp: { emoji: '🤪', fontSize: '96px', ms: 1300, grow: 1.6 },
   poopEveryMs: { min: 110, max: 180 },
+  /**
+   * Mr. Strange: `firstMs` after crazy mode starts he pops up out of nowhere, in a burst
+   * of confetti. He stays `stayMs`, and comes back again a while after he has gone.
+   * Every `trickEveryMs` he does his trick: a honk, and every doll within `reach` of
+   * him stands on its hands too, for `flipMs`. Every other doll reacts with a face.
+   */
+  weirdo: {
+    firstMs: 4000,
+    againMs: { min: 15000, max: 30000 },
+    stayMs: 25000,
+    trickEveryMs: 5000,
+    reach: 320,
+    flipMs: 4500,
+    arrive: ['❓', '🎩', '🙃'],
+    tricks: ['🙃', '🎺', '🌀', '🤸'],
+    reactions: ['😱', '🤣', '😵', '❓', '🤯', '😂', '🙃', '😮'],
+    trickSize: '44px',
+    reactionSize: '26px',
+    ms: 1100,
+    grow: 1.4,
+    up: 26,
+  },
   /**
    * The silly music: a squeaky little tune over a bouncy bass, like at a circus, with
    * a slide whistle going up and down and a clown horn now and then.

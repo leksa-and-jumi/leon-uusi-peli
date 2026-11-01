@@ -39,6 +39,7 @@ import {
   WATER,
   DROWN,
   MELT,
+  HANDSTAND,
   SLICE,
   CRAZY,
   type ActionId,
@@ -194,6 +195,8 @@ export class Person extends Body {
   private haunted = false;
   private cured = false;
   private crazy = false;
+  /** Standing on its hands for a while longer (in crazy mode, after Mr. Strange's trick). */
+  private handsMs = 0;
   /** Running away from something scary at this x, or `null`. */
   private fleeFrom: number | null = null;
   private lunging = false;
@@ -1081,6 +1084,7 @@ export class Person extends Body {
 
   update(deltaMs: number, world: World): void {
     this.clockMs += deltaMs;
+    this.handsMs = Math.max(0, this.handsMs - deltaMs);
     this.flinchMs = Math.max(0, this.flinchMs - deltaMs);
     this.gagMs = Math.max(0, this.gagMs - deltaMs);
     if (this.seat) {
@@ -1162,8 +1166,34 @@ export class Person extends Body {
       // Choking: down on its knees, hands at its throat. It can't walk, dance or fight now
       this.draw('choke', 0);
     } else {
-      this.draw(this.act(deltaMs, world), 0);
+      const kind = this.act(deltaMs, world);
+      if (this.onHands) this.drawOnHands(kind);
+      else this.draw(kind, 0);
     }
+  }
+
+  /** Stand on its hands, upside down, for `ms` (or longer, if it already does). */
+  standOnHands(ms: number): void {
+    if (!this.dead) this.handsMs = Math.max(this.handsMs, ms);
+  }
+
+  /** Upside down on its hands: always for Mr. Strange, for a while for others. */
+  private get onHands(): boolean {
+    return !this.dead && (this.look.handstand === true || this.handsMs > 0);
+  }
+
+  /**
+   * Upside down on its hands, its legs kicking about in the air: turned right round,
+   * with its hands on the ground where its feet usually are.
+   */
+  private drawOnHands(kind: PoseKind): void {
+    const moving = kind === 'walk' || kind === 'run';
+    this.figure.setPose(poseFor('handstand', moving ? this.clockMs : this.clockMs * 0.3));
+    const big = this.figure.bulk * (this.look.tall ?? 1);
+    this.place(this.x, this.y - HANDSTAND.reach * big, Math.PI);
+    // Turned around like that it would look the other way: flip it back
+    const slim = this.look.slim ?? 1;
+    this.figure.container.setScale(-this.facing * this.figure.thinness * big * slim, big);
   }
 
   bringToTop(): void {
