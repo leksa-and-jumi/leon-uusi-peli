@@ -210,7 +210,8 @@ export class PersonFigure {
     paint.part = 'frontArm';
     this.frontArm = paint.arm(shoulder.x, shoulder.y - waist.y);
     paint.part = 'trunk';
-    this.faceless = look.extra === 'helmet';
+    // A knight's helmet hides the face, and a pumpkin head has a face carved into it instead
+    this.faceless = look.extra === 'helmet' || look.extra === 'pumpkin';
     this.bloodColor = look.blood ?? BLOOD.color;
     this.skin = look.human?.skin ?? look.body;
     this.wounds = scene.make.graphics({}, false).setPosition(0, -waist.y);
@@ -1196,6 +1197,63 @@ class Painter {
         // A pointed beard on its chin
         g.fillStyle(c.beard);
         g.fillTriangle(4, head.y + 11, 11.5, head.y + 10, 9, head.y + 20);
+        break;
+      }
+      case 'pumpkin': {
+        // A whole pumpkin for a head: ridges, a stem, and a glowing carved face
+        const c = EXTRA_COLORS.pumpkin;
+        const y = head.y - 1;
+        g.fillStyle(c.ridge);
+        g.fillEllipse(0, y, head.radius * 2.5, head.radius * 2.15);
+        g.fillStyle(c.skin);
+        g.fillEllipse(-6, y, head.radius * 1.35, head.radius * 2.05);
+        g.fillEllipse(6, y, head.radius * 1.35, head.radius * 2.05);
+        g.fillEllipse(0, y, head.radius * 1.1, head.radius * 2.1);
+        g.fillStyle(c.light, 0.6);
+        g.fillEllipse(-7, y - 8, 4, 7);
+        g.fillStyle(c.stem);
+        g.fillRoundedRect(-2, y - head.radius - 6, 4.5, 7, 2);
+        g.fillStyle(c.glow);
+        g.fillTriangle(
+          eye.back - 3,
+          eye.y + 1,
+          eye.back + 2.5,
+          eye.y + 1,
+          eye.back - 0.5,
+          eye.y - 4,
+        );
+        g.fillTriangle(
+          eye.front - 2.5,
+          eye.y + 1,
+          eye.front + 3,
+          eye.y + 1,
+          eye.front + 0.5,
+          eye.y - 4,
+        );
+        g.beginPath();
+        g.moveTo(-3, head.y + 6);
+        g.lineTo(14, head.y + 6);
+        g.lineTo(10, head.y + 11);
+        g.lineTo(1, head.y + 11);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(c.skin);
+        g.fillRect(3, head.y + 6, 2.5, 2.2);
+        g.fillRect(8, head.y + 8.8, 2.5, 2.2);
+        break;
+      }
+      case 'clownNose': {
+        // Tufts of hair in three colors at the back of the head, and a round red nose
+        const c = EXTRA_COLORS.clownNose;
+        c.tufts.forEach((color, index) => {
+          g.fillStyle(color);
+          g.fillCircle(back - 2, head.y - 8 + index * 7, 5);
+          g.fillCircle(back + 6, top + 1 + index * 2, 3.5);
+        });
+        g.fillStyle(c.nose);
+        g.fillCircle(head.radius - 1, eye.y + 5, 3.8);
+        g.fillStyle(c.shine, 0.9);
+        g.fillCircle(head.radius - 2, eye.y + 3.8, 1.1);
         break;
       }
       case 'flatCap': {

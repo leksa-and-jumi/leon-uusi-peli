@@ -2446,6 +2446,17 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
       }
       const struck = hit === null ? undefined : solids[hit]?.body;
       const victim = hit === null ? undefined : targets[hit - solids.length];
+      const { confetti } = bullet.gun;
+      if (confetti) {
+        // Confetti hurts nobody: it bursts into little colored pieces, and whoever it hits laughs
+        this.confetti(bullet.x, bullet.y, confetti);
+        if (victim) {
+          const { up, reactionSize, ms, grow } = CRAZY.weirdo;
+          this.popUp(victim.feet.x, victim.hitBox.top - up, '🤣', reactionSize, ms, grow);
+        }
+        bullet.picture.destroy();
+        return false;
+      }
       const { frost } = bullet.gun;
       if (struck instanceof Block && flame) {
         // Fire sets off what explodes and burns up what is made of wood
@@ -3813,6 +3824,26 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
       if (Math.abs(doll.feet.x - weirdo.feet.x) <= reach) doll.standOnHands(flipMs);
       this.popUp(doll.feet.x, doll.hitBox.top - up, pick(reactions), reactionSize, ms, grow);
     }
+  }
+
+  /** A little burst of confetti: colored pieces fly out and flutter down. */
+  private confetti(
+    x: number,
+    y: number,
+    look: { pieces: number; colors: readonly number[] },
+  ): void {
+    const spot = { left: x - 4, right: x + 4, top: y - 4, bottom: y + 4 };
+    const burst = { ...FIREWORK.burst, spread: FIREWORK.burst.spread / 2, pushX: 0, pushY: -60 };
+    for (const crumb of scatter(spot, look.pieces, burst)) {
+      const color = look.colors[Math.floor(Math.random() * look.colors.length)] ?? 0;
+      const picture = this.add
+        .rectangle(crumb.x, crumb.y, crumb.size, crumb.size * 0.6, color)
+        .setDepth(HIT_FX.depth);
+      const { lieMs, fadeMs } = FIREWORK;
+      this.pieces.push({ crumb, picture, blood: null, lieMs, fadeMs });
+    }
+    this.trimPieces();
+    this.sfx.squeak();
   }
 
   /** A doll blows up into a cloud of poop glitter, and is gone. */

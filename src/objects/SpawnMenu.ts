@@ -11,6 +11,11 @@ import {
   MENU,
   MONSTER_KINDS,
   PEOPLE,
+  VAMPIRE,
+  WITCH,
+  PUMPKIN_HEAD,
+  WEIRDO,
+  CLOWN,
   PERSON,
   TABS,
   FIGHTERS,
@@ -39,6 +44,32 @@ export type SpawnChoice =
   | { type: 'person'; look: PersonLook }
   | { type: 'item'; kind: ItemKind }
   | { type: 'block'; kind: BlockKind };
+
+/** The modes that bring special things into the menu. */
+type SpecialMode = 'horror' | 'crazy';
+
+/**
+ * The special things of each mode, by page: they are in the menu only while that mode
+ * is on. Horror mode brings a vampire, a witch, a pumpkin head and a pumpkin lantern;
+ * crazy mode brings Mr. Strange, a clown and a confetti gun.
+ */
+const SPECIALS: Record<SpecialMode, Partial<Record<TabId, readonly SpawnChoice[]>>> = {
+  horror: {
+    people: [
+      { type: 'person', look: VAMPIRE },
+      { type: 'person', look: WITCH },
+      { type: 'person', look: PUMPKIN_HEAD },
+    ],
+    items: [{ type: 'block', kind: 'jackLantern' }],
+  },
+  crazy: {
+    people: [
+      { type: 'person', look: WEIRDO },
+      { type: 'person', look: CLOWN },
+    ],
+    items: [{ type: 'item', kind: 'confettiGun' }],
+  },
+};
 
 /** Every page starts with an empty slot: with that picked, a click puts nothing in. */
 const NOTHING: SpawnChoice = { type: 'none' };
@@ -164,12 +195,20 @@ export class SpawnMenu {
       const kind = GOLDEN_KINDS[this.selectedIndex - 1];
       return kind && this.selectedIndex <= this.unlocked ? `golden:${kind}` : 'none';
     }
+    const plain = CHOICES[this.tab].length;
+    if (this.selectedIndex >= plain) {
+      const special = this.specials()[this.selectedIndex - plain];
+      return special ? `${special.mode}:${this.tab}:${String(special.index)}` : 'none';
+    }
     return `${this.tab}:${String(this.selectedIndex)}`;
   }
 
   /** What a code from `selectedCode` means: the same thing in every game. */
   static choiceFromCode(code: string): SpawnChoice {
-    const [tab = '', at = ''] = code.split(':');
+    const [tab = '', at = '', more = ''] = code.split(':');
+    if (tab === 'horror' || tab === 'crazy') {
+      return SPECIALS[tab][at as TabId]?.[Number(more)] ?? NOTHING;
+    }
     if (tab === 'golden') {
       const kind = GOLDEN_KINDS.find((golden) => golden === at);
       return kind ? { type: 'item', kind } : NOTHING;
@@ -228,13 +267,26 @@ export class SpawnMenu {
 
   /** The things on the open page. The golden page shows what has been won, and padlocks for the rest. */
   private choices(): readonly SpawnChoice[] {
-    if (this.tab !== 'golden') return CHOICES[this.tab];
+    if (this.tab !== 'golden') {
+      // Horror mode and crazy mode each bring special things of their own, at the end of a page
+      return [...CHOICES[this.tab], ...this.specials().map(({ choice }) => choice)];
+    }
     return [
       NOTHING,
       ...GOLDEN_KINDS.map((kind, index): SpawnChoice =>
         index < this.unlocked ? { type: 'item', kind } : { type: 'locked' },
       ),
     ];
+  }
+
+  /** The special things on the open page now: those of horror mode and of crazy mode, if on. */
+  private specials(): { mode: SpecialMode; index: number; choice: SpawnChoice }[] {
+    const modes: SpecialMode[] = [];
+    if (this.horrorOn) modes.push('horror');
+    if (this.crazyOn) modes.push('crazy');
+    return modes.flatMap((mode) =>
+      (SPECIALS[mode][this.tab] ?? []).map((choice, index) => ({ mode, index, choice })),
+    );
   }
 
   /** This many of the golden weapons have been won: they are on the golden page from now on. */
@@ -255,6 +307,7 @@ export class SpawnMenu {
   showHorror(on: boolean): void {
     if (this.horrorOn === on) return;
     this.horrorOn = on;
+    this.keepPick();
     this.showPage();
   }
 
@@ -262,7 +315,13 @@ export class SpawnMenu {
   showCrazy(on: boolean): void {
     if (this.crazyOn === on) return;
     this.crazyOn = on;
+    this.keepPick();
     this.showPage();
+  }
+
+  /** A special thing that was picked is gone with its mode: the first thing is picked instead. */
+  private keepPick(): void {
+    if (this.selectedIndex >= this.choices().length) this.selectedIndex = FIRST_THING;
   }
 
   /** The slots of the open page: narrower than usual when the page holds many things. */
@@ -313,9 +372,13 @@ export class SpawnMenu {
       panel.fillRoundedRect(button.x, button.y, button.width, button.height, MENU.slotRadius);
     }
 
+    const plain = this.tab === 'golden' ? Infinity : CHOICES[this.tab].length;
+    const specials = this.specials();
     this.choices().forEach((choice, index) => {
       const slot = slotRect(this.row(), index);
-      panel.fillStyle(MENU.slotColor);
+      // A special thing of horror mode or crazy mode has a slot of that mode's color
+      const special = index >= plain ? specials[index - plain] : undefined;
+      panel.fillStyle(special ? MENU.specialColors[special.mode] : MENU.slotColor);
       panel.fillRoundedRect(slot.x, slot.y, slot.width, slot.height, MENU.slotRadius);
 
       const middleX = slot.x + slot.width / 2;
