@@ -130,6 +130,13 @@ export class Sfx {
     oscillator.stop(at + slide.seconds);
   }
 
+  /** A clown horn, just like in the silly music, right now. */
+  honk(): void {
+    const context = this.context;
+    if (!context || !this.ready('honk')) return;
+    this.clownHorn(context.currentTime, context.destination);
+  }
+
   /** A clown horn: two quick, nasal honks. */
   private clownHorn(at: number, out: AudioNode): void {
     const context = this.context;

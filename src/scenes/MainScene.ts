@@ -32,6 +32,7 @@ import {
   HINT,
   HORROR,
   SHADOW_MONSTER,
+  WEIRDO,
   UNICORN,
   RAINBOW,
   HIT_FX,
@@ -305,6 +306,16 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
   private crazyTint!: Phaser.GameObjects.Rectangle;
   private crazyMs = 0;
   private crazyDancers = new Set<Person>();
+  /**
+   * Mr. Strange of crazy mode: the one who is here (or `null`), the time until he
+   * comes, how long he still stays, and the time until his next trick.
+   */
+  private weirdo: { doll: Person | null; waitMs: number; stayMs: number; trickMs: number } = {
+    doll: null,
+    waitMs: 0,
+    stayMs: 0,
+    trickMs: 0,
+  };
   /** Green puke on the floor: where it came from, where its middle is, and how long ago. */
   private pukes: { mouth: Spot; x: number; ms: number }[] = [];
   private pukeLayer!: Phaser.GameObjects.Graphics;
@@ -3723,6 +3734,87 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
     }
   }
 
+  /**
+   * Mr. Strange comes now and then while crazy mode is on, stays a while doing his
+   * trick every few seconds, and goes again.
+   */
+  private bringWeirdo(delta: number): void {
+    const weirdo = this.weirdo;
+    const { againMs, trickEveryMs } = CRAZY.weirdo;
+    const doll = weirdo.doll;
+    if (doll && (!this.people.includes(doll) || doll.dead)) {
+      // Somebody got him: he comes back later all the same
+      weirdo.doll = null;
+      weirdo.waitMs = this.someTime(againMs);
+    }
+    if (!weirdo.doll) {
+      weirdo.waitMs -= delta;
+      if (weirdo.waitMs <= 0) this.weirdoComes();
+      return;
+    }
+    weirdo.stayMs -= delta;
+    if (weirdo.stayMs <= 0) {
+      this.weirdoGoes();
+      return;
+    }
+    weirdo.trickMs -= delta;
+    if (weirdo.trickMs > 0) return;
+    weirdo.trickMs = trickEveryMs;
+    this.weirdTrick(weirdo.doll);
+  }
+
+  /** Out of nowhere, in a burst of confetti and a boing: Mr. Strange, on his hands. */
+  private weirdoComes(): void {
+    const { stayMs, trickEveryMs, arrive, trickSize, ms, grow } = CRAZY.weirdo;
+    const margin = PERSON.halfWidth * 3;
+    const x = AREA.left + margin + Math.random() * (AREA.right - AREA.left - margin * 2);
+    const doll = this.addPerson(WEIRDO, x, AREA.floorY);
+    doll.toggle('walk');
+    if (Math.random() < 0.5) doll.turn();
+    this.weirdo = { doll, waitMs: 0, stayMs, trickMs: trickEveryMs / 2 };
+    this.world.fireworks(x, AREA.floorY - 20);
+    this.sfx.boing();
+    const emoji = arrive[Math.floor(Math.random() * arrive.length)] ?? '❓';
+    this.popUp(x, AREA.floorY - PERSON.height * 1.6, emoji, trickSize, ms, grow);
+    while (this.people.length > PERSON.max) {
+      this.forgetOldest(this.people.filter((person) => person !== doll));
+    }
+  }
+
+  /** Off he goes, the way he came: confetti, a puff, and he is gone. */
+  private weirdoGoes(): void {
+    const doll = this.weirdo.doll;
+    this.weirdo = {
+      doll: null,
+      waitMs: this.someTime(CRAZY.weirdo.againMs),
+      stayMs: 0,
+      trickMs: 0,
+    };
+    if (!doll || !this.people.includes(doll)) return;
+    this.world.fireworks(doll.feet.x, AREA.floorY - 20);
+    this.puff(doll.feet.x, doll.feet.y - PERSON.height / 2);
+    this.forget([doll]);
+  }
+
+  /**
+   * His trick: a honk, and every doll near him stands on its hands too, for a while.
+   * Every other doll there is reacts: a face pops up over its head.
+   */
+  private weirdTrick(weirdo: Person): void {
+    const { reach, flipMs, tricks, reactions, trickSize, reactionSize, ms, grow, up } =
+      CRAZY.weirdo;
+    const pick = (from: readonly string[]): string =>
+      from[Math.floor(Math.random() * from.length)] ?? '❓';
+    this.sfx.honk();
+    const top = weirdo.hitBox.top;
+    this.popUp(weirdo.feet.x, top - up, pick(tricks), trickSize, ms, grow);
+    for (const doll of this.people) {
+      if (doll === weirdo || doll.dead) continue;
+      if (Math.abs(doll.feet.x - weirdo.feet.x) <= reach) doll.standOnHands(flipMs);
+      this.popUp(doll.feet.x, doll.hitBox.top - up, pick(reactions), reactionSize, ms, grow);
+    }
+  }
+
   /** A doll blows up into a cloud of poop glitter, and is gone. */
   private glitter(doll: Person): void {
     const box = doll.hitBox;
@@ -3753,6 +3845,9 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
     this.menu.showCrazy(on);
     this.crazyTint.setVisible(on);
     this.crazyMs = 0;
+    // Mr. Strange comes a moment after it starts, and goes when it ends
+    if (this.weirdo.doll) this.weirdoGoes();
+    this.weirdo = { doll: null, waitMs: CRAZY.weirdo.firstMs, stayMs: 0, trickMs: 0 };
     if (on) {
       const { emoji, fontSize, ms, grow } = CRAZY.popUp;
       this.popUp(
@@ -3776,6 +3871,7 @@ export class MainScene extends Phaser.Scene implements NetPlayable {
    * just standing about starts to dance, and stops again when crazy mode is over.
    */
   private craze(delta: number): void {
+    if (this.crazy) this.bringWeirdo(delta);
     if (this.crazy) {
       this.crazyMs = (this.crazyMs + delta) % CRAZY.tint.ms;
       const hue = this.crazyMs / CRAZY.tint.ms;

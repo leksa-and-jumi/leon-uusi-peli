@@ -238,3 +238,14 @@ describe('crazy poses', () => {
     expect(poseFor('puke', 0).waist).toBeGreaterThan(0.5);
   });
 });
+
+describe('standing on the hands', () => {
+  it('has both arms straight up over the head, and the legs kicking in turn', () => {
+    const pose = poseFor('handstand', 0);
+    expect(pose.frontArm).toBeCloseTo(-Math.PI);
+    expect(pose.backArm).toBeCloseTo(-Math.PI);
+    const later = poseFor('handstand', MOVES.handstand.stepMs / 4);
+    expect(later.frontLeg).toBeGreaterThan(pose.frontLeg);
+    expect(later.backLeg).toBeLessThan(pose.backLeg);
+  });
+});
