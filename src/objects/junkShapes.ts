@@ -58,6 +58,8 @@ export function drawJunk(g: Graphics, kind: JunkBlockKind | MonsterKind): Graphi
       return drawWraith(g, def);
     case 'candle':
       return drawCandle(g, def);
+    case 'jackLantern':
+      return drawJackLantern(g, def);
     case 'batMonster':
       return drawBatMonster(g, def);
     case 'ufo':
@@ -937,6 +939,50 @@ function drawCandle(g: Graphics, def: BlockDef): Graphics {
   g.fillEllipse(0.5, wax.top - 7, 3.6, 7);
   g.fillStyle(0xffffff);
   g.fillEllipse(0.5, wax.top - 5.5, 1.6, 3);
+  return g;
+}
+
+/**
+ * A pumpkin lantern: a fat orange pumpkin with ridges and a stem, and a face carved
+ * into it (three-cornered eyes and nose, a grin with teeth) glowing with the candle inside.
+ */
+function drawJackLantern(g: Graphics, def: BlockDef): Graphics {
+  const { fill, dark, light, detail } = def.colors;
+  const { halfWidth, height } = def;
+  const middle = -height / 2 + 2;
+  const tall = height - 6;
+  g.fillStyle(dark);
+  g.fillEllipse(0, middle, halfWidth * 2, tall);
+  // The ridges: side lobes, darker, and the middle one in front
+  g.fillStyle(fill);
+  g.fillEllipse(-halfWidth * 0.45, middle, halfWidth * 1.1, tall - 2);
+  g.fillEllipse(halfWidth * 0.45, middle, halfWidth * 1.1, tall - 2);
+  g.fillStyle(shade(fill, 0.08));
+  g.fillEllipse(0, middle, halfWidth * 0.95, tall - 1);
+  g.fillStyle(light, 0.55);
+  g.fillEllipse(-halfWidth * 0.45, middle - tall * 0.22, 5, 8);
+  // The stem
+  g.fillStyle(detail);
+  g.fillRoundedRect(-2.5, middle - tall / 2 - 5, 5, 7, 2);
+  // The face, glowing
+  const glow = 0xffd54f;
+  g.fillStyle(0xff6f00, 0.6);
+  g.fillEllipse(0, middle + 2, halfWidth * 1.5, tall * 0.7);
+  g.fillStyle(glow);
+  g.fillTriangle(-10, middle - 3, -3, middle - 3, -6.5, middle - 9);
+  g.fillTriangle(3, middle - 3, 10, middle - 3, 6.5, middle - 9);
+  g.fillTriangle(-2, middle + 1, 2, middle + 1, 0, middle - 2.5);
+  g.beginPath();
+  g.moveTo(-11, middle + 4);
+  g.lineTo(11, middle + 4);
+  g.lineTo(7, middle + 10);
+  g.lineTo(-7, middle + 10);
+  g.closePath();
+  g.fillPath();
+  // Teeth left in the grin
+  g.fillStyle(fill);
+  g.fillRect(-4.5, middle + 4, 3, 2.6);
+  g.fillRect(2, middle + 7.6, 3, 2.4);
   return g;
 }
 

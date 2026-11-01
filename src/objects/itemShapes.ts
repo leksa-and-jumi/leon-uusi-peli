@@ -59,6 +59,8 @@ export function drawItem(g: Graphics, kind: ItemKind): Graphics {
       return drawFlamethrower(g);
     case 'freezeRay':
       return drawRayGun(g, ITEM_COLORS.freezeRay);
+    case 'confettiGun':
+      return drawConfettiGun(g);
     case 'laserGun': {
       const c = ITEM_COLORS.laser;
       return drawRayGun(g, { ...c, shine: 0xffffff, crystal: c.glow });
@@ -598,6 +600,22 @@ function drawRayGun(
   ]);
   g.lineStyle(1.5, c.dark);
   g.strokeRoundedRect(6, 1, 6, 5, 2);
+  return g;
+}
+
+/** A party ray gun in pink and purple, with confetti stuck all over it. */
+function drawConfettiGun(g: Graphics): Graphics {
+  drawRayGun(g, ITEM_COLORS.confettiGun);
+  const dots: readonly [number, number, number][] = [
+    [-2, -5, 0xffeb3b],
+    [4, -3, 0x69f0ae],
+    [9, -6, 0x40c4ff],
+    [14, -3, 0xff9100],
+  ];
+  for (const [x, y, color] of dots) {
+    g.fillStyle(color);
+    g.fillRect(x, y, 2.2, 2.2);
+  }
   return g;
 }
 

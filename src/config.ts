@@ -242,7 +242,9 @@ export interface PersonLook {
     | 'bandages'
     | 'apron'
     | 'flatCap'
-    | 'shadow';
+    | 'shadow'
+    | 'pumpkin'
+    | 'clownNose';
   /** How many hits it takes, when not the usual `PERSON.lives`. */
   lives?: number;
   /** How much faster (above 1) or slower (below 1) than usual it walks and runs. */
@@ -534,6 +536,59 @@ export const WEIRDO = {
   },
 } as const satisfies PersonLook;
 
+/** Only in the menu in horror mode: a vampire, a witch and a doll with a pumpkin for a head. */
+export const VAMPIRE = {
+  body: 0xe6e3ef,
+  joint: 0x9e9aad,
+  eye: 0xd50000,
+  human: {
+    skin: 0xe6e3ef,
+    hair: 0x111111,
+    style: 'short',
+    shirt: 0x1a1a1a,
+    sleeves: 'long',
+    trousers: 0x1a1a1a,
+    shoes: 0x0d0d0d,
+  },
+} as const satisfies PersonLook;
+
+export const WITCH = {
+  body: 0x8bc34a,
+  joint: 0x558b2f,
+  extra: 'wizardHat',
+  human: {
+    skin: 0x8bc34a,
+    hair: 0x1b1b1b,
+    style: 'long',
+    shirt: 0x4a148c,
+    sleeves: 'long',
+    trousers: 0x212121,
+    shoes: 0x212121,
+  },
+} as const satisfies PersonLook;
+
+export const PUMPKIN_HEAD = {
+  body: 0x3e2a1f,
+  joint: 0x24170f,
+  extra: 'pumpkin',
+} as const satisfies PersonLook;
+
+/** Only in the menu in crazy mode: a clown, with a red nose and rainbow tufts of hair. */
+export const CLOWN = {
+  body: 0xfafafa,
+  joint: 0xd32f2f,
+  extra: 'clownNose',
+  human: {
+    skin: 0xfafafa,
+    hair: 0xfafafa,
+    style: 'bald',
+    shirt: 0xffeb3b,
+    sleeves: 'long',
+    trousers: 0x29b6f6,
+    shoes: 0xd32f2f,
+  },
+} as const satisfies PersonLook;
+
 /** Standing on its hands, its feet are this far above its hands (times its size). */
 export const HANDSTAND = { reach: 126 } as const;
 
@@ -710,6 +765,8 @@ export const EXTRA_COLORS = {
   patches: { blotch: 0x5a6e38 },
   crown: { gold: 0xffd54f, dark: 0xb8860b, jewel: 0xe53935 },
   wizardHat: { hat: 0x311b92, light: 0x5e35b1, star: 0xffd54f },
+  pumpkin: { skin: 0xff8f00, ridge: 0xd96c00, light: 0xffb74d, stem: 0x5d4037, glow: 0xffea00 },
+  clownNose: { nose: 0xe53935, shine: 0xffcdd2, tufts: [0xff5252, 0xffeb3b, 0x40c4ff] },
   vikingHelmet: {
     steel: 0x90a4ae,
     dark: 0x455a64,
@@ -1320,6 +1377,8 @@ export const MENU = {
   /** A picture in a slot is made small enough to leave this much room around it. */
   slotPadding: 5,
   slotColor: 0x9e9e9e,
+  /** The slots of the special things that only horror mode or crazy mode brings. */
+  specialColors: { horror: 0xe65100, crazy: 0xd81b60 },
   slotRadius: 10,
   selected: { color: 0xffd54f, width: 5 },
   /** Dolls in the menu are drawn this much smaller. */
@@ -1493,7 +1552,8 @@ export type JunkBlockKind =
   | 'cone'
   | 'tire'
   | 'piano'
-  | 'candle';
+  | 'candle'
+  | 'jackLantern';
 /** The things on the vehicles page. They are solid like building pieces, and they drive. */
 export type VehicleKind =
   | 'car'
@@ -2496,6 +2556,15 @@ export const BLOCKS: Record<BlockKind, BlockDef> = {
     colors: { fill: 0xf3ead2, dark: 0x8d7f63, light: 0xffffff, detail: 0xb08d57 },
     glows: { up: 36, radius: 150 },
   },
+  // A pumpkin lantern with a carved face and a candle inside: it lights the dark
+  jackLantern: {
+    burns: true,
+    halfWidth: 20,
+    height: 34,
+    menuScale: 1.2,
+    colors: { fill: 0xff8f00, dark: 0xb35900, light: 0xffb74d, detail: 0x5d4037 },
+    glows: { up: 16, radius: 170 },
+  },
   piano: {
     keys: [262, 294, 330, 349, 392, 440, 494, 523],
     burns: true,
@@ -3259,6 +3328,8 @@ export interface GunDef {
   frost?: { ms: number; width: number; height: number; color: number };
   /** A cannon: its bullet is a big shell that goes off with this blast where it hits. */
   shell?: { blast: BlastDef; width: number; height: number; color: number };
+  /** Party time: its bullets burst into confetti where they hit, and hurt nobody. */
+  confetti?: { pieces: number; colors: readonly number[] };
 }
 
 /**
@@ -3389,7 +3460,8 @@ export type OddItemKind =
   | 'magnet'
   | 'balloon'
   | 'firework'
-  | 'stinkBomb';
+  | 'stinkBomb'
+  | 'confettiGun';
 /** What a catapult hurls. It isn't in the menu. */
 export type AmmoKind = 'boulder';
 /** Gear a doll wears: it takes the hits for the doll, until it breaks. */
@@ -4304,6 +4376,30 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
       frost: { ms: 6000, width: 14, height: 9, color: 0xb3e5fc },
     },
   },
+  // Only in crazy mode: it shoots little bursts of confetti that hurt nobody
+  confettiGun: {
+    melts: true,
+    crumbs: [0xff4fa3, 0x7c4dff, 0xffeb3b],
+    halfWidth: 22,
+    height: 22,
+    menuScale: 1.5,
+    lie: { x: -15, y: -13 },
+    hand: { rotation: Math.PI / 2, along: 0 },
+    gun: {
+      range: 520,
+      damage: 0,
+      everyMs: 500,
+      autoMs: 300,
+      bulletSpeed: 650,
+      muzzle: { x: 92, y: 86 },
+      barrelUp: 15,
+      look: { width: 12, height: 7, color: 0xff4fa3, rainbow: true },
+      confetti: {
+        pieces: 26,
+        colors: [0xff4fa3, 0x7c4dff, 0xffeb3b, 0x69f0ae, 0x40c4ff, 0xff9100, 0xffffff],
+      },
+    },
+  },
   // It pulls in everything made of metal: weapons, cars, steel beams, robots and knights
   magnet: {
     melts: true,
@@ -4594,6 +4690,13 @@ export const ITEM_COLORS = {
   laser: { body: 0xeceff1, dark: 0x78909c, glow: 0xff1744, grip: 0x37474f },
   laserSword: { grip: 0x90a4ae, dark: 0x37474f, glow: 0x00e676, core: 0xffffff, button: 0xff1744 },
   freezeRay: { body: 0x4fc3f7, dark: 0x0277bd, shine: 0xe1f5fe, crystal: 0xffffff, grip: 0x37474f },
+  confettiGun: {
+    body: 0xff4fa3,
+    dark: 0x7c4dff,
+    shine: 0xffffff,
+    crystal: 0xffeb3b,
+    grip: 0x00bfa5,
+  },
   magnet: { red: 0xd32f2f, dark: 0x7f1d1d, shine: 0xff8a80, tip: 0xcfd8dc, tipDark: 0x78909c },
   balloon: { red: 0xe53935, dark: 0x9a1b1b, shine: 0xffcdd2, string: 0xfafafa },
   thunder: {
